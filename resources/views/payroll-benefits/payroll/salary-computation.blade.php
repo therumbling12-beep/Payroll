@@ -37,9 +37,47 @@
             showManualModal: false,
             showAiInsightModal: false,
             activeLog: null,
-            openAiInsight(log) {
+            activeComp: null,
+            activeOverride: {
+                employee_id: '',
+                cutoff_period: '{{ $cutoff }}',
+                base_pay: '',
+                trip_earnings: '',
+                performance_bonus: '',
+                sss_deduction: '',
+                philhealth_deduction: '',
+                pagibig_deduction: ''
+            },
+            openAiInsight(log, comp = null) {
                 this.activeLog = log;
+                this.activeComp = comp;
                 this.showAiInsightModal = true;
+            },
+            openOverrideModal(comp = null) {
+                if (comp) {
+                    this.activeOverride = {
+                        employee_id: comp.employee_id || '',
+                        cutoff_period: comp.cutoff_period || '{{ $cutoff }}',
+                        base_pay: comp.base_pay || '',
+                        trip_earnings: comp.trip_earnings || '',
+                        performance_bonus: comp.performance_bonus || '',
+                        sss_deduction: comp.sss_deduction || '',
+                        philhealth_deduction: comp.philhealth_deduction || '',
+                        pagibig_deduction: comp.pagibig_deduction || ''
+                    };
+                } else {
+                    this.activeOverride = {
+                        employee_id: '',
+                        cutoff_period: '{{ $cutoff }}',
+                        base_pay: '',
+                        trip_earnings: '',
+                        performance_bonus: '',
+                        sss_deduction: '',
+                        philhealth_deduction: '',
+                        pagibig_deduction: ''
+                    };
+                }
+                this.showManualModal = true;
             },
             toggleSelectAll(ids) {
                 this.selectAll = !this.selectAll;
@@ -228,7 +266,7 @@
                             </td>
                             <td class="py-3.5 px-4 text-center">
                                 @if($comp->aiComplianceLog)
-                                    <button @click="openAiInsight({{ json_encode($comp->aiComplianceLog) }})" 
+                                    <button @click="openAiInsight({{ json_encode($comp->aiComplianceLog) }}, {{ \Illuminate\Support\Js::from($comp) }})" 
                                             type="button"
                                             class="px-2 py-1 rounded-lg text-[10px] font-bold transition-all hover:scale-105 shadow-2xs flex items-center gap-1 mx-auto {{ $comp->aiComplianceLog->status === 'PASSED' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100' : ($comp->aiComplianceLog->status === 'WARNING' ? 'bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100' : 'bg-red-50 text-red-700 border border-red-200 hover:bg-red-100') }}">
                                         🤖 Groq {{ $comp->aiComplianceLog->compliance_score }}%
@@ -245,7 +283,7 @@
                                 
                                 <!-- DYNAMIC MANUAL OVERRIDE: ONLY VISIBLE IF AI COMPLIANCE DETECTED AN ANOMALY -->
                                 @if($comp->aiComplianceLog && $comp->aiComplianceLog->status !== 'PASSED')
-                                    <button @click="showManualModal = true" type="button" class="px-2 py-1 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-bold rounded-lg text-[10px] transition-all flex items-center gap-1" title="AI Anomaly Detected: Manual Adjustment Unlocked">
+                                    <button @click="openOverrideModal({{ \Illuminate\Support\Js::from($comp) }})" type="button" class="px-2 py-1 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-bold rounded-lg text-[10px] transition-all flex items-center gap-1" title="AI Anomaly Detected: Manual Adjustment Unlocked">
                                         <svg class="w-3 h-3 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
                                         </svg>
@@ -410,7 +448,7 @@
                                 Close Insights
                             </button>
                             <template x-if="activeLog.status !== 'PASSED'">
-                                <button @click="showAiInsightModal = false; showManualModal = true" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-xl transition-all shadow-sm">
+                                <button @click="showAiInsightModal = false; openOverrideModal(activeComp)" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-xl transition-all shadow-sm">
                                     Open Manual Override
                                 </button>
                             </template>
@@ -441,7 +479,7 @@
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                             <label class="block text-xs font-bold text-gray-700 mb-1">Select Employee *</label>
-                            <select name="employee_id" required class="w-full text-xs bg-gray-50 border border-gray-200 rounded-xl p-2.5 font-semibold text-gray-800 focus:outline-none focus:border-[#F44336]">
+                            <select name="employee_id" x-model="activeOverride.employee_id" required class="w-full text-xs bg-gray-50 border border-gray-200 rounded-xl p-2.5 font-semibold text-gray-800 focus:outline-none focus:border-[#F44336]">
                                 <option value="">-- Choose Employee --</option>
                                 @foreach($employees as $emp)
                                     <option value="{{ $emp->id }}">{{ $emp->first_name }} {{ $emp->last_name }} ({{ $emp->position }})</option>
@@ -451,9 +489,9 @@
 
                         <div>
                             <label class="block text-xs font-bold text-gray-700 mb-1">Cutoff Period *</label>
-                            <select name="cutoff_period" required class="w-full text-xs bg-gray-50 border border-gray-200 rounded-xl p-2.5 font-semibold text-gray-800 focus:outline-none focus:border-[#F44336]">
-                                <option value="2026-07-01_15" {{ $cutoff === '2026-07-01_15' ? 'selected' : '' }}>July 1 – July 15, 2026 (1st Cutoff)</option>
-                                <option value="2026-07-16_31" {{ $cutoff === '2026-07-16_31' ? 'selected' : '' }}>July 16 – July 31, 2026 (2nd Cutoff)</option>
+                            <select name="cutoff_period" x-model="activeOverride.cutoff_period" required class="w-full text-xs bg-gray-50 border border-gray-200 rounded-xl p-2.5 font-semibold text-gray-800 focus:outline-none focus:border-[#F44336]">
+                                <option value="2026-07-01_15">July 1 – July 15, 2026 (1st Cutoff)</option>
+                                <option value="2026-07-16_31">July 16 – July 31, 2026 (2nd Cutoff)</option>
                             </select>
                         </div>
                     </div>
@@ -463,15 +501,15 @@
                         <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                             <div>
                                 <label class="block text-[11px] font-semibold text-gray-600 mb-1">Base Pay (₱) *</label>
-                                <input type="number" step="0.01" name="base_pay" required placeholder="12500.00" class="w-full text-xs bg-gray-50 border border-gray-200 rounded-xl p-2.5 font-bold text-gray-900 focus:outline-none focus:border-[#F44336]">
+                                <input type="number" step="0.01" name="base_pay" x-model="activeOverride.base_pay" required placeholder="12500.00" class="w-full text-xs bg-gray-50 border border-gray-200 rounded-xl p-2.5 font-bold text-gray-900 focus:outline-none focus:border-[#F44336]">
                             </div>
                             <div>
                                 <label class="block text-[11px] font-semibold text-gray-600 mb-1">Trip Earnings (₱)</label>
-                                <input type="number" step="0.01" name="trip_earnings" placeholder="0.00" class="w-full text-xs bg-gray-50 border border-gray-200 rounded-xl p-2.5 font-bold text-gray-900 focus:outline-none focus:border-[#F44336]">
+                                <input type="number" step="0.01" name="trip_earnings" x-model="activeOverride.trip_earnings" placeholder="0.00" class="w-full text-xs bg-gray-50 border border-gray-200 rounded-xl p-2.5 font-bold text-gray-900 focus:outline-none focus:border-[#F44336]">
                             </div>
                             <div>
                                 <label class="block text-[11px] font-semibold text-gray-600 mb-1">Performance Bonus (₱)</label>
-                                <input type="number" step="0.01" name="performance_bonus" placeholder="0.00" class="w-full text-xs bg-gray-50 border border-gray-200 rounded-xl p-2.5 font-bold text-gray-900 focus:outline-none focus:border-[#F44336]">
+                                <input type="number" step="0.01" name="performance_bonus" x-model="activeOverride.performance_bonus" placeholder="0.00" class="w-full text-xs bg-gray-50 border border-gray-200 rounded-xl p-2.5 font-bold text-gray-900 focus:outline-none focus:border-[#F44336]">
                             </div>
                         </div>
                     </div>
@@ -481,15 +519,15 @@
                         <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                             <div>
                                 <label class="block text-[11px] font-semibold text-gray-600 mb-1">SSS Deduction (₱)</label>
-                                <input type="number" step="0.01" name="sss_deduction" placeholder="Auto" class="w-full text-xs bg-gray-50 border border-gray-200 rounded-xl p-2.5 font-bold text-gray-900 focus:outline-none focus:border-[#F44336]">
+                                <input type="number" step="0.01" name="sss_deduction" x-model="activeOverride.sss_deduction" placeholder="Auto" class="w-full text-xs bg-gray-50 border border-gray-200 rounded-xl p-2.5 font-bold text-gray-900 focus:outline-none focus:border-[#F44336]">
                             </div>
                             <div>
                                 <label class="block text-[11px] font-semibold text-gray-600 mb-1">PhilHealth Deduction (₱)</label>
-                                <input type="number" step="0.01" name="philhealth_deduction" placeholder="Auto" class="w-full text-xs bg-gray-50 border border-gray-200 rounded-xl p-2.5 font-bold text-gray-900 focus:outline-none focus:border-[#F44336]">
+                                <input type="number" step="0.01" name="philhealth_deduction" x-model="activeOverride.philhealth_deduction" placeholder="Auto" class="w-full text-xs bg-gray-50 border border-gray-200 rounded-xl p-2.5 font-bold text-gray-900 focus:outline-none focus:border-[#F44336]">
                             </div>
                             <div>
                                 <label class="block text-[11px] font-semibold text-gray-600 mb-1">Pag-IBIG Deduction (₱)</label>
-                                <input type="number" step="0.01" name="pagibig_deduction" placeholder="Auto" class="w-full text-xs bg-gray-50 border border-gray-200 rounded-xl p-2.5 font-bold text-gray-900 focus:outline-none focus:border-[#F44336]">
+                                <input type="number" step="0.01" name="pagibig_deduction" x-model="activeOverride.pagibig_deduction" placeholder="Auto" class="w-full text-xs bg-gray-50 border border-gray-200 rounded-xl p-2.5 font-bold text-gray-900 focus:outline-none focus:border-[#F44336]">
                             </div>
                         </div>
                     </div>
