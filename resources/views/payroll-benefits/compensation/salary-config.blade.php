@@ -11,7 +11,7 @@
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
             <h1 class="text-xl font-extrabold font-outfit text-gray-900">Salary Ranges & Configuration</h1>
-            <p class="text-xs text-gray-500 mt-0.5">Determine compensation brackets by position hierarchy and tenure multipliers.</p>
+            <p class="text-xs text-gray-500 mt-0.5">Determine compensation brackets by position hierarchy and tenure growth multipliers.</p>
         </div>
         <div class="flex items-center gap-3">
             <span class="flex items-center gap-1.5 text-xs font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-full">
@@ -31,45 +31,39 @@
         </div>
     @endif
 
-    <!-- Overview KPI Cards -->
-    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-        <div class="bg-white rounded-2xl border border-gray-100 p-4 hover:shadow-md transition-shadow">
-            <div class="flex items-start justify-between mb-3">
-                <div class="w-9 h-9 rounded-xl bg-red-50 flex items-center justify-center text-[#F44336]">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
-                    </svg>
-                </div>
-                <span class="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full">Active</span>
+    <!-- Official Company Salary Grade Brackets Matrix (Janitor to Executive) -->
+    <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-8 shadow-sm">
+        <div class="flex items-center justify-between mb-4">
+            <div>
+                <h2 class="text-base font-extrabold font-outfit text-gray-900">Official Company Salary Grade Matrix</h2>
+                <p class="text-xs text-gray-400">Position brackets ranging from lowest entry-level (Janitor) to executive management.</p>
             </div>
-            <p class="text-2xl font-extrabold font-outfit text-gray-900">{{ $employees->total() }} Employees</p>
-            <p class="text-xs text-gray-500 mt-0.5">Configured Base Salary Records</p>
+            <span class="px-3 py-1 bg-red-50 text-[#F44336] text-xs font-bold rounded-full">Compensation Planning Standard</span>
         </div>
 
-        <div class="bg-white rounded-2xl border border-gray-100 p-4 hover:shadow-md transition-shadow">
-            <div class="flex items-start justify-between mb-3">
-                <div class="w-9 h-9 rounded-xl bg-red-50 flex items-center justify-center text-[#F44336]">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
-                    </svg>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            @foreach($salaryGrades as $grade)
+                <div class="bg-gray-50 rounded-2xl p-4 border border-gray-200/60 hover:border-red-300 transition-colors">
+                    <div class="flex justify-between items-start mb-2">
+                        <span class="font-bold text-xs text-gray-900 font-outfit">{{ $grade->position_name }}</span>
+                        <span class="px-2 py-0.5 text-[10px] font-extrabold bg-emerald-100 text-emerald-800 rounded-full">+{{ $grade->annual_growth_rate }}%/yr</span>
+                    </div>
+                    <div class="space-y-1 text-xs">
+                        <div class="flex justify-between text-gray-500">
+                            <span>Minimum Floor:</span>
+                            <span class="font-semibold text-gray-800">₱{{ number_format($grade->min_salary, 2) }}</span>
+                        </div>
+                        <div class="flex justify-between text-gray-500">
+                            <span>Maximum Ceiling:</span>
+                            <span class="font-semibold text-gray-800">₱{{ number_format($grade->max_salary, 2) }}</span>
+                        </div>
+                        <div class="flex justify-between text-gray-500 pt-1 border-t border-gray-200">
+                            <span>Band Midpoint:</span>
+                            <span class="font-bold text-indigo-600">₱{{ number_format(($grade->min_salary + $grade->max_salary) / 2, 2) }}</span>
+                        </div>
+                    </div>
                 </div>
-                <span class="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full">+3.5% / Year</span>
-            </div>
-            <p class="text-2xl font-extrabold font-outfit text-gray-900">Tenure Multiplier</p>
-            <p class="text-xs text-gray-500 mt-0.5">Annual Experience Growth Factor</p>
-        </div>
-
-        <div class="bg-white rounded-2xl border border-gray-100 p-4 hover:shadow-md transition-shadow">
-            <div class="flex items-start justify-between mb-3">
-                <div class="w-9 h-9 rounded-xl bg-red-50 flex items-center justify-center text-[#F44336]">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                    </svg>
-                </div>
-                <span class="text-[10px] font-bold text-gray-600 bg-gray-100 px-1.5 py-0.5 rounded-full">Observer Active</span>
-            </div>
-            <p class="text-2xl font-extrabold font-outfit text-gray-900">100% Synced</p>
-            <p class="text-xs text-gray-500 mt-0.5">Feeds directly to Payroll Module</p>
+            @endforeach
         </div>
     </div>
 
@@ -94,57 +88,47 @@
         </div>
     </form>
 
-    <!-- Salary Brackets & Active Employee Base Rates Table -->
+    <!-- Active Employee Base Rates Table -->
     <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-8 shadow-sm">
         <div class="flex items-center justify-between mb-6">
             <div>
-                <h2 class="text-sm font-bold font-outfit text-gray-900">Active Base Salary Configurations</h2>
-                <p class="text-[10px] text-gray-400">Current employee rates used by the automated payroll engine</p>
+                <h3 class="text-sm font-bold text-gray-900 font-outfit">Employee Compensation Roster</h3>
+                <p class="text-xs text-gray-400">Current configured rates and assigned payment modes.</p>
             </div>
         </div>
 
         <div class="overflow-x-auto">
-            <table class="w-full text-left border-collapse">
+            <table class="w-full text-left text-xs">
                 <thead>
-                    <tr class="border-b border-gray-100 text-[11px] font-bold text-gray-400 uppercase tracking-wider">
-                        <th class="py-3 px-4">Employee</th>
-                        <th class="py-3 px-4">Position Title</th>
-                        <th class="py-3 px-4">Department</th>
-                        <th class="py-3 px-4">Daily Rate</th>
-                        <th class="py-3 px-4">Monthly Rate</th>
-                        <th class="py-3 px-4 text-right">Quick Rate Adjustment</th>
+                    <tr class="text-gray-400 font-semibold border-b border-gray-100 pb-2">
+                        <th class="pb-2">Employee</th>
+                        <th class="pb-2">Department</th>
+                        <th class="pb-2">Position</th>
+                        <th class="pb-2">Daily Rate</th>
+                        <th class="pb-2">Monthly Base</th>
+                        <th class="pb-2">Payment Mode</th>
                     </tr>
                 </thead>
-                <tbody class="divide-y divide-gray-50 text-xs">
+                <tbody class="divide-y divide-gray-50">
                     @forelse($employees as $emp)
-                        <tr class="hover:bg-gray-50/50 transition-colors">
-                            <td class="py-3.5 px-4 font-bold text-gray-900">
-                                <div>{{ $emp->first_name }} {{ $emp->last_name }}</div>
-                                <span class="text-[10px] text-gray-400 font-normal">{{ $emp->employee_code }}</span>
+                        <tr>
+                            <td class="py-3 font-bold text-gray-900">
+                                {{ $emp->first_name }} {{ $emp->last_name }}
+                                <span class="block text-[10px] text-gray-400 font-normal font-mono">{{ $emp->employee_code }}</span>
                             </td>
-                            <td class="py-3.5 px-4 font-semibold text-gray-700">{{ $emp->position }}</td>
-                            <td class="py-3.5 px-4">
-                                <span class="px-2 py-0.5 bg-blue-50 text-blue-700 font-bold rounded-md text-[10px]">{{ $emp->department?->name }}</span>
-                            </td>
-                            <td class="py-3.5 px-4 font-extrabold text-emerald-600">₱{{ number_format((float)$emp->daily_rate, 2) }} / day</td>
-                            <td class="py-3.5 px-4 font-extrabold text-emerald-600">₱{{ number_format((float)$emp->monthly_rate, 2) }} / mo</td>
-                            <td class="py-3.5 px-4 text-right">
-                                <form action="{{ route('compensation.adjustments.store') }}" method="POST" class="flex items-center justify-end gap-2">
-                                    @csrf
-                                    <input type="hidden" name="employee_id" value="{{ $emp->id }}">
-                                    <input type="hidden" name="type" value="salary_config">
-                                    <input type="hidden" name="reason" value="Manual Base Rate Re-Configuration">
-                                    
-                                    <input type="number" step="0.01" name="new_rate" placeholder="New Rate" required class="w-24 text-xs bg-gray-50 border border-gray-200 rounded-lg px-2 py-1 text-gray-800 focus:outline-none focus:border-[#F44336]">
-                                    <button type="submit" class="bg-gray-900 hover:bg-gray-800 text-white font-bold text-[10px] px-2.5 py-1 rounded-lg transition-colors">
-                                        Propose Rate
-                                    </button>
-                                </form>
+                            <td class="py-3 text-gray-600">{{ $emp->department->name ?? 'General' }}</td>
+                            <td class="py-3 font-medium text-gray-800">{{ $emp->position }}</td>
+                            <td class="py-3 font-mono">₱{{ number_format($emp->daily_rate ?? 0, 2) }}</td>
+                            <td class="py-3 font-mono font-bold text-gray-900">₱{{ number_format($emp->monthly_rate ?? 0, 2) }}</td>
+                            <td class="py-3 capitalize">
+                                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold {{ strtolower($emp->payment_method ?? 'bank') === 'bank' ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700' }}">
+                                    {{ $emp->payment_method ?? 'bank' }}
+                                </span>
                             </td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="6" class="py-6 text-center text-gray-400 text-xs">No employee salary configurations found.</td>
+                            <td colspan="6" class="py-4 text-center text-gray-400">No employee compensation records found.</td>
                         </tr>
                     @endforelse
                 </tbody>

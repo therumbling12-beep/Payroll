@@ -25,6 +25,9 @@ class Employee extends Model
         'monthly_rate',
         'payment_mode',
         'bank_account_no',
+        'payment_method',
+        'bank_name',
+        'bank_account_number',
     ];
 
     public function department(): BelongsTo

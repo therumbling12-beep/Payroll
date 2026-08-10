@@ -95,11 +95,44 @@ class ClaimController extends Controller
             'receipt_number' => 'nullable|string|max:255',
         ]);
 
+        $currentCutoff = now()->day <= 15 ? now()->format('Y-m-01_15') : now()->format('Y-m-16_31');
+
+        $employee = Employee::findOrFail($validated['employee_id']);
+        $amount = (float) $validated['amount'];
+
+        // Dynamic Position-Based Maternity Calculation (using dynamic company settings)
+        if ($validated['type'] === 'maternity') {
+            $workingDaysDivisor = (float) \App\Models\CompanySetting::getValue('standard_working_days_divisor', 26);
+            $maternityDays = (int) \App\Models\CompanySetting::getValue('maternity_leave_days', 105);
+
+            $dailyRate = $employee->daily_rate ?: (($employee->monthly_rate ?: 25000.00) / $workingDaysDivisor);
+            $amount = round($dailyRate * $maternityDays, 2);
+        }
+
+        // Driver Incentive Qualification Rule (e.g. ₱500 per 20 rides completed)
+        if ($validated['type'] === 'incentive' && str_contains($employee->position, 'Driver')) {
+            $threshold = (int) \App\Models\CompanySetting::getValue('driver_incentive_trip_threshold', 20);
+            $rewardPerThreshold = (float) \App\Models\CompanySetting::getValue('driver_incentive_reward_amount', 500.00);
+
+            $tripIncome = \App\Models\TripIncome::where('employee_id', $employee->id)
+                ->where('cutoff_period', $currentCutoff)
+                ->first();
+
+            $totalTrips = $tripIncome ? $tripIncome->total_trips : 0;
+
+            if ($totalTrips < $threshold) {
+                return redirect()->back()->with('error', "Driver has only completed {$totalTrips} rides. Minimum threshold is {$threshold} rides to qualify for incentive!");
+            }
+
+            $qualifiedMultiplier = floor($totalTrips / $threshold);
+            $amount = round($qualifiedMultiplier * $rewardPerThreshold, 2);
+        }
+
         Claim::create([
             'employee_id' => $validated['employee_id'],
             'type' => $validated['type'],
-            'amount' => $validated['amount'],
-            'cutoff_period' => '2026-07-01_15',
+            'amount' => $amount,
+            'cutoff_period' => $currentCutoff,
             'description' => $validated['description'],
             'receipt_number' => $validated['receipt_number'] ?? ('RCP-' . rand(10000, 99999)),
             'status' => 'pending',

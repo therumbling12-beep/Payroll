@@ -57,6 +57,7 @@ Route::prefix('compensation')->name('compensation.')->group(function () {
     Route::post('/adjustments', [CompensationController::class, 'storeAdjustment'])->name('adjustments.store');
     Route::post('/adjustments/{adjustment}/approve', [CompensationController::class, 'approveAdjustment'])->name('adjustments.approve');
     Route::post('/adjustments/{adjustment}/reject', [CompensationController::class, 'rejectAdjustment'])->name('adjustments.reject');
+    Route::post('/api/simulate-growth', [CompensationController::class, 'simulateCompensation'])->name('simulate');
 });
 
 // Team 4 Payroll Management Sub-Modules (Database & Controller Driven)
@@ -112,6 +113,13 @@ Route::prefix('analytics')->name('analytics.')->group(function () {
     Route::get('/performance', [AnalyticsController::class, 'performance'])->name('performance');
     Route::get('/payroll', [AnalyticsController::class, 'payroll'])->name('payroll');
     Route::get('/budget', [AnalyticsController::class, 'budget'])->name('budget');
+    Route::get('/overview', [AnalyticsController::class, 'overview'])->name('overview');
+});
+
+// Team 4 Employee Self-Service (ESS) Portal
+Route::prefix('ess')->name('ess.')->group(function () {
+    Route::get('/dashboard', [\App\Http\Controllers\EssController::class, 'index'])->name('dashboard');
+    Route::post('/bank-details', [\App\Http\Controllers\EssController::class, 'updateBankDetails'])->name('bank-details');
 });
 
 

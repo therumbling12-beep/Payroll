@@ -31,8 +31,49 @@
         </div>
     @endif
 
+    @if(session('error'))
+        <div class="mb-6 p-4 bg-red-50 border border-red-200 text-red-800 text-xs rounded-2xl font-bold flex items-center gap-2">
+            <svg class="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+            {{ session('error') }}
+        </div>
+    @endif
+
     <!-- Main Grid Layout -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8" x-data="{ mode: 'auto', experience: 5, credentials: 'master', proposedBase: 65000, maxBudget: 75000 }">
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8" 
+         x-data="{ 
+            mode: 'auto', 
+            experience: 3, 
+            certs: 1, 
+            proposedBase: 35500, 
+            budgetApproved: true,
+            budgetReason: 'Budget approved by Team 5 Financial Management',
+            calculateCounterOffer() {
+                if (this.mode !== 'auto') return;
+                fetch('{{ route('compensation.simulate') }}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                    },
+                    body: JSON.stringify({
+                        position: 'Payroll & HR Specialist',
+                        years_experience: this.experience,
+                        certifications_count: this.certs
+                    })
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        this.proposedBase = data.data.computed_counter_offer;
+                        this.budgetApproved = data.data.financial_budget_check.approved;
+                        this.budgetReason = data.data.financial_budget_check.reason;
+                    }
+                });
+            }
+         }"
+         x-init="calculateCounterOffer()">
         
         <!-- Counter Offer Form Panel (Left 2 cols) -->
         <div class="lg:col-span-2 bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
@@ -40,13 +81,13 @@
             <div class="flex items-center justify-between border-b border-gray-100 pb-4 mb-6">
                 <div>
                     <h2 class="text-sm font-bold font-outfit text-gray-900">Applicant / Employee Retention Counter Offer</h2>
-                    <p class="text-[10px] text-gray-400">Calculates competitive compensation packages</p>
+                    <p class="text-[10px] text-gray-400">Calculates credential-based compensation packages</p>
                 </div>
                 
                 <!-- Computation Mode Toggle -->
                 <div class="flex items-center gap-2 bg-gray-100 p-1 rounded-xl">
-                    <button @click="mode = 'auto'" :class="mode === 'auto' ? 'bg-white text-gray-900 font-bold shadow-xs' : 'text-gray-500 font-medium'" class="px-3 py-1 text-xs rounded-lg transition-all">
-                        Automated Engine
+                    <button @click="mode = 'auto'; calculateCounterOffer()" :class="mode === 'auto' ? 'bg-white text-gray-900 font-bold shadow-xs' : 'text-gray-500 font-medium'" class="px-3 py-1 text-xs rounded-lg transition-all">
+                        Automated Credentials Engine
                     </button>
                     <button @click="mode = 'manual'" :class="mode === 'manual' ? 'bg-white text-gray-900 font-bold shadow-xs' : 'text-gray-500 font-medium'" class="px-3 py-1 text-xs rounded-lg transition-all">
                         Manual Override
@@ -58,47 +99,43 @@
                 @csrf
                 <input type="hidden" name="type" value="counter_offer">
 
-                <!-- Applicant/Employee Selection -->
+                <!-- Target Employee -->
                 <div>
                     <label class="block text-xs font-bold text-gray-700 mb-1.5">Target Employee / Applicant</label>
                     <select name="employee_id" class="w-full text-xs font-semibold bg-gray-50/50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-gray-800 focus:outline-none focus:border-[#F44336]">
                         @foreach($employees as $emp)
-                            <option value="{{ $emp->id }}">{{ $emp->first_name }} {{ $emp->last_name }} — {{ $emp->position }} (Current: ₱{{ number_format((float)($emp->monthly_rate > 0 ? $emp->monthly_rate : $emp->daily_rate), 2) }})</option>
+                            <option value="{{ $emp->id }}">{{ $emp->first_name }} {{ $emp->last_name }} — {{ $emp->position }} (Current Base: ₱{{ number_format((float)($emp->monthly_rate > 0 ? $emp->monthly_rate : $emp->daily_rate * 26), 2) }})</option>
                         @endforeach
                     </select>
                 </div>
 
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4" x-show="mode === 'auto'">
                     <!-- Experience -->
                     <div>
-                        <label class="block text-xs font-bold text-gray-700 mb-1.5">Relevant Experience (Years)</label>
-                        <input type="number" x-model="experience" class="w-full text-xs font-semibold bg-gray-50/50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-gray-800 focus:outline-none focus:border-[#F44336]" min="0" max="30">
+                        <label class="block text-xs font-bold text-gray-700 mb-1.5">Years of Relevant Experience</label>
+                        <input type="number" name="years_experience" x-model="experience" @input="calculateCounterOffer()" class="w-full text-xs font-semibold bg-gray-50/50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-gray-800 focus:outline-none focus:border-[#F44336]" min="0" max="30">
                     </div>
 
-                    <!-- Credential Level -->
+                    <!-- Certifications Count -->
                     <div>
-                        <label class="block text-xs font-bold text-gray-700 mb-1.5">Highest Qualification</label>
-                        <select x-model="credentials" class="w-full text-xs font-semibold bg-gray-50/50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-gray-800 focus:outline-none focus:border-[#F44336]">
-                            <option value="bachelor">Bachelor's Degree</option>
-                            <option value="master">Master's / Post-Graduate</option>
-                            <option value="cert">Specialized Industry Certification</option>
-                        </select>
+                        <label class="block text-xs font-bold text-gray-700 mb-1.5">Professional Certifications Count</label>
+                        <input type="number" name="certifications_count" x-model="certs" @input="calculateCounterOffer()" class="w-full text-xs font-semibold bg-gray-50/50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-gray-800 focus:outline-none focus:border-[#F44336]" min="0" max="10">
                     </div>
                 </div>
 
                 <!-- Proposed Counter Offer Field -->
                 <div>
                     <div class="flex items-center justify-between mb-1.5">
-                        <label class="block text-xs font-bold text-gray-700">Calculated Counter Offer Base Salary (₱)</label>
-                        <span x-show="mode === 'auto'" class="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-md">Auto Calculated</span>
-                        <span x-show="mode === 'manual'" class="text-[10px] text-amber-600 font-bold bg-amber-50 px-2 py-0.5 rounded-md">Manual Override Active</span>
+                        <label class="block text-xs font-bold text-gray-700">Counter Offer Salary (₱)</label>
+                        <span x-show="mode === 'auto'" class="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-md">Automated Computation Active</span>
+                        <span x-show="mode === 'manual'" class="text-[10px] text-amber-600 font-bold bg-amber-50 px-2 py-0.5 rounded-md">Manual Input Active</span>
                     </div>
                     <input type="number" step="0.01" name="new_rate" x-model="proposedBase" :readonly="mode === 'auto'" class="w-full text-sm font-extrabold font-outfit bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-gray-900 focus:outline-none focus:border-[#F44336]">
                 </div>
 
                 <div>
                     <label class="block text-xs font-bold text-gray-700 mb-1.5">Offer Justification / Competitive Match Reason</label>
-                    <textarea name="reason" rows="2" required placeholder="Counter-offer to match external market offer..." class="w-full text-xs bg-gray-50 border border-gray-200 rounded-xl p-3 text-gray-800 focus:outline-none focus:border-[#F44336]"></textarea>
+                    <textarea name="reason" rows="2" required placeholder="Counter-offer to retain candidate against competitor offer..." class="w-full text-xs bg-gray-50 border border-gray-200 rounded-xl p-3 text-gray-800 focus:outline-none focus:border-[#F44336]"></textarea>
                 </div>
 
                 <!-- Primary Action Button -->
@@ -121,43 +158,39 @@
             <!-- Financial Integration Budget Check Card -->
             <div class="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
                 <div class="flex items-center justify-between mb-4">
-                    <h3 class="text-xs font-bold font-outfit uppercase tracking-wider text-gray-400">Financial Budget Check</h3>
-                    <div class="w-2 h-2 rounded-full bg-emerald-500"></div>
+                    <h3 class="text-xs font-bold font-outfit uppercase tracking-wider text-gray-400">Team 5 Financial Integration</h3>
+                    <div class="w-2.5 h-2.5 rounded-full" :class="budgetApproved ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'"></div>
                 </div>
 
                 <div class="space-y-4">
                     <div>
-                        <p class="text-xs text-gray-500">Allocated Position Cap</p>
-                        <p class="text-xl font-extrabold font-outfit text-gray-900">₱<span x-text="Number(maxBudget).toLocaleString()"></span></p>
-                    </div>
-
-                    <div>
-                        <p class="text-xs text-gray-500">Proposed Counter Offer</p>
-                        <p class="text-xl font-extrabold font-outfit text-[#F44336]">₱<span x-text="Number(proposedBase).toLocaleString()"></span></p>
+                        <p class="text-xs text-gray-500">Live Proposed Offer</p>
+                        <p class="text-xl font-extrabold font-outfit text-gray-900">₱<span x-text="Number(proposedBase).toLocaleString()"></span></p>
                     </div>
 
                     <!-- Dynamic Budget Status Badge -->
                     <div class="pt-2 border-t border-gray-100">
-                        <div x-show="proposedBase <= maxBudget" class="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2 text-xs font-bold text-emerald-700">
+                        <div x-show="budgetApproved" class="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2 text-xs font-bold text-emerald-700">
                             <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
                             </svg>
                             Budget Approved by Financial
                         </div>
-                        <div x-show="proposedBase > maxBudget" style="display:none;" class="p-3 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2 text-xs font-bold text-red-700">
+                        <div x-show="!budgetApproved" style="display:none;" class="p-3 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2 text-xs font-bold text-red-700">
                             <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                             </svg>
                             Exceeds Financial Budget Cap
                         </div>
+                        <p class="text-[10px] text-gray-400 mt-1" x-text="budgetReason"></p>
                     </div>
                 </div>
             </div>
 
             <!-- Helpful Integration Context -->
             <div class="bg-gray-50 rounded-2xl border border-gray-100 p-4 text-xs text-gray-500">
-                <p class="font-bold text-gray-700 mb-1">System Integration Rule:</p>
-                <p class="leading-relaxed">Counter offer numbers generated in this module are validated in real-time against Financial budget parameters before submission.</p>
+                <p class="font-bold text-gray-700 mb-1">Applicant Management Hook:</p>
+                <p class="leading-relaxed">Team 1 can also trigger this logic automatically via standard REST webhook: <code class="font-mono text-indigo-600">POST /api/payroll/webhooks/counter-offer</code></p>
             </div>
 
         </div>
@@ -191,10 +224,15 @@
                             <td class="py-4 px-4 font-extrabold text-emerald-600">₱{{ number_format((float)$adj->new_rate, 2) }}</td>
                             <td class="py-4 px-4 text-gray-600">{{ $adj->reason }}</td>
                             <td class="py-4 px-4">
-                                <span class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase 
-                                    {{ $adj->status === 'approved' ? 'bg-emerald-100 text-emerald-800' : ($adj->status === 'rejected' ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800') }}">
-                                    {{ $adj->status }}
-                                </span>
+                                @if($adj->status === 'approved')
+                                    <span class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase bg-emerald-100 text-emerald-800">Approved</span>
+                                @elseif($adj->status === 'rejected_financial_budget')
+                                    <span class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase bg-red-100 text-red-800">Rejected (Financial Budget)</span>
+                                @elseif($adj->status === 'rejected')
+                                    <span class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase bg-gray-100 text-gray-800">Rejected</span>
+                                @else
+                                    <span class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase bg-amber-100 text-amber-800">Pending Approval</span>
+                                @endif
                             </td>
                             <td class="py-4 px-4 text-right">
                                 @if($adj->status === 'pending')
@@ -205,7 +243,7 @@
                                         </button>
                                     </form>
                                 @else
-                                    <span class="text-[10px] text-gray-400 font-semibold">Synced</span>
+                                    <span class="text-[10px] text-gray-400 font-semibold">Processed</span>
                                 @endif
                             </td>
                         </tr>

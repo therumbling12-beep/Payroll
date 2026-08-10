@@ -224,14 +224,11 @@
             <table class="w-full text-left border-collapse">
                 <thead>
                     <tr class="border-b border-gray-100 text-[11px] font-bold text-gray-400 uppercase tracking-wider">
-                        <th class="py-3 px-4 w-10">
-                            <input type="checkbox" @click="toggleSelectAll({{ json_encode($computations->pluck('id')) }})" :checked="selectAll" class="rounded text-[#F44336] focus:ring-0">
-                        </th>
                         <th class="py-3 px-4">Employee</th>
                         <th class="py-3 px-4">Position</th>
                         <th class="py-3 px-4">Department</th>
                         <th class="py-3 px-4">Gross Pay</th>
-                        <th class="py-3 px-4">Deductions</th>
+                        <th class="py-3 px-4">Deductions / Commission</th>
                         <th class="py-3 px-4">Net Pay</th>
                         <th class="py-3 px-4 text-center">Formula Transparency</th>
                         <th class="py-3 px-4 text-center">AI Compliance</th>
@@ -242,9 +239,6 @@
                     
                     @forelse($computations as $comp)
                         <tr class="hover:bg-gray-50/50 transition-colors">
-                            <td class="py-3.5 px-4">
-                                <input type="checkbox" value="{{ $comp->id }}" x-model="selected" class="rounded text-[#F44336] focus:ring-0">
-                            </td>
                             <td class="py-3.5 px-4 font-bold text-gray-900">
                                 <div>{{ $comp->employee->first_name }} {{ $comp->employee->last_name }}</div>
                                 <span class="text-[10px] text-gray-400 font-normal">{{ $comp->employee->employee_code }}</span>
@@ -302,20 +296,38 @@
                                         <span class="text-[10px] text-gray-400 font-mono">Cutoff: {{ $comp->cutoff_period }}</span>
                                     </div>
                                     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                                        @php
+                                            $isDriverRow = str_contains($comp->employee->position, 'Driver');
+                                        @endphp
                                         <div class="bg-gray-50 p-3 rounded-lg border border-gray-100">
                                             <span class="text-[10px] font-bold text-gray-400 uppercase block mb-1">1. Base & Earnings Formula</span>
-                                            <div class="font-mono text-gray-800 font-semibold">Base: ₱{{ number_format((float)$comp->base_pay, 2) }} | Trips: ₱{{ number_format((float)$comp->trip_earnings, 2) }} | Bonus: ₱{{ number_format((float)$comp->performance_bonus, 2) }}</div>
-                                            <div class="text-emerald-600 font-extrabold mt-1">= ₱{{ number_format((float)$comp->gross_pay, 2) }} Gross</div>
+                                            @if($isDriverRow)
+                                                <div class="font-mono text-gray-800 font-semibold">Variable Trip Income (Team 9): ₱{{ number_format((float)$comp->trip_earnings, 2) }} | Bonus: ₱{{ number_format((float)$comp->performance_bonus, 2) }}</div>
+                                                <div class="text-emerald-600 font-extrabold mt-1">= ₱{{ number_format((float)$comp->gross_pay, 2) }} Gross Trips Income</div>
+                                            @else
+                                                <div class="font-mono text-gray-800 font-semibold">Base: ₱{{ number_format((float)$comp->base_pay, 2) }} | Trips: ₱{{ number_format((float)$comp->trip_earnings, 2) }} | Bonus: ₱{{ number_format((float)$comp->performance_bonus, 2) }}</div>
+                                                <div class="text-emerald-600 font-extrabold mt-1">= ₱{{ number_format((float)$comp->gross_pay, 2) }} Gross</div>
+                                            @endif
                                         </div>
                                         <div class="bg-gray-50 p-3 rounded-lg border border-gray-100">
-                                            <span class="text-[10px] font-bold text-gray-400 uppercase block mb-1">2. Statutory Deductions</span>
-                                            <div class="text-[10px] text-gray-600">SSS: ₱{{ number_format((float)$comp->sss_deduction, 2) }} | PhilHealth: ₱{{ number_format((float)$comp->philhealth_deduction, 2) }} | PagIBIG: ₱{{ number_format((float)$comp->pagibig_deduction, 2) }}</div>
-                                            <div class="text-red-600 font-extrabold mt-1">= -₱{{ number_format((float)$comp->total_deductions, 2) }} Total</div>
+                                            @if($isDriverRow)
+                                                <span class="text-[10px] font-bold text-gray-400 uppercase block mb-1">2. Platform Commission Fee</span>
+                                                <div class="text-[10px] text-gray-600">TNVS Platform Fee (Commission 20%): ₱{{ number_format((float)($comp->platform_fee_deduction ?? 0), 2) }} | Mandatory Statutory Deductions: ₱0.00 (Exempt)</div>
+                                                <div class="text-red-600 font-extrabold mt-1">= -₱{{ number_format((float)$comp->total_deductions, 2) }} Total Platform Fee</div>
+                                            @else
+                                                <span class="text-[10px] font-bold text-gray-400 uppercase block mb-1">2. Deductions Breakdown</span>
+                                                <div class="text-[10px] text-gray-600">SSS: ₱{{ number_format((float)$comp->sss_deduction, 2) }} | PhilHealth: ₱{{ number_format((float)$comp->philhealth_deduction, 2) }} | PagIBIG: ₱{{ number_format((float)$comp->pagibig_deduction, 2) }}</div>
+                                                <div class="text-red-600 font-extrabold mt-1">= -₱{{ number_format((float)$comp->total_deductions, 2) }} Total</div>
+                                            @endif
                                         </div>
                                         <div class="bg-gray-50 p-3 rounded-lg border border-gray-100">
                                             <span class="text-[10px] font-bold text-gray-400 uppercase block mb-1">3. Net Payout Result</span>
-                                            <div class="text-[10px] text-gray-600">Gross (₱{{ number_format((float)$comp->gross_pay, 2) }}) - Deductions (₱{{ number_format((float)$comp->total_deductions, 2) }})</div>
-                                            <div class="text-emerald-600 font-extrabold text-sm mt-1">= ₱{{ number_format((float)$comp->net_pay, 2) }} Net</div>
+                                            @if($isDriverRow)
+                                                <div class="text-[10px] text-gray-600">Gross Trips (₱{{ number_format((float)$comp->gross_pay, 2) }}) - Platform Fee (₱{{ number_format((float)$comp->total_deductions, 2) }})</div>
+                                            @else
+                                                <div class="text-[10px] text-gray-600">Gross (₱{{ number_format((float)$comp->gross_pay, 2) }}) - Deductions (₱{{ number_format((float)$comp->total_deductions, 2) }})</div>
+                                            @endif
+                                            <div class="text-emerald-600 font-extrabold text-sm mt-1">= ₱{{ number_format((float)$comp->net_pay, 2) }} Net Payout</div>
                                         </div>
                                     </div>
                                 </div>
@@ -323,7 +335,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="10" class="py-6 text-center text-gray-400 text-xs">No salary records found matching filter.</td>
+                            <td colspan="9" class="py-6 text-center text-gray-400 text-xs">No salary records found matching filter.</td>
                         </tr>
                     @endforelse
 
@@ -336,20 +348,7 @@
             {{ $computations->links() }}
         </div>
 
-        <!-- Interactive Floating Alpine.js Bulk Action Bar -->
-        <div x-show="selected.length > 0" 
-             x-transition 
-             class="fixed bottom-6 right-8 bg-gray-900 text-white px-6 py-3.5 rounded-2xl shadow-2xl flex items-center gap-6 z-50">
-            <div class="flex items-center gap-2">
-                <span class="w-6 h-6 rounded-full bg-[#F44336] flex items-center justify-center font-bold text-xs" x-text="selected.length"></span>
-                <span class="text-xs font-bold font-outfit">Records Selected</span>
-            </div>
-            <div class="flex items-center gap-3">
-                <button class="bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs px-3.5 py-2 rounded-xl transition-all">
-                    Submit to Team 8 (Legal Review API)
-                </button>
-            </div>
-        </div>
+
 
         <!-- Alpine.js AI Audit & Resolution Insights Modal -->
         <div x-show="showAiInsightModal" 
@@ -528,6 +527,10 @@
                             <div>
                                 <label class="block text-[11px] font-semibold text-gray-600 mb-1">Pag-IBIG Deduction (₱)</label>
                                 <input type="number" step="0.01" name="pagibig_deduction" x-model="activeOverride.pagibig_deduction" placeholder="Auto" class="w-full text-xs bg-gray-50 border border-gray-200 rounded-xl p-2.5 font-bold text-gray-900 focus:outline-none focus:border-[#F44336]">
+                            </div>
+                            <div>
+                                <label class="block text-[11px] font-semibold text-gray-600 mb-1">TNVS Platform Commission (₱)</label>
+                                <input type="number" step="0.01" name="platform_fee_deduction" x-model="activeOverride.platform_fee_deduction" placeholder="Auto (20%)" class="w-full text-xs bg-gray-50 border border-gray-200 rounded-xl p-2.5 font-bold text-gray-900 focus:outline-none focus:border-[#F44336]">
                             </div>
                         </div>
                     </div>

@@ -17,6 +17,29 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
+        // 0. Seed Company Dynamic Settings Mock Data
+        $settings = [
+            'sss_deduction_rate' => 0.05,
+            'sss_maximum_cap' => 1750.00,
+            'philhealth_deduction_rate' => 0.025,
+            'philhealth_maximum_cap' => 2500.00,
+            'pagibig_fixed_amount' => 200.00,
+            'hmo_driver_deduction_rate' => 0.03,
+            'bir_withholding_threshold' => 20833.33,
+            'bir_withholding_rate' => 0.20,
+            'counter_offer_exp_multiplier' => 2500.00,
+            'counter_offer_cert_multiplier' => 3500.00,
+            'financial_budget_ceiling' => 150000.00,
+            'maternity_leave_days' => 105,
+            'standard_working_days_divisor' => 26,
+            'ai_wage_safety_floor' => 755.00,
+            'tnvs_platform_commission_rate' => 0.20,
+        ];
+
+        foreach ($settings as $key => $value) {
+            \App\Models\CompanySetting::updateOrCreate(['key' => $key], ['value' => (string) $value]);
+        }
+
         // 1. Seed Departments
         $fleetDept = Department::create(['name' => 'Fleet Operations (Drivers)']);
         $dispatchDept = Department::create(['name' => 'Dispatch & Routing']);
@@ -83,7 +106,7 @@ class DatabaseSeeder extends Seeder
                 ]);
             }
 
-            if ($employee->gender === 'Female' && rand(0, 2) === 1) {
+            if (!$isDriver && rand(0, 3) === 1) {
                 \App\Models\Claim::create([
                     'employee_id' => $employee->id,
                     'type' => 'maternity',
@@ -119,24 +142,19 @@ class DatabaseSeeder extends Seeder
                 ]);
             }
 
-            $basePay = $isDriver ? ($employee->daily_rate * $daysWorked) : ($employee->monthly_rate / 2);
+            $basePay = $isDriver ? 0.00 : ($employee->monthly_rate / 2);
             $grossPay = $basePay + $tripEarnings + $bonusAmount;
 
-            $sss = min(1350.00, round($grossPay * 0.045, 2));
-            $philhealth = min(2500.00, round($grossPay * 0.025, 2));
-            $pagibig = 200.00;
-            $hmoDeduction = $isDriver ? round($grossPay * 0.03, 2) : 0.00;
+            $sss = $isDriver ? 0.00 : min(1750.00, round($grossPay * 0.05, 2));
+            $philhealth = $isDriver ? 0.00 : min(2500.00, round($grossPay * 0.025, 2));
+            $pagibig = $isDriver ? 0.00 : 200.00;
+            $hmoDeduction = 0.00;
+            $platformFee = $isDriver ? round($grossPay * 0.20, 2) : 0.00;
             
-            $taxableIncome = max(0.00, $grossPay - ($sss + $philhealth + $pagibig));
-            $withholdingTax = ($taxableIncome > 20833.33) ? round(($taxableIncome - 20833.33) * 0.20, 2) : 0.00;
+            $taxableIncome = $isDriver ? 0.00 : max(0.00, $grossPay - ($sss + $philhealth + $pagibig));
+            $withholdingTax = $isDriver ? 0.00 : (($taxableIncome > 20833.33) ? round(($taxableIncome - 20833.33) * 0.20, 2) : 0.00);
 
-            // Intentionally inject an anomaly pattern into every 3rd record for audit & modal testing
-            if ($employee->id % 3 === 0) {
-                $hmoDeduction = round($grossPay * 0.45, 2); // Cause total deductions to breach DOLE 50% limit
-                $pagibig = 0.00; // Missing mandatory contribution
-            }
-
-            $totalDeductions = $sss + $philhealth + $pagibig + $hmoDeduction + $withholdingTax;
+            $totalDeductions = $sss + $philhealth + $pagibig + $hmoDeduction + $platformFee + $withholdingTax;
             $netPay = $grossPay - $totalDeductions;
 
             $comp = SalaryComputation::create([
@@ -150,6 +168,7 @@ class DatabaseSeeder extends Seeder
                 'philhealth_deduction' => $philhealth,
                 'pagibig_deduction' => $pagibig,
                 'hmo_insurance_deduction' => $hmoDeduction,
+                'platform_fee_deduction' => $platformFee,
                 'withholding_tax' => $withholdingTax,
                 'total_deductions' => $totalDeductions,
                 'net_pay' => $netPay,

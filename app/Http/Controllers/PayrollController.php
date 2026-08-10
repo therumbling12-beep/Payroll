@@ -383,9 +383,20 @@ class PayrollController extends Controller
         $employees = Employee::all();
 
         foreach ($employees as $employee) {
-            $monthlySalary = (float) ($employee->base_salary ?? 25000.00);
-            $monthsWorked = 12; // Standard full year
-            $amount = ($monthlySalary * $monthsWorked) / 12;
+            $monthlySalary = (float) ($employee->monthly_rate ?: ($employee->daily_rate ? $employee->daily_rate * 26 : 25000.00));
+            
+            $hireYear = (int) $employee->created_at->format('Y');
+            $hireMonth = (int) $employee->created_at->format('n');
+
+            if ($hireYear < $year) {
+                $monthsWorked = 12;
+            } elseif ($hireYear === $year) {
+                $monthsWorked = max(1, 12 - $hireMonth + 1);
+            } else {
+                $monthsWorked = 0;
+            }
+
+            $amount = round(($monthlySalary * $monthsWorked) / 12, 2);
 
             ThirteenthMonthComputation::updateOrCreate(
                 [

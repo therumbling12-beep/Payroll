@@ -28,7 +28,7 @@ class PayrollEngineService
             $isDriver = str_contains($employee->position, 'Driver');
 
             $basePay = $isDriver
-                ? ((float) $employee->daily_rate * $daysWorked)
+                ? 0.0
                 : ((float) $employee->monthly_rate / 2);
 
             $tripIncome = TripIncome::where('employee_id', $employee->id)
@@ -56,27 +56,31 @@ class PayrollEngineService
 
             $grossPay = $basePay + $tripEarnings + $bonusAmount;
 
-            // SSS Contribution: 4.5% capped at Monthly Salary Credit of P30,000 (max P1,350)
-            $sss = min(1350.00, round($grossPay * 0.045, 2));
+            $tnvsCommissionRate = (float) \App\Models\CompanySetting::getValue('tnvs_platform_commission_rate', 0.20);
+            $sssRate = (float) \App\Models\CompanySetting::getValue('sss_deduction_rate', 0.05);
+            $sssCap = (float) \App\Models\CompanySetting::getValue('sss_maximum_cap', 1750.00);
+            $philhealthRate = (float) \App\Models\CompanySetting::getValue('philhealth_deduction_rate', 0.025);
+            $philhealthCap = (float) \App\Models\CompanySetting::getValue('philhealth_maximum_cap', 2500.00);
+            $pagibigFixed = (float) \App\Models\CompanySetting::getValue('pagibig_fixed_amount', 200.00);
+            $birThreshold = (float) \App\Models\CompanySetting::getValue('bir_withholding_threshold', 20833.33);
+            $birRate = (float) \App\Models\CompanySetting::getValue('bir_withholding_rate', 0.20);
 
-            // PhilHealth Contribution: 5% total split equally (2.5% employee share), capped at basic 100k salary (max P2,500)
-            $philhealth = min(2500.00, round($grossPay * 0.025, 2));
-
-            // Pag-IBIG HDMF fixed contribution
-            $pagibig = 200.00;
-
-            // Driver Insurance 3% deduction
-            $hmoInsuranceDeduction = $isDriver ? round($grossPay * 0.03, 2) : 0.00;
+            // Drivers are TNVS Contractors (No Employee Statutory Deductions, No HMO, 20% Platform Fee)
+            $sss = $isDriver ? 0.00 : min($sssCap, round($grossPay * $sssRate, 2));
+            $philhealth = $isDriver ? 0.00 : min($philhealthCap, round($grossPay * $philhealthRate, 2));
+            $pagibig = $isDriver ? 0.00 : $pagibigFixed;
+            $hmoInsuranceDeduction = 0.00;
+            $platformFee = $isDriver ? round($grossPay * $tnvsCommissionRate, 2) : 0.00;
 
             // Taxable Base Calculation
-            $taxableIncome = max(0.00, $grossPay - ($sss + $philhealth + $pagibig));
+            $taxableIncome = $isDriver ? 0.00 : max(0.00, $grossPay - ($sss + $philhealth + $pagibig));
 
-            // BIR Withholding Tax MVP rule: 20% on taxable income above P20,833.33 cutoff limit
-            $withholdingTax = ($taxableIncome > 20833.33)
-                ? round(($taxableIncome - 20833.33) * 0.20, 2)
-                : 0.00;
+            // BIR Withholding Tax
+            $withholdingTax = ($isDriver || $taxableIncome <= $birThreshold)
+                ? 0.00
+                : round(($taxableIncome - $birThreshold) * $birRate, 2);
 
-            $totalDeductions = $sss + $philhealth + $pagibig + $hmoInsuranceDeduction + $withholdingTax;
+            $totalDeductions = $sss + $philhealth + $pagibig + $hmoInsuranceDeduction + $platformFee + $withholdingTax;
 
             // Non-taxable reimbursements added directly to net pay
             $netPay = ($grossPay - $totalDeductions) + $reimbursements;
@@ -96,6 +100,7 @@ class PayrollEngineService
                     'philhealth_deduction' => $philhealth,
                     'pagibig_deduction' => $pagibig,
                     'hmo_insurance_deduction' => $hmoInsuranceDeduction,
+                    'platform_fee_deduction' => $platformFee,
                     'withholding_tax' => $withholdingTax,
                     'total_deductions' => $totalDeductions,
                     'net_pay' => $netPay,

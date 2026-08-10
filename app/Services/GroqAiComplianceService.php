@@ -96,8 +96,11 @@ Respond ONLY in valid JSON with this exact structure:
         $score = 100;
         $status = 'PASSED';
 
-        if ((float) $computation->net_pay < 500) {
-            $issues[] = 'Net pay payout (₱' . number_format((float)$computation->net_pay, 2) . ') falls below DOLE minimum daily wage safety floor threshold.';
+        $wageFloor = (float) \App\Models\CompanySetting::getValue('ai_wage_safety_floor', 755.00);
+        $isDriver = $computation->employee && str_contains($computation->employee->position, 'Driver');
+
+        if (!$isDriver && (float) $computation->net_pay < $wageFloor) {
+            $issues[] = 'Net pay payout (₱' . number_format((float)$computation->net_pay, 2) . ') falls below DOLE minimum daily wage safety floor threshold (₱' . number_format($wageFloor, 2) . ').';
             $suggestions[] = 'Use Manual Override to adjust base pay or review excessive deductions to ensure net pay meets DOLE daily minimum limits.';
             $score -= 30;
             $status = 'WARNING';
@@ -110,7 +113,7 @@ Respond ONLY in valid JSON with this exact structure:
             $status = 'WARNING';
         }
 
-        if ((float) $computation->sss_deduction == 0 || (float) $computation->philhealth_deduction == 0 || (float) $computation->pagibig_deduction == 0) {
+        if (!$isDriver && ((float) $computation->sss_deduction == 0 || (float) $computation->philhealth_deduction == 0 || (float) $computation->pagibig_deduction == 0)) {
             $issues[] = 'Missing mandatory statutory government contributions (SSS, PhilHealth, or Pag-IBIG).';
             $suggestions[] = 'Verify employee government contribution settings or perform a manual override to recalculate statutory deductions.';
             $score -= 25;

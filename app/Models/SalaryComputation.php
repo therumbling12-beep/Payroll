@@ -29,6 +29,7 @@ class SalaryComputation extends Model
         'philhealth_deduction',
         'pagibig_deduction',
         'hmo_insurance_deduction',
+        'platform_fee_deduction',
         'withholding_tax',
         'total_deductions',
         'net_pay',

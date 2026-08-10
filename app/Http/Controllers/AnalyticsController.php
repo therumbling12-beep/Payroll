@@ -26,13 +26,28 @@ class AnalyticsController extends Controller
         $totalPerformanceBonuses = (float) SalaryComputation::sum('performance_bonus');
         $avgTripEarningsPerDriver = $totalDrivers > 0 ? round($totalTripEarnings / $totalDrivers, 2) : 0;
 
+        // Top Performers (Highest earnings / bonuses)
+        $topPerformers = SalaryComputation::with('employee.department')
+            ->orderByDesc('performance_bonus')
+            ->orderByDesc('trip_earnings')
+            ->take(5)
+            ->get();
+
+        // Needs Attention / Low Attendance (Employees with highest lates)
+        $needsAttention = \App\Models\Attendance::with('employee.department')
+            ->orderByDesc('lates_count')
+            ->take(5)
+            ->get();
+
         return view('payroll-benefits.analytics.performance', compact(
             'totalEmployees',
             'totalDrivers',
             'totalStaff',
             'totalTripEarnings',
             'totalPerformanceBonuses',
-            'avgTripEarningsPerDriver'
+            'avgTripEarningsPerDriver',
+            'topPerformers',
+            'needsAttention'
         ));
     }
 

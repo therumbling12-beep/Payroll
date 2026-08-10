@@ -37,9 +37,11 @@ class CompensationAdjustmentObserver implements ShouldHandleEventsAfterCommit
 
                 // 3. Sync One-Time Bonus to PerformanceBonus table for immediate payroll pickup
                 if ($adjustment->bonus_amount && $adjustment->bonus_amount > 0) {
+                    $currentCutoff = now()->day <= 15 ? now()->format('Y-m-01_15') : now()->format('Y-m-16_31');
+
                     PerformanceBonus::create([
                         'employee_id' => $employee->id,
-                        'cutoff_period' => '2026-07-01_15',
+                        'cutoff_period' => $currentCutoff,
                         'bonus_amount' => $adjustment->bonus_amount,
                         'reason' => 'Merit Promotion Bonus: ' . ($adjustment->reason ?? 'Approved Merit Increase'),
                     ]);

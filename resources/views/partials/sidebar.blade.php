@@ -32,6 +32,15 @@
             <span class="sidebar-text truncate">Dashboard</span>
         </a>
 
+        <!-- ESS Self Service Portal -->
+        <a href="{{ route('ess.dashboard') }}"
+           class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 group {{ (isset($currentPage) && str_starts_with($currentPage, 'ess')) ? 'bg-[#F44336] text-white' : 'text-white/80 hover:bg-white/10 hover:text-white' }}">
+            <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+            </svg>
+            <span class="sidebar-text truncate flex-1">ESS Self Service</span>
+        </a>
+
 
 
         <!-- Divider Label -->

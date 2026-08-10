@@ -16,7 +16,7 @@
         <div class="flex items-center gap-3">
             <span class="flex items-center gap-1.5 text-xs font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-full">
                 <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                Payroll Engine Sync Active
+                Team 3 Performance Hook Active
             </span>
             <span class="text-xs text-gray-400">{{ now()->format('D, M j Y') }}</span>
         </div>
@@ -28,6 +28,15 @@
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
             </svg>
             {{ session('status') }}
+        </div>
+    @endif
+
+    @if(session('error'))
+        <div class="mb-6 p-4 bg-red-50 border border-red-200 text-red-800 text-xs rounded-2xl font-bold flex items-center gap-2">
+            <svg class="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+            {{ session('error') }}
         </div>
     @endif
 
@@ -90,10 +99,15 @@
                                     {{ $adj->reason }}
                                 </td>
                                 <td class="py-4 px-4">
-                                    <span class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase 
-                                        {{ $adj->status === 'approved' ? 'bg-emerald-100 text-emerald-800' : ($adj->status === 'rejected' ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800') }}">
-                                        {{ $adj->status }}
-                                    </span>
+                                    @if($adj->status === 'approved')
+                                        <span class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase bg-emerald-100 text-emerald-800">Approved</span>
+                                    @elseif($adj->status === 'rejected_financial_budget')
+                                        <span class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase bg-red-100 text-red-800">Rejected (Financial Budget)</span>
+                                    @elseif($adj->status === 'rejected')
+                                        <span class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase bg-gray-100 text-gray-800">Rejected</span>
+                                    @else
+                                        <span class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase bg-amber-100 text-amber-800">Pending Approval</span>
+                                    @endif
                                 </td>
                                 <td class="py-4 px-4 text-right">
                                     @if($adj->status === 'pending')
@@ -112,7 +126,7 @@
                                             </form>
                                         </div>
                                     @else
-                                        <span class="text-[10px] text-gray-400 font-semibold">Synced</span>
+                                        <span class="text-[10px] text-gray-400 font-semibold">Processed</span>
                                     @endif
                                 </td>
                             </tr>
@@ -130,7 +144,7 @@
             </div>
         </div>
 
-        <!-- Propose Merit Promotion Modal (Supports both Base Salary Increase & One-Time Bonus) -->
+        <!-- Propose Merit Promotion Modal -->
         <div x-show="showModal" x-cloak class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
             <div @click.away="showModal = false" class="bg-white rounded-2xl border border-gray-100 p-6 max-w-lg w-full shadow-2xl space-y-4">
                 <div class="flex items-center justify-between border-b border-gray-100 pb-3">

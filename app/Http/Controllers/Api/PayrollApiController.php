@@ -16,6 +16,7 @@ use App\Services\PayrollEngineService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Str;
 
 class PayrollApiController extends Controller
 {
@@ -69,7 +70,7 @@ class PayrollApiController extends Controller
             ->first();
 
         if (!$computation) {
-            return response()->json(['error' => 'No salary record found for driver'], 44);
+            return response()->json(['error' => 'No salary record found for driver'], 404);
         }
 
         return new SalaryComputationResource($computation);
@@ -90,7 +91,8 @@ class PayrollApiController extends Controller
             'monthly_rate' => 'nullable|numeric',
         ]);
 
-        $validated['employee_code'] = 'EMP-' . rand(1000, 9999);
+        $nextId = (Employee::max('id') ?? 0) + 1;
+        $validated['employee_code'] = 'EMP-' . str_pad((string) $nextId, 5, '0', STR_PAD_LEFT);
         $employee = Employee::create($validated);
 
         return response()->json([
@@ -194,5 +196,99 @@ class PayrollApiController extends Controller
             'message' => "Payroll record decision updated to '{$validated['decision']}' from Team 8 Legal Compliance",
             'computation' => new SalaryComputationResource($computation),
         ]);
+    }
+
+    /**
+     * Inbound Webhook: Team 1 (Applicant Management Counter-Offer Request)
+     */
+    public function webhookCounterOffer(Request $request, \App\Services\CompensationService $compensationService): JsonResponse
+    {
+        $validated = $request->validate([
+            'position' => 'required|string',
+            'years_experience' => 'required|integer|min:0',
+            'certifications_count' => 'nullable|integer|min:0',
+        ]);
+
+        $result = $compensationService->computeCounterOffer(
+            $validated['position'],
+            $validated['years_experience'],
+            $validated['certifications_count'] ?? 0
+        );
+
+        return response()->json([
+            'message' => 'Automated credential-based counter offer computed successfully for Team 1',
+            'data' => $result,
+        ]);
+    }
+
+    /**
+     * Inbound Webhook: Team 3 (Performance Data & Merit Promotion Trigger)
+     */
+    public function webhookTeam3Merit(Request $request, \App\Services\CompensationService $compensationService, \App\Services\FinancialService $financialService): JsonResponse
+    {
+        $validated = $request->validate([
+            'employee_id' => 'required|exists:employees,id',
+            'kpi_score' => 'required|numeric|min:0|max:100',
+            'years_of_service' => 'required|integer|min:1',
+            'recommended_bump_percent' => 'nullable|numeric|min:0',
+        ]);
+
+        $employee = Employee::findOrFail($validated['employee_id']);
+        $oldRate = $employee->monthly_rate ?: ($employee->daily_rate * 26);
+
+        $bumpPercent = $validated['recommended_bump_percent'] ?? ($validated['kpi_score'] >= 90 ? 10.0 : 5.0);
+        $newRate = round($oldRate + ($oldRate * ($bumpPercent / 100)), 2);
+
+        $budgetCheck = $financialService->checkBudgetAvailability($newRate, $employee->department->name ?? 'General');
+        $status = $budgetCheck['approved'] ? 'pending' : 'rejected_financial_budget';
+
+        $adjustment = \App\Models\CompensationAdjustment::create([
+            'employee_id' => $employee->id,
+            'type' => 'merit_promotion',
+            'old_rate' => $oldRate,
+            'new_rate' => $newRate,
+            'bonus_amount' => $validated['kpi_score'] >= 95 ? 5000.00 : 0.00,
+            'old_position' => $employee->position,
+            'new_position' => $employee->position,
+            'reason' => "Team 3 Ingested Appraisal (KPI: {$validated['kpi_score']}%, Service: {$validated['years_of_service']} yrs)",
+            'status' => $status,
+            'effective_date' => now(),
+        ]);
+
+        return response()->json([
+            'message' => 'Team 3 Performance data ingested and Merit Promotion generated successfully',
+            'data' => $adjustment,
+            'budget_check' => $budgetCheck,
+        ]);
+    }
+
+    /**
+     * Inbound Webhook: Team 7 (Driver Work Experience - Reimbursement Request)
+     */
+    public function webhookDriverReimbursement(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'employee_id' => 'required|exists:employees,id',
+            'amount' => 'required|numeric|min:0.01',
+            'description' => 'required|string',
+            'receipt_number' => 'nullable|string',
+            'cutoff_period' => 'nullable|string',
+        ]);
+
+        $claim = \App\Models\Claim::create([
+            'employee_id' => $validated['employee_id'],
+            'type' => 'expense',
+            'amount' => $validated['amount'],
+            'description' => '[Team 7 Driver Reimbursement] ' . $validated['description'],
+            'receipt_number' => $validated['receipt_number'] ?? ('T7-' . strtoupper(Str::random(6))),
+            'cutoff_period' => $validated['cutoff_period'] ?? '2026-07-01_15',
+            'status' => 'pending',
+            'effective_date' => now(),
+        ]);
+
+        return response()->json([
+            'message' => 'Driver reimbursement request successfully received from Team 7 and queued for Payroll approval',
+            'data' => $claim,
+        ], 201);
     }
 }

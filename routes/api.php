@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Route;
 |--------------------------------------------------------------------------
 */
 
-Route::prefix('payroll')->group(function () {
+Route::prefix('payroll')->middleware('api')->group(function () {
     
     // Outbound REST APIs (Data Provisioning to External Teams)
     Route::get('/compliance-review', [PayrollApiController::class, 'complianceReview']);
@@ -23,6 +23,9 @@ Route::prefix('payroll')->group(function () {
         Route::post('/bonus', [PayrollApiController::class, 'webhookBonus']);
         Route::post('/trip-income', [PayrollApiController::class, 'webhookTripIncome']);
         Route::post('/legal-decision', [PayrollApiController::class, 'webhookLegalDecision']);
+        Route::post('/counter-offer', [PayrollApiController::class, 'webhookCounterOffer']);
+        Route::post('/merit-promotion', [PayrollApiController::class, 'webhookTeam3Merit']);
+        Route::post('/driver-reimbursement', [PayrollApiController::class, 'webhookDriverReimbursement']);
     });
 
 });
