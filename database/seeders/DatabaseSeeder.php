@@ -2,24 +2,178 @@
 
 namespace Database\Seeders;
 
-use App\Models\User;
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
+use App\Models\Attendance;
+use App\Models\Department;
+use App\Models\Employee;
+use App\Models\PerformanceBonus;
+use App\Models\SalaryComputation;
+use App\Models\TripIncome;
 use Illuminate\Database\Seeder;
 
 class DatabaseSeeder extends Seeder
 {
-    use WithoutModelEvents;
-
     /**
      * Seed the application's database.
      */
     public function run(): void
     {
-        // User::factory(10)->create();
+        // 1. Seed Departments
+        $fleetDept = Department::create(['name' => 'Fleet Operations (Drivers)']);
+        $dispatchDept = Department::create(['name' => 'Dispatch & Routing']);
+        $adminDept = Department::create(['name' => 'Administration & HR']);
 
-        User::factory()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
+        // 2. Seed 30 Employees using Faker
+        $employees = Employee::factory()->count(30)->create();
+
+        // 3. For each employee, seed attendance, trip income, performance bonus, and calculated salary
+        foreach ($employees as $employee) {
+            $cutoff = '2026-07-01_15';
+            $daysWorked = rand(8, 11);
+
+            Attendance::create([
+                'employee_id' => $employee->id,
+                'cutoff_period' => $cutoff,
+                'days_worked' => $daysWorked,
+                'lates_count' => rand(0, 2),
+            ]);
+
+            $isDriver = str_contains($employee->position, 'Driver');
+            $tripEarnings = $isDriver ? rand(20, 45) * 150 : 0;
+            if ($isDriver) {
+                TripIncome::create([
+                    'employee_id' => $employee->id,
+                    'cutoff_period' => $cutoff,
+                    'total_trips' => rand(20, 45),
+                    'total_trip_earnings' => $tripEarnings,
+                ]);
+            }
+
+            $bonusAmount = rand(0, 1) === 1 ? 1000 : 0;
+            if ($bonusAmount > 0) {
+                PerformanceBonus::create([
+                    'employee_id' => $employee->id,
+                    'cutoff_period' => $cutoff,
+                    'bonus_amount' => $bonusAmount,
+                    'reason' => 'High performance rating',
+                ]);
+            }
+
+            // Seed mock claims (Expense, Incentive, Maternity)
+            \App\Models\Claim::create([
+                'employee_id' => $employee->id,
+                'type' => 'expense',
+                'amount' => rand(300, 2500),
+                'cutoff_period' => $cutoff,
+                'description' => 'Vehicle Fuel & Toll Reimbursement',
+                'receipt_number' => 'RCP-' . rand(10000, 99999),
+                'status' => rand(0, 1) === 1 ? 'approved' : 'pending',
+                'effective_date' => now(),
+            ]);
+
+            if ($isDriver) {
+                \App\Models\Claim::create([
+                    'employee_id' => $employee->id,
+                    'type' => 'incentive',
+                    'amount' => rand(1500, 5000),
+                    'cutoff_period' => $cutoff,
+                    'description' => 'Peak Hours High Efficiency Driver Incentive',
+                    'receipt_number' => 'INC-' . rand(10000, 99999),
+                    'status' => rand(0, 1) === 1 ? 'approved' : 'pending',
+                    'effective_date' => now(),
+                ]);
+            }
+
+            if ($employee->gender === 'Female' && rand(0, 2) === 1) {
+                \App\Models\Claim::create([
+                    'employee_id' => $employee->id,
+                    'type' => 'maternity',
+                    'amount' => 45000.00,
+                    'cutoff_period' => $cutoff,
+                    'description' => 'SSS Maternity Benefit Advance Claim',
+                    'receipt_number' => 'MAT-' . rand(10000, 99999),
+                    'status' => 'pending',
+                    'effective_date' => now(),
+                ]);
+            }
+
+            // Seed HMO Enrollments
+            $hmoPlan = $isDriver ? 'InLife Fleet Protect' : (str_contains($employee->position, 'Manager') || str_contains($employee->position, 'Lead') ? 'Maxicard Gold' : 'Intellicare Silver');
+            $mbl = $hmoPlan === 'Maxicard Gold' ? 250000 : ($hmoPlan === 'Intellicare Silver' ? 150000 : 100000);
+            
+            \App\Models\HmoEnrollment::create([
+                'employee_id' => $employee->id,
+                'hmo_card_number' => rand(1000, 9999) . '-' . rand(1000, 9999) . '-' . rand(1000, 9999),
+                'provider_plan' => $hmoPlan,
+                'mbl_amount' => $mbl,
+                'status' => 'active',
+            ]);
+
+            // Seed Driver Accident Claims
+            if ($isDriver && rand(0, 3) === 1) {
+                \App\Models\AccidentClaim::create([
+                    'employee_id' => $employee->id,
+                    'incident_number' => 'INCIDENT-' . rand(1000, 9999),
+                    'description' => 'Minor vehicle collision assistance during delivery',
+                    'bill_amount' => rand(5000, 25000),
+                    'status' => 'paid',
+                ]);
+            }
+
+            $basePay = $isDriver ? ($employee->daily_rate * $daysWorked) : ($employee->monthly_rate / 2);
+            $grossPay = $basePay + $tripEarnings + $bonusAmount;
+
+            $sss = min(1350.00, round($grossPay * 0.045, 2));
+            $philhealth = min(2500.00, round($grossPay * 0.025, 2));
+            $pagibig = 200.00;
+            $hmoDeduction = $isDriver ? round($grossPay * 0.03, 2) : 0.00;
+            
+            $taxableIncome = max(0.00, $grossPay - ($sss + $philhealth + $pagibig));
+            $withholdingTax = ($taxableIncome > 20833.33) ? round(($taxableIncome - 20833.33) * 0.20, 2) : 0.00;
+
+            // Intentionally inject an anomaly pattern into every 3rd record for audit & modal testing
+            if ($employee->id % 3 === 0) {
+                $hmoDeduction = round($grossPay * 0.45, 2); // Cause total deductions to breach DOLE 50% limit
+                $pagibig = 0.00; // Missing mandatory contribution
+            }
+
+            $totalDeductions = $sss + $philhealth + $pagibig + $hmoDeduction + $withholdingTax;
+            $netPay = $grossPay - $totalDeductions;
+
+            $comp = SalaryComputation::create([
+                'employee_id' => $employee->id,
+                'cutoff_period' => $cutoff,
+                'base_pay' => $basePay,
+                'trip_earnings' => $tripEarnings,
+                'performance_bonus' => $bonusAmount,
+                'gross_pay' => $grossPay,
+                'sss_deduction' => $sss,
+                'philhealth_deduction' => $philhealth,
+                'pagibig_deduction' => $pagibig,
+                'hmo_insurance_deduction' => $hmoDeduction,
+                'withholding_tax' => $withholdingTax,
+                'total_deductions' => $totalDeductions,
+                'net_pay' => $netPay,
+                'status' => 'pending_approval',
+            ]);
+
+            app(\App\Services\GroqAiComplianceService::class)->analyzeCompliance($comp);
+        }
+
+        // Seed Financial Budget Requisitions
+        \App\Models\BudgetRequisition::create([
+            'requisition_code' => 'REQ-2026-081',
+            'category' => 'Q3 HMO Provider Premiums',
+            'amount' => 450000.00,
+            'justification' => 'Annual corporate healthcare provider premium allocation for all staff.',
+            'status' => 'approved',
+        ]);
+
+        \App\Models\BudgetRequisition::create([
+            'requisition_code' => 'REQ-2026-094',
+            'category' => 'Driver Accident Emergency Pool Top-Up',
+            'amount' => 100000.00,
+            'justification' => 'Emergency fund top-up for active driver fleet coverage.',
+            'status' => 'awaiting_approval',
         ]);
     }
 }

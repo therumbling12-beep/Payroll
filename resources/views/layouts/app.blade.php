@@ -12,6 +12,9 @@
 
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Alpine.js CDN -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <script>
         tailwind.config = {
             theme: {
@@ -50,6 +53,7 @@
     </script>
 
     <style>
+        [x-cloak] { display: none !important; }
         body {
             background-color: #f8f9fa;
             font-family: 'Plus Jakarta Sans', sans-serif;

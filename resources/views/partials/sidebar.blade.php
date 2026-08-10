@@ -36,148 +36,108 @@
 
         <!-- Divider Label -->
         <div class="px-3 pt-4 pb-1">
-            <span class="sidebar-text text-[10px] font-bold uppercase tracking-widest text-white/30">TNVS Systems</span>
+            <span class="sidebar-text text-[10px] font-bold uppercase tracking-widest text-white/30">Payroll & Benefits System</span>
         </div>
 
-        <!-- 1. HRMS -->
+        <!-- 1. Payroll Management -->
         <div class="sidebar-group">
-            <button onclick="toggleGroup('hrms-group')"
-                class="sidebar-link w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 text-white/80 hover:bg-white/10 hover:text-white {{ (isset($currentPage) && str_starts_with($currentPage, 'hrms')) ? 'bg-white/10 text-white' : '' }}">
-                <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/>
-                </svg>
-                <span class="sidebar-text flex-1 text-left truncate">Human Resources</span>
-                <svg class="sidebar-text w-3 h-3 flex-shrink-0 transition-transform duration-200" id="hrms-group-arrow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-                </svg>
-            </button>
-            <div id="hrms-group" class="hidden ml-4 mt-1 space-y-0.5 border-l border-white/10 pl-3">
-                <a href="#" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors">Recruitment & Onboarding</a>
-                <a href="#" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors">Shift & Attendance</a>
-                <a href="#" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors">Payroll & Benefits</a>
-                <a href="#" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors">Performance Management</a>
-            </div>
-        </div>
-
-        <!-- 2. Financial -->
-        <div class="sidebar-group">
-            <button onclick="toggleGroup('finance-group')"
-                class="sidebar-link w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 text-white/80 hover:bg-white/10 hover:text-white {{ (isset($currentPage) && str_starts_with($currentPage, 'finance')) ? 'bg-white/10 text-white' : '' }}">
+            <button onclick="toggleGroup('payroll-group')"
+                class="sidebar-link w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 text-white/80 hover:bg-white/10 hover:text-white {{ (isset($currentPage) && str_starts_with($currentPage, 'payroll')) ? 'bg-white/10 text-white' : '' }}">
                 <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
                 </svg>
-                <span class="sidebar-text flex-1 text-left truncate">Financial Management</span>
-                <svg class="sidebar-text w-3 h-3 flex-shrink-0 transition-transform duration-200" id="finance-group-arrow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <span class="sidebar-text flex-1 text-left truncate">Payroll Management</span>
+                <svg class="sidebar-text w-3 h-3 flex-shrink-0 transition-transform duration-200 {{ (isset($currentPage) && str_starts_with($currentPage, 'payroll')) ? 'rotate-180' : '' }}" id="payroll-group-arrow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
                 </svg>
             </button>
-            <div id="finance-group" class="hidden ml-4 mt-1 space-y-0.5 border-l border-white/10 pl-3">
-                <a href="#" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors">General Ledger</a>
-                <a href="#" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors">Accounts Payable / AR</a>
-                <a href="#" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors">Budget & Cash Management</a>
-                <a href="#" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors">Tax Management</a>
+            <div id="payroll-group" class="{{ (isset($currentPage) && str_starts_with($currentPage, 'payroll')) ? '' : 'hidden' }} ml-4 mt-1 space-y-0.5 border-l border-white/10 pl-3">
+                <a href="{{ route('payroll.salary-computation') }}" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors {{ (isset($currentPage) && $currentPage === 'payroll.salary-computation') ? 'text-white font-bold' : '' }}">Salary Computation</a>
+                <a href="{{ route('payroll.payslips') }}" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors {{ (isset($currentPage) && $currentPage === 'payroll.payslips') ? 'text-white font-bold' : '' }}">Payslip Generation</a>
+                <a href="{{ route('payroll.thirteenth-month') }}" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors {{ (isset($currentPage) && $currentPage === 'payroll.thirteenth-month') ? 'text-white font-bold' : '' }}">13th Month Pay</a>
+                <a href="{{ route('payroll.payment-modes') }}" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors {{ (isset($currentPage) && $currentPage === 'payroll.payment-modes') ? 'text-white font-bold' : '' }}">Payment Modes Config</a>
+                <a href="{{ route('payroll.audit-trail') }}" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors {{ (isset($currentPage) && $currentPage === 'payroll.audit-trail') ? 'text-white font-bold' : '' }}">
+                    <span class="flex items-center gap-1.5">
+                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                        AI Audit & Compliance
+                    </span>
+                </a>
             </div>
         </div>
 
-        <!-- 3. Supply Chain -->
+        <!-- 2. Compensation Planning -->
         <div class="sidebar-group">
-            <button onclick="toggleGroup('supply-group')"
-                class="sidebar-link w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 text-white/80 hover:bg-white/10 hover:text-white">
+            <button onclick="toggleGroup('compensation-group')"
+                class="sidebar-link w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 text-white/80 hover:bg-white/10 hover:text-white {{ (isset($currentPage) && str_starts_with($currentPage, 'compensation')) ? 'bg-white/10 text-white' : '' }}">
                 <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
                 </svg>
-                <span class="sidebar-text flex-1 text-left truncate">Supply Chain</span>
-                <svg class="sidebar-text w-3 h-3 flex-shrink-0 transition-transform duration-200" id="supply-group-arrow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <span class="sidebar-text flex-1 text-left truncate">Compensation Planning</span>
+                <svg class="sidebar-text w-3 h-3 flex-shrink-0 transition-transform duration-200 {{ (isset($currentPage) && str_starts_with($currentPage, 'compensation')) ? 'rotate-180' : '' }}" id="compensation-group-arrow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
                 </svg>
             </button>
-            <div id="supply-group" class="hidden ml-4 mt-1 space-y-0.5 border-l border-white/10 pl-3">
-                <a href="#" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors">Smart Warehousing</a>
-                <a href="#" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors">Procurement & Sourcing</a>
-                <a href="#" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors">Supplier Management</a>
+            <div id="compensation-group" class="{{ (isset($currentPage) && str_starts_with($currentPage, 'compensation')) ? '' : 'hidden' }} ml-4 mt-1 space-y-0.5 border-l border-white/10 pl-3">
+                <a href="{{ route('compensation.salary-config') }}" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors {{ (isset($currentPage) && $currentPage === 'compensation.salary-config') ? 'text-white font-bold' : '' }}">Salary Configuration</a>
+                <a href="{{ route('compensation.counter-offers') }}" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors {{ (isset($currentPage) && $currentPage === 'compensation.counter-offers') ? 'text-white font-bold' : '' }}">Counter Offers</a>
+                <a href="{{ route('compensation.merit-promotions') }}" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors {{ (isset($currentPage) && $currentPage === 'compensation.merit-promotions') ? 'text-white font-bold' : '' }}">Merit & Promotions</a>
             </div>
         </div>
 
-        <!-- 4. Fleet -->
+        <!-- 3. Claims and Reimbursement -->
         <div class="sidebar-group">
-            <button onclick="toggleGroup('fleet-group')"
-                class="sidebar-link w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 text-white/80 hover:bg-white/10 hover:text-white">
+            <button onclick="toggleGroup('claims-group')"
+                class="sidebar-link w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 text-white/80 hover:bg-white/10 hover:text-white {{ (isset($currentPage) && str_starts_with($currentPage, 'claims')) ? 'bg-white/10 text-white' : '' }}">
                 <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z"/>
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
                 </svg>
-                <span class="sidebar-text flex-1 text-left truncate">Fleet & Transport</span>
-                <svg class="sidebar-text w-3 h-3 flex-shrink-0 transition-transform duration-200" id="fleet-group-arrow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <span class="sidebar-text flex-1 text-left truncate">Claims & Reimbursement</span>
+                <svg class="sidebar-text w-3 h-3 flex-shrink-0 transition-transform duration-200 {{ (isset($currentPage) && str_starts_with($currentPage, 'claims')) ? 'rotate-180' : '' }}" id="claims-group-arrow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
                 </svg>
             </button>
-            <div id="fleet-group" class="hidden ml-4 mt-1 space-y-0.5 border-l border-white/10 pl-3">
-                <a href="#" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors">Vehicle Reservation & Dispatch</a>
-                <a href="#" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors">Fuel Management</a>
-                <a href="#" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors">Route Planning</a>
-                <a href="#" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors">Cost Analysis (TCAO)</a>
+            <div id="claims-group" class="{{ (isset($currentPage) && str_starts_with($currentPage, 'claims')) ? '' : 'hidden' }} ml-4 mt-1 space-y-0.5 border-l border-white/10 pl-3">
+                <a href="{{ route('claims.expenses') }}" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors {{ (isset($currentPage) && $currentPage === 'claims.expenses') ? 'text-white font-bold' : '' }}">Driver Work Expenses</a>
+                <a href="{{ route('claims.incentives') }}" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors {{ (isset($currentPage) && $currentPage === 'claims.incentives') ? 'text-white font-bold' : '' }}">Driver Ride Incentives</a>
+                <a href="{{ route('claims.maternity-leave') }}" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors {{ (isset($currentPage) && $currentPage === 'claims.maternity-leave') ? 'text-white font-bold' : '' }}">Maternity Leave Request</a>
             </div>
         </div>
 
-        <!-- 5. Facilities -->
+        <!-- 4. HMO & Benefits Administration -->
         <div class="sidebar-group">
-            <button onclick="toggleGroup('facilities-group')"
-                class="sidebar-link w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 text-white/80 hover:bg-white/10 hover:text-white">
+            <button onclick="toggleGroup('hmo-group')"
+                class="sidebar-link w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 text-white/80 hover:bg-white/10 hover:text-white {{ (isset($currentPage) && str_starts_with($currentPage, 'hmo')) ? 'bg-white/10 text-white' : '' }}">
                 <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/>
                 </svg>
-                <span class="sidebar-text flex-1 text-left truncate">Facilities & Admin</span>
-                <svg class="sidebar-text w-3 h-3 flex-shrink-0 transition-transform duration-200" id="facilities-group-arrow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <span class="sidebar-text flex-1 text-left truncate">HMO & Benefits Admin</span>
+                <svg class="sidebar-text w-3 h-3 flex-shrink-0 transition-transform duration-200 {{ (isset($currentPage) && str_starts_with($currentPage, 'hmo')) ? 'rotate-180' : '' }}" id="hmo-group-arrow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
                 </svg>
             </button>
-            <div id="facilities-group" class="hidden ml-4 mt-1 space-y-0.5 border-l border-white/10 pl-3">
-                <a href="{{ url('/facilities-admin') }}" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors {{ (isset($currentPage) && $currentPage === 'facilities-dashboard') ? 'text-white font-bold' : '' }}">System Overview</a>
-                <a href="#" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors">Facilities Reservation</a>
-                <a href="#" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors">Visitor Management</a>
-                <a href="#" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors">Document Archiving</a>
-                <a href="#" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors">Legal & Contracts</a>
+            <div id="hmo-group" class="{{ (isset($currentPage) && str_starts_with($currentPage, 'hmo')) ? '' : 'hidden' }} ml-4 mt-1 space-y-0.5 border-l border-white/10 pl-3">
+                <a href="{{ route('hmo.plans') }}" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors {{ (isset($currentPage) && $currentPage === 'hmo.plans') ? 'text-white font-bold' : '' }}">Employee HMO Plans</a>
+                <a href="{{ route('hmo.driver-insurance') }}" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors {{ (isset($currentPage) && $currentPage === 'hmo.driver-insurance') ? 'text-white font-bold' : '' }}">Driver Insurance Config</a>
+                <a href="{{ route('hmo.budget-requests') }}" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors {{ (isset($currentPage) && $currentPage === 'hmo.budget-requests') ? 'text-white font-bold' : '' }}">Budget Requests</a>
             </div>
         </div>
 
-        <!-- 6. TNVS Operations -->
+        <!-- 5. HR Analytics Dashboard -->
         <div class="sidebar-group">
-            <button onclick="toggleGroup('operations-group')"
-                class="sidebar-link w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 text-white/80 hover:bg-white/10 hover:text-white">
+            <button onclick="toggleGroup('analytics-group')"
+                class="sidebar-link w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 text-white/80 hover:bg-white/10 hover:text-white {{ (isset($currentPage) && str_starts_with($currentPage, 'analytics')) ? 'bg-white/10 text-white' : '' }}">
                 <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z"/>
                 </svg>
-                <span class="sidebar-text flex-1 text-left truncate">TNVS Operations</span>
-                <svg class="sidebar-text w-3 h-3 flex-shrink-0 transition-transform duration-200" id="operations-group-arrow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <span class="sidebar-text flex-1 text-left truncate">HR Analytics Dashboard</span>
+                <svg class="sidebar-text w-3 h-3 flex-shrink-0 transition-transform duration-200 {{ (isset($currentPage) && str_starts_with($currentPage, 'analytics')) ? 'rotate-180' : '' }}" id="analytics-group-arrow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
                 </svg>
             </button>
-            <div id="operations-group" class="hidden ml-4 mt-1 space-y-0.5 border-l border-white/10 pl-3">
-                <a href="#" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors">Dispatching & Trip Mgmt</a>
-                <a href="#" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors">Driver Information</a>
-                <a href="#" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors">Driver Wallet & Earnings</a>
-                <a href="#" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors">Supplies Management</a>
-            </div>
-        </div>
-
-        <!-- 7. Booking & CX -->
-        <div class="sidebar-group">
-            <button onclick="toggleGroup('booking-group')"
-                class="sidebar-link w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 text-white/80 hover:bg-white/10 hover:text-white">
-                <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z"/>
-                </svg>
-                <span class="sidebar-text flex-1 text-left truncate">Booking & CX</span>
-                <svg class="sidebar-text w-3 h-3 flex-shrink-0 transition-transform duration-200" id="booking-group-arrow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-                </svg>
-            </button>
-            <div id="booking-group" class="hidden ml-4 mt-1 space-y-0.5 border-l border-white/10 pl-3">
-                <a href="{{ url('/passenger-booking-app') }}" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors {{ (isset($currentPage) && $currentPage === 'passenger-app') ? 'text-white font-bold' : '' }}">Booking System (App)</a>
-                <a href="#" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors">Payment & Fare Collection</a>
-                <a href="#" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors">CRM</a>
-                <a href="#" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors">GPS Tracking</a>
-                <a href="#" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors">KPI Analytics</a>
+            <div id="analytics-group" class="{{ (isset($currentPage) && str_starts_with($currentPage, 'analytics')) ? '' : 'hidden' }} ml-4 mt-1 space-y-0.5 border-l border-white/10 pl-3">
+                <a href="{{ route('analytics.performance') }}" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors {{ (isset($currentPage) && $currentPage === 'analytics.performance') ? 'text-white font-bold' : '' }}">Employee Performance</a>
+                <a href="{{ route('analytics.payroll') }}" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors {{ (isset($currentPage) && $currentPage === 'analytics.payroll') ? 'text-white font-bold' : '' }}">Payroll & Salary Reports</a>
+                <a href="{{ route('analytics.budget') }}" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors {{ (isset($currentPage) && $currentPage === 'analytics.budget') ? 'text-white font-bold' : '' }}">Cost & Budget Overview</a>
             </div>
         </div>
 
