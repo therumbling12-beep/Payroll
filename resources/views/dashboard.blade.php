@@ -11,7 +11,7 @@
     <!-- Page Header -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
-            <h1 class="text-xl font-extrabold font-outfit text-gray-900"></h1>
+            <h1 class="text-xl font-extrabold font-outfit text-gray-900">Operations Command Center</h1>
             <p class="text-xs text-gray-500 mt-0.5">Welcome back, Super Admin — here is your TripWise cluster overview for today.</p>
         </div>
         <div class="flex items-center gap-3">
