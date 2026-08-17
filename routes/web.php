@@ -81,7 +81,6 @@ Route::prefix('compensation')->name('compensation.')->group(function () {
     Route::post('/adjustments/{adjustment}/admin-approve', [CompensationController::class, 'adminApproveAdjustment'])->name('adjustments.admin-approve');
     Route::post('/adjustments/{adjustment}/approve', [CompensationController::class, 'approveAdjustment'])->name('adjustments.approve');
     Route::post('/adjustments/{adjustment}/reject', [CompensationController::class, 'rejectAdjustment'])->name('adjustments.reject');
-    Route::post('/adjustments/{adjustment}/response', [CompensationController::class, 'updateResponse'])->name('adjustments.response');
     Route::post('/api/finance-budget-validation', [CompensationController::class, 'validateFinanceBudget'])->name('finance.validate');
     Route::post('/api/counter-offer-calculator', [CompensationController::class, 'calculateCounterOffer'])->name('counter-offers.calculate');
     Route::post('/api/simulate-growth', [CompensationController::class, 'simulateCompensation'])->name('simulate');

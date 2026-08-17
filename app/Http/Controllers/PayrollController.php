@@ -6,6 +6,7 @@ namespace App\Http\Controllers;
 
 use App\Enums\OffCycleRunType;
 use App\Enums\PayrollBatchStatus;
+use App\Models\CompanySetting;
 use App\Models\Department;
 use App\Models\Employee;
 use App\Models\EmployeeLoan;
@@ -62,9 +63,11 @@ class PayrollController extends Controller
             ->get();
 
         if ($cutoffs->isEmpty()) {
+            $currYearMonth = date('Y-m');
+            $lastDay = date('t');
             $cutoffs = collect([
                 (object)[
-                    'cutoff_period' => '2026-07-01_15',
+                    'cutoff_period' => "{$currYearMonth}-01_15",
                     'total_employees' => 0,
                     'total_gross' => 0,
                     'total_deductions' => 0,
@@ -72,7 +75,7 @@ class PayrollController extends Controller
                     'last_run' => now(),
                 ],
                 (object)[
-                    'cutoff_period' => '2026-07-16_31',
+                    'cutoff_period' => "{$currYearMonth}-16_{$lastDay}",
                     'total_employees' => 0,
                     'total_gross' => 0,
                     'total_deductions' => 0,
@@ -82,11 +85,10 @@ class PayrollController extends Controller
             ]);
         }
 
-        $departments = Department::all();
+        $departments = Department::select(['id', 'name'])->get();
         $batches = PayrollBatch::all()->keyBy('cutoff_period');
-        $holidays = Holiday::active()->orderBy('holiday_date')->get();
 
-        return view('payroll-benefits.payroll.cutoffs-list', compact('cutoffs', 'departments', 'batches', 'holidays'));
+        return view('payroll-benefits.payroll.cutoffs-list', compact('cutoffs', 'departments', 'batches'));
     }
 
     /**
@@ -115,7 +117,7 @@ class PayrollController extends Controller
 
         $computations = $query->paginate(10)->withQueryString();
         $departments = Department::all();
-        $employees = Employee::orderBy('first_name')->get();
+        $employees = Employee::select(['id', 'first_name', 'last_name', 'position'])->orderBy('first_name')->get();
         $batch = PayrollBatch::firstOrCreate(
             ['cutoff_period' => $cutoff],
             ['status' => PayrollBatchStatus::DRAFT]
@@ -713,7 +715,11 @@ class PayrollController extends Controller
 
         $grossPay = round($basePay + $tripEarnings + $driverTripIncentive + $holidayPay + $overtimePay + $nightDiffPay + $performanceBonus, 2);
 
-        $monthlyBasis = max(10000.00, $employee?->monthly_rate ?: ($grossPay * 2));
+        $statutoryMinBasis = (float) CompanySetting::getValue('statutory_minimum_monthly_basis', 10000.00);
+        $driverHmoRate = (float) CompanySetting::getValue('driver_group_hmo_deduction_rate', 0.03);
+        $platformFeeRate = (float) CompanySetting::getValue('driver_tnc_platform_fee_rate', 0.20);
+
+        $monthlyBasis = max($statutoryMinBasis, $employee?->monthly_rate ?: ($grossPay * 2));
         $sssRes = app(SssContributionService::class)->compute($monthlyBasis, true);
         $philRes = app(PhilHealthContributionService::class)->compute($monthlyBasis, true);
         $pagibigRes = app(PagIbigContributionService::class)->compute($monthlyBasis, true);
@@ -721,8 +727,8 @@ class PayrollController extends Controller
         $sss = isset($validated['sss_deduction']) ? (float) $validated['sss_deduction'] : $sssRes['employee_share'];
         $philhealth = isset($validated['philhealth_deduction']) ? (float) $validated['philhealth_deduction'] : $philRes['employee_share'];
         $pagibig = isset($validated['pagibig_deduction']) ? (float) $validated['pagibig_deduction'] : $pagibigRes['employee_share'];
-        $hmoDeduction = (float) ($validated['hmo_insurance_deduction'] ?? ($isDriver ? round($grossPay * 0.03, 2) : 0));
-        $platformFee = $isDriver ? round($tripEarnings * 0.20, 2) : 0.00;
+        $hmoDeduction = (float) ($validated['hmo_insurance_deduction'] ?? ($isDriver ? round($grossPay * $driverHmoRate, 2) : 0));
+        $platformFee = $isDriver ? round($tripEarnings * $platformFeeRate, 2) : 0.00;
         $loanDeduction = (float) ($validated['loan_deduction'] ?? 0);
         $tardinessDeduction = (float) ($validated['tardiness_deduction'] ?? 0);
         $undertimeDeduction = (float) ($validated['undertime_deduction'] ?? 0);

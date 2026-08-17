@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Compensation;
 
+use App\Models\CompanySetting;
 use App\Models\Department;
 use App\Models\Employee;
 use App\Models\SalaryGrade;
@@ -28,8 +29,13 @@ class MeritIncreaseService
      */
     public function computeMeritIncrease(Employee $employee, ?float $customPercentage = null): array
     {
+        $workingDays = (float) CompanySetting::getValue('standard_working_days_per_month', 26.0);
+        $driverDefault = (float) CompanySetting::getValue('driver_default_baseline_salary', 28000.00);
+        $staffDefault = (float) CompanySetting::getValue('staff_default_baseline_salary', 25000.00);
+        $defaultAllowance = (float) CompanySetting::getValue('standard_employee_allowance_monthly', 3500.00);
+
         $isDriver = str_contains(strtolower($employee->position ?? ''), 'driver');
-        $currentSalary = (float) ($employee->monthly_rate ?: ($employee->daily_rate ? $employee->daily_rate * 26 : ($isDriver ? 28000.00 : 25000.00)));
+        $currentSalary = (float) ($employee->monthly_rate ?: ($employee->daily_rate ? $employee->daily_rate * $workingDays : ($isDriver ? $driverDefault : $staffDefault)));
 
         $grade = SalaryGrade::where('position_name', $employee->position)->first()
             ?? SalaryGrade::first();
@@ -47,8 +53,8 @@ class MeritIncreaseService
         $actualIncrease = round($proposedSalary - $currentSalary, 2);
         $exceedsBandMax = ($currentSalary + $increaseAmount) > $gradeMax;
 
-        $oldCtc = $this->counterOfferService->calculateTotalCostToCompany($currentSalary, 3500.00);
-        $newCtc = $this->counterOfferService->calculateTotalCostToCompany($proposedSalary, 3500.00);
+        $oldCtc = $this->counterOfferService->calculateTotalCostToCompany($currentSalary, $defaultAllowance);
+        $newCtc = $this->counterOfferService->calculateTotalCostToCompany($proposedSalary, $defaultAllowance);
 
         $incrementalMonthlyCtc = round($newCtc['monthly_ctc'] - $oldCtc['monthly_ctc'], 2);
         $incrementalAnnualCtc = round($newCtc['annual_ctc'] - $oldCtc['annual_ctc'], 2);
@@ -91,21 +97,27 @@ class MeritIncreaseService
      */
     public function computePromotion(Employee $employee, SalaryGrade $newGrade): array
     {
+        $workingDays = (float) CompanySetting::getValue('standard_working_days_per_month', 26.0);
+        $driverDefault = (float) CompanySetting::getValue('driver_default_baseline_salary', 28000.00);
+        $staffDefault = (float) CompanySetting::getValue('staff_default_baseline_salary', 25000.00);
+        $defaultAllowance = (float) CompanySetting::getValue('standard_employee_allowance_monthly', 3500.00);
+        $promotionMinPct = (float) CompanySetting::getValue('promotion_minimum_increase_pct', 15.0);
+
         $isDriver = str_contains(strtolower($employee->position ?? ''), 'driver');
-        $currentSalary = (float) ($employee->monthly_rate ?: ($employee->daily_rate ? $employee->daily_rate * 26 : ($isDriver ? 28000.00 : 25000.00)));
+        $currentSalary = (float) ($employee->monthly_rate ?: ($employee->daily_rate ? $employee->daily_rate * $workingDays : ($isDriver ? $driverDefault : $staffDefault)));
 
         $newGradeMin = (float) $newGrade->min_salary;
         $newGradeMax = (float) $newGrade->max_salary;
 
-        $fifteenPctBase = round($currentSalary * 1.15, 2);
+        $fifteenPctBase = round($currentSalary * (1 + ($promotionMinPct / 100)), 2);
         $promotedSalary = max($newGradeMin, $fifteenPctBase);
         $promotedSalary = min($newGradeMax, $promotedSalary);
 
         $increaseAmount = round($promotedSalary - $currentSalary, 2);
-        $actualPct = $currentSalary > 0 ? round(($increaseAmount / $currentSalary) * 100, 1) : 15.0;
+        $actualPct = $currentSalary > 0 ? round(($increaseAmount / $currentSalary) * 100, 1) : $promotionMinPct;
 
-        $oldCtc = $this->counterOfferService->calculateTotalCostToCompany($currentSalary, 3500.00);
-        $newCtc = $this->counterOfferService->calculateTotalCostToCompany($promotedSalary, 3500.00);
+        $oldCtc = $this->counterOfferService->calculateTotalCostToCompany($currentSalary, $defaultAllowance);
+        $newCtc = $this->counterOfferService->calculateTotalCostToCompany($promotedSalary, $defaultAllowance);
 
         return [
             'employee_id' => $employee->id,
@@ -188,37 +200,41 @@ class MeritIncreaseService
     protected function getMeritMatrixTier(float $score, string $rating): array
     {
         if ($score >= 5.0) {
+            $pct = (float) CompanySetting::getValue('merit_tier_outstanding_pct', 10.0);
             return [
                 'label' => '5.0 Outstanding',
                 'range' => '8.0% - 12.0%',
-                'default_percentage' => 10.0,
+                'default_percentage' => $pct,
                 'pip_triggered' => false,
             ];
         }
 
         if ($score >= 4.0) {
+            $pct = (float) CompanySetting::getValue('merit_tier_exceeds_pct', 6.5);
             return [
                 'label' => '4.0 - 4.9 Exceeds Expectations',
                 'range' => '5.0% - 8.0%',
-                'default_percentage' => 6.5,
+                'default_percentage' => $pct,
                 'pip_triggered' => false,
             ];
         }
 
         if ($score >= 3.0) {
+            $pct = (float) CompanySetting::getValue('merit_tier_meets_pct', 3.5);
             return [
                 'label' => '3.0 - 3.9 Meets Expectations',
                 'range' => '2.0% - 5.0%',
-                'default_percentage' => 3.5,
+                'default_percentage' => $pct,
                 'pip_triggered' => false,
             ];
         }
 
         if ($score >= 2.0) {
+            $pct = (float) CompanySetting::getValue('merit_tier_needs_improvement_pct', 1.0);
             return [
                 'label' => '2.0 - 2.9 Needs Improvement',
                 'range' => '0.0% - 2.0%',
-                'default_percentage' => 1.0,
+                'default_percentage' => $pct,
                 'pip_triggered' => false,
             ];
         }

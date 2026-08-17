@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Payroll;
 
+use App\Models\CompanySetting;
 use App\Models\Employee;
 use App\Models\TripIncome;
 
@@ -31,18 +32,27 @@ class DriverTripIncentiveService
 
         $tripsCount = $tripIncome ? (int) $tripIncome->total_trips : 0;
 
-        if ($tripsCount >= 70) {
-            $amount = 3000.00;
-            $tier = 'Tier 3 (70+ Trips Quota Bonus)';
-        } elseif ($tripsCount >= 50) {
-            $amount = 1500.00;
-            $tier = 'Tier 2 (50-69 Trips Quota Bonus)';
-        } elseif ($tripsCount >= 30) {
-            $amount = 500.00;
-            $tier = 'Tier 1 (30-49 Trips Quota Bonus)';
+        $tier3Quota = (int) CompanySetting::getValue('driver_tier3_trip_quota', 70);
+        $tier3Bonus = (float) CompanySetting::getValue('driver_tier3_bonus', 3000.00);
+
+        $tier2Quota = (int) CompanySetting::getValue('driver_tier2_trip_quota', 50);
+        $tier2Bonus = (float) CompanySetting::getValue('driver_tier2_bonus', 1500.00);
+
+        $tier1Quota = (int) CompanySetting::getValue('driver_tier1_trip_quota', 30);
+        $tier1Bonus = (float) CompanySetting::getValue('driver_tier1_bonus', 500.00);
+
+        if ($tripsCount >= $tier3Quota) {
+            $amount = $tier3Bonus;
+            $tier = "Tier 3 ({$tier3Quota}+ Trips Quota Bonus)";
+        } elseif ($tripsCount >= $tier2Quota) {
+            $amount = $tier2Bonus;
+            $tier = "Tier 2 ({$tier2Quota}-" . ($tier3Quota - 1) . " Trips Quota Bonus)";
+        } elseif ($tripsCount >= $tier1Quota) {
+            $amount = $tier1Bonus;
+            $tier = "Tier 1 ({$tier1Quota}-" . ($tier2Quota - 1) . " Trips Quota Bonus)";
         } else {
             $amount = 0.00;
-            $tier = 'Below Quota Threshold (<30 Trips)';
+            $tier = "Below Quota Threshold (<{$tier1Quota} Trips)";
         }
 
         return [

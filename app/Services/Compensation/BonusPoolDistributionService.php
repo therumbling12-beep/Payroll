@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Compensation;
 
+use App\Models\CompanySetting;
 use App\Models\CompensationAdjustment;
 use App\Models\Department;
 use App\Models\Employee;
@@ -55,23 +56,33 @@ class BonusPoolDistributionService
         $totalWeight = 0.0;
         $employeeWeights = [];
 
+        $workingDays = (float) CompanySetting::getValue('standard_working_days_per_month', 26.0);
+        $driverDefault = (float) CompanySetting::getValue('driver_default_baseline_salary', 28000.00);
+        $staffDefault = (float) CompanySetting::getValue('staff_default_baseline_salary', 25000.00);
+
+        $multOutstanding = (float) CompanySetting::getValue('bonus_multiplier_outstanding', 1.50);
+        $multVerySatisfactory = (float) CompanySetting::getValue('bonus_multiplier_very_satisfactory', 1.25);
+        $multSatisfactory = (float) CompanySetting::getValue('bonus_multiplier_satisfactory', 1.00);
+        $multNeedsImprovement = (float) CompanySetting::getValue('bonus_multiplier_needs_improvement', 0.50);
+        $tenureScaleFactor = (float) CompanySetting::getValue('bonus_tenure_annual_scale_factor', 0.05);
+
         foreach ($employees as $emp) {
             $isDriver = str_contains(strtolower($emp->position ?? ''), 'driver');
-            $baseSalary = (float) ($emp->monthly_rate ?: ($emp->daily_rate ? $emp->daily_rate * 26 : ($isDriver ? 28000.00 : 25000.00)));
+            $baseSalary = (float) ($emp->monthly_rate ?: ($emp->daily_rate ? $emp->daily_rate * $workingDays : ($isDriver ? $driverDefault : $staffDefault)));
 
             $rating = $emp->performance_rating ?? 'Satisfactory';
             $score = $this->resolveScoreFromRating($rating);
 
             $perfMultiplier = match (true) {
-                $score >= 5.0 => 1.50,
-                $score >= 4.0 => 1.25,
-                $score >= 3.0 => 1.00,
-                $score >= 2.0 => 0.50,
+                $score >= 5.0 => $multOutstanding,
+                $score >= 4.0 => $multVerySatisfactory,
+                $score >= 3.0 => $multSatisfactory,
+                $score >= 2.0 => $multNeedsImprovement,
                 default => 0.00,
             };
 
             $tenureYears = (float) ($emp->years_of_service ?? 1.0);
-            $tenureFactor = min(2.0, 1.0 + ($tenureYears * 0.05));
+            $tenureFactor = min(2.0, 1.0 + ($tenureYears * $tenureScaleFactor));
 
             $weight = match ($bonusType) {
                 'tenure_milestone' => round($baseSalary * $tenureFactor, 2),

@@ -6,6 +6,7 @@ namespace App\Services;
 
 use App\Models\Attendance;
 use App\Models\Claim;
+use App\Models\CompanySetting;
 use App\Models\Employee;
 use App\Models\PerformanceBonus;
 use App\Models\SalaryComputation;
@@ -41,11 +42,15 @@ class PayrollEngineService
     public function computeForEmployee(Employee $employee, string $cutoffPeriod): SalaryComputation
     {
         return DB::transaction(function () use ($employee, $cutoffPeriod) {
+            $defaultDaysWorked = (int) CompanySetting::getValue('payroll_default_semi_monthly_days_worked', 11);
+            $defaultStaffBase = (float) CompanySetting::getValue('payroll_default_staff_semi_monthly_base', 12500.00);
+            $statutoryMinBasis = (float) CompanySetting::getValue('statutory_minimum_monthly_basis', 10000.00);
+
             $attendance = Attendance::where('employee_id', $employee->id)
                 ->where('cutoff_period', $cutoffPeriod)
                 ->first();
 
-            $daysWorked = $attendance ? $attendance->days_worked : 11;
+            $daysWorked = $attendance ? $attendance->days_worked : $defaultDaysWorked;
             $isDriver = str_contains(strtolower($employee->position ?? ''), 'driver');
 
             // 1. Base Pay Computation (Semi-monthly: Monthly / 2 or Daily * Days Worked)
@@ -54,7 +59,7 @@ class PayrollEngineService
             } elseif ($employee->daily_rate > 0) {
                 $basePay = round((float) $employee->daily_rate * $daysWorked, 2);
             } else {
-                $basePay = $isDriver ? 0.00 : 12500.00;
+                $basePay = $isDriver ? 0.00 : $defaultStaffBase;
             }
 
             // 2. Variable Trip Income (Fleet / Driver Trips)
@@ -98,8 +103,10 @@ class PayrollEngineService
             $grossPay = round($basePay + $tripEarnings + $driverTripIncentive + $holidayPay + $overtimePay + $nightDiffPay + $bonusAmount, 2);
 
             // 7. Driver Platform Fees & HMO Deductions
-            $platformFee = $isDriver ? round($tripEarnings * 0.20, 2) : 0.00; // 20% TNC Commission
-            $hmoInsuranceDeduction = $isDriver ? round($grossPay * 0.03, 2) : 0.00; // 3% Driver Group Coverage
+            $platformFeeRate = (float) CompanySetting::getValue('driver_tnc_platform_fee_rate', 0.20);
+            $driverHmoRate = (float) CompanySetting::getValue('driver_group_hmo_deduction_rate', 0.03);
+            $platformFee = $isDriver ? round($tripEarnings * $platformFeeRate, 2) : 0.00; // TNC Commission
+            $hmoInsuranceDeduction = $isDriver ? round($grossPay * $driverHmoRate, 2) : 0.00; // Driver Group Coverage
 
             // 8. Loan Amortization Deductions (SSS, Pag-IBIG, Company Loans)
             $loanResult = $this->loanService->compute($employee, $cutoffPeriod);
@@ -111,7 +118,7 @@ class PayrollEngineService
             $undertimeDeduction = (float) $tardyResult['undertime_deduction'];
 
             // 10. Statutory Deductions (2025-2026 Official Tables)
-            $monthlyBasis = max(10000.00, (float) ($employee->monthly_rate ?: ($grossPay * 2)));
+            $monthlyBasis = max($statutoryMinBasis, (float) ($employee->monthly_rate ?: ($grossPay * 2)));
 
             $sssResult = $this->sssService->compute($monthlyBasis, true);
             $philhealthResult = $this->philhealthService->compute($monthlyBasis, true);

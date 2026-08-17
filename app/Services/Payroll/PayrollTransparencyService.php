@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Payroll;
 
 use App\Models\Attendance;
+use App\Models\CompanySetting;
 use App\Models\Employee;
 use App\Models\EmployeeLoan;
 use App\Models\SalaryComputation;
@@ -32,10 +33,19 @@ class PayrollTransparencyService
 
         $isDriver = $employee ? str_contains(strtolower($employee->position ?? ''), 'driver') : false;
 
+        $workingDays = (float) CompanySetting::getValue('standard_working_days_per_month', 26.0);
+        $workingHours = (float) CompanySetting::getValue('standard_working_hours_per_day', 8.0);
+        $platformFeeRate = (float) CompanySetting::getValue('driver_tnc_platform_fee_rate', 0.20);
+        $driverHmoRate = (float) CompanySetting::getValue('driver_group_hmo_deduction_rate', 0.03);
+        $regularMultiplier = (float) CompanySetting::getValue('holiday_regular_worked_multiplier', 2.00);
+        $specialMultiplier = (float) CompanySetting::getValue('holiday_special_worked_multiplier', 1.30);
+        $regularOtRate = (float) CompanySetting::getValue('overtime_regular_multiplier', 1.25);
+        $nsdRate = (float) CompanySetting::getValue('night_shift_differential_rate', 0.10);
+
         // 1. Base Pay & Rate Conversion
         $monthlyRate = (float) ($employee?->monthly_rate ?: 0);
-        $dailyRate = (float) ($employee?->daily_rate ?: ($monthlyRate > 0 ? round($monthlyRate / 26, 2) : ($isDriver ? 1076.92 : 961.54)));
-        $hourlyRate = round($dailyRate / 8, 2);
+        $dailyRate = (float) ($employee?->daily_rate ?: ($monthlyRate > 0 ? round($monthlyRate / $workingDays, 2) : ($isDriver ? 1076.92 : 961.54)));
+        $hourlyRate = round($dailyRate / $workingHours, 2);
         $minuteRate = round($hourlyRate / 60, 4);
 
         $basePay = (float) $computation->base_pay;
@@ -82,12 +92,13 @@ class PayrollTransparencyService
             $quotaTier = 'Tier 1 (50–79 Completed Bookings: PHP 500)';
         }
 
+        $platformFeePct = $platformFeeRate * 100;
         $tnvsMath = [
             'is_driver' => $isDriver,
             'trip_earnings' => $tripEarnings,
-            'platform_fee_percent' => 20.0,
+            'platform_fee_percent' => $platformFeePct,
             'platform_fee_deduction' => $platformFee,
-            'platform_fee_formula' => "PHP {$tripEarnings} (Gross Fares) x 20% TNC Commission = PHP " . number_format($platformFee, 2),
+            'platform_fee_formula' => "PHP {$tripEarnings} (Gross Fares) x {$platformFeePct}% TNC Commission = PHP " . number_format($platformFee, 2),
             'driver_trip_incentive' => $driverTripIncentive,
             'quota_tier_label' => $quotaTier,
         ];
@@ -100,12 +111,12 @@ class PayrollTransparencyService
         $holidayOtMath = [
             'hourly_rate' => $hourlyRate,
             'holiday_pay' => $holidayPay,
-            'regular_holiday_rate' => round($hourlyRate * 2.0, 2),
-            'special_holiday_rate' => round($hourlyRate * 1.3, 2),
+            'regular_holiday_rate' => round($hourlyRate * $regularMultiplier, 2),
+            'special_holiday_rate' => round($hourlyRate * $specialMultiplier, 2),
             'overtime_pay' => $overtimePay,
-            'overtime_rate' => round($hourlyRate * 1.25, 2),
+            'overtime_rate' => round($hourlyRate * $regularOtRate, 2),
             'night_diff_pay' => $nightDiffPay,
-            'night_diff_rate' => round($hourlyRate * 0.10, 2),
+            'night_diff_rate' => round($hourlyRate * $nsdRate, 2),
             'performance_bonus' => (float) $computation->performance_bonus,
             'reimbursements' => (float) $computation->reimbursements,
             'total_gross' => (float) $computation->gross_pay,
@@ -144,9 +155,9 @@ class PayrollTransparencyService
                 'formula' => "Statutory Fixed Share = PHP " . number_format((float) $computation->pagibig_deduction, 2),
             ],
             'driver_hmo' => [
-                'rate' => 3.0,
+                'rate' => $driverHmoRate * 100,
                 'deduction' => (float) $computation->hmo_insurance_deduction,
-                'formula' => $isDriver ? "Gross Earnings PHP " . number_format((float) $computation->gross_pay, 2) . " x 3.0% Driver HMO = PHP " . number_format((float) $computation->hmo_insurance_deduction, 2) : "N/A",
+                'formula' => $isDriver ? "Gross Earnings PHP " . number_format((float) $computation->gross_pay, 2) . " x " . ($driverHmoRate * 100) . "% Driver HMO = PHP " . number_format((float) $computation->hmo_insurance_deduction, 2) : "N/A",
             ],
         ];
 

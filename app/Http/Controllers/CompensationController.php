@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Models\CompanySetting;
 use App\Models\CompensationAdjustment;
 use App\Models\Department;
 use App\Models\Employee;
@@ -97,8 +98,7 @@ class CompensationController extends Controller
         ]);
 
         $grade = SalaryGrade::findOrFail($validated['salary_grade_id']);
-        $service = app(SalaryDeterminationService::class);
-        $result = $service->calculateRecommendedSalary($grade, $validated);
+        $result = $this->salaryDeterminationService->calculateRecommendedSalary($grade, $validated);
 
         return response()->json($result);
     }
@@ -163,13 +163,11 @@ class CompensationController extends Controller
 
         $adjustments = $query->paginate(10)->withQueryString();
         $employees = Employee::with('department')->orderBy('first_name')->get();
-        $departments = Department::all();
         $salaryGrades = SalaryGrade::with('steps')->get();
 
         return view('payroll-benefits.compensation.counter-offers', compact(
             'adjustments',
             'employees',
-            'departments',
             'salaryGrades',
             'search'
         ));
@@ -264,8 +262,9 @@ class CompensationController extends Controller
         ]);
 
         $employee = ! empty($validated['employee_id']) ? Employee::find($validated['employee_id']) : null;
+        $workingDays = (float) CompanySetting::getValue('standard_working_days_per_month', 26.0);
         $isDriver = $employee ? str_contains(strtolower($employee->position ?? ''), 'driver') : false;
-        $oldRate = $employee ? ($isDriver ? ($employee->daily_rate * 26) : $employee->monthly_rate) : 0.00;
+        $oldRate = $employee ? ($isDriver ? ($employee->daily_rate * $workingDays) : $employee->monthly_rate) : 0.00;
 
         $targetPosition = $validated['new_position']
             ?? ($employee ? $employee->position : ($validated['applicant_position'] ?? 'Staff'));
@@ -503,7 +502,9 @@ class CompensationController extends Controller
                         continue;
                     }
 
-                    $oldSalary = (float) ($emp->monthly_rate ?: ($emp->daily_rate ? $emp->daily_rate * 26 : 25000.00));
+                    $workingDays = (float) CompanySetting::getValue('standard_working_days_per_month', 26.0);
+                    $staffDefault = (float) CompanySetting::getValue('staff_default_baseline_salary', 25000.00);
+                    $oldSalary = (float) ($emp->monthly_rate ?: ($emp->daily_rate ? $emp->daily_rate * $workingDays : $staffDefault));
                     $raisePct = (float) ($plan['raise_pct'] ?? 0.0);
                     $rating = (string) ($plan['rating'] ?? $emp->performance_rating ?? 'Satisfactory');
                     $newSalary = isset($plan['new_salary']) && (float) $plan['new_salary'] > 0
@@ -515,7 +516,7 @@ class CompensationController extends Controller
                     }
 
                     $isDriver = str_contains(strtolower($emp->position ?? ''), 'driver');
-                    $dailyRate = round($newSalary / 26, 2);
+                    $dailyRate = round($newSalary / $workingDays, 2);
 
                     $empUpdates = [
                         'monthly_rate' => $newSalary,
@@ -717,14 +718,10 @@ class CompensationController extends Controller
         $data = $this->compensationService->getTenureStepOverview();
         $salaryGrades = $data['salary_grades'];
         $candidates = $data['candidates'];
-        $departments = Department::all();
-        $employees = Employee::with('department')->where('employment_status', '!=', 'resigned')->orderBy('first_name')->get();
 
         return view('payroll-benefits.compensation.tenure-steps', compact(
             'salaryGrades',
-            'candidates',
-            'departments',
-            'employees'
+            'candidates'
         ));
     }
 

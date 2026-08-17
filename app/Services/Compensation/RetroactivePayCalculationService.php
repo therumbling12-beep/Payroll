@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Compensation;
 
+use App\Models\CompanySetting;
 use App\Models\Employee;
 use App\Models\PayrollAuditTrail;
 use App\Models\SalaryComputation;
@@ -28,11 +29,15 @@ class RetroactivePayCalculationService
         string $effectiveDate,
         int $daysWorked = 13
     ): array {
-        $isDriver = str_contains(strtolower($employee->position ?? ''), 'driver');
-        $oldMonthlyRate = (float) ($employee->monthly_rate ?: ($employee->daily_rate ? $employee->daily_rate * 26 : ($isDriver ? 28000.00 : 25000.00)));
+        $workingDays = (float) CompanySetting::getValue('standard_working_days_per_month', 26.0);
+        $driverDefault = (float) CompanySetting::getValue('driver_default_baseline_salary', 28000.00);
+        $staffDefault = (float) CompanySetting::getValue('staff_default_baseline_salary', 25000.00);
 
-        $oldDailyRate = round($oldMonthlyRate / 26, 2);
-        $newDailyRate = round($newMonthlyRate / 26, 2);
+        $isDriver = str_contains(strtolower($employee->position ?? ''), 'driver');
+        $oldMonthlyRate = (float) ($employee->monthly_rate ?: ($employee->daily_rate ? $employee->daily_rate * $workingDays : ($isDriver ? $driverDefault : $staffDefault)));
+
+        $oldDailyRate = round($oldMonthlyRate / $workingDays, 2);
+        $newDailyRate = round($newMonthlyRate / $workingDays, 2);
         $dailyDifferential = round($newDailyRate - $oldDailyRate, 2);
 
         $days = max(1, min(60, $daysWorked));

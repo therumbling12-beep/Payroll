@@ -502,24 +502,33 @@ class ClaimController extends Controller
             $query->whereDate('created_at', '<=', $dateTo);
         }
 
-        $allClaims = Claim::with('employee.department')->get();
-        $approvedClaims = $allClaims->whereIn('approval_status', ['approved', 'payroll_queued', 'paid']);
-        $pendingClaims = $allClaims->whereIn('approval_status', ['pending_hr', 'pending_admin', 'pending_finance', 'pending']);
-        $rejectedClaims = $allClaims->where('approval_status', 'rejected');
+        $disbursedStatus = ['approved', 'payroll_queued', 'paid'];
+        $pendingStatus = ['pending_hr', 'pending_admin', 'pending_finance', 'pending'];
+
+        $totalDisbursed = (float) Claim::whereIn('approval_status', $disbursedStatus)->sum('amount');
+        $nonTaxableTotal = (float) Claim::whereIn('approval_status', $disbursedStatus)->sum('non_taxable_amount');
+        $taxableTotal = (float) Claim::whereIn('approval_status', $disbursedStatus)->sum('taxable_amount');
+
+        $pendingCount = Claim::whereIn('approval_status', $pendingStatus)->count();
+        $pendingAmount = (float) Claim::whereIn('approval_status', $pendingStatus)->sum('amount');
+        $overdueCount = Claim::whereIn('approval_status', $pendingStatus)->where('created_at', '<=', now()->subDays(3))->count();
+
+        $rejectedCount = Claim::where('approval_status', 'rejected')->count();
+        $rejectedAmount = (float) Claim::where('approval_status', 'rejected')->sum('amount');
 
         // High-level KPI metrics
         $stats = [
-            'total_claims_count' => $allClaims->count(),
-            'total_disbursed' => (float) $approvedClaims->sum('amount'),
-            'non_taxable_total' => (float) $approvedClaims->sum('non_taxable_amount'),
-            'taxable_total' => (float) $approvedClaims->sum('taxable_amount'),
-            'pending_count' => $pendingClaims->count(),
-            'pending_amount' => (float) $pendingClaims->sum('amount'),
-            'overdue_count' => $pendingClaims->filter(fn (Claim $c) => $c->isOverdue())->count(),
-            'rejected_count' => $rejectedClaims->count(),
-            'rejected_amount' => (float) $rejectedClaims->sum('amount'),
-            'sla_on_time_rate' => $pendingClaims->count() > 0
-                ? round((($pendingClaims->count() - $pendingClaims->filter(fn (Claim $c) => $c->isOverdue())->count()) / $pendingClaims->count()) * 100, 1)
+            'total_claims_count' => Claim::count(),
+            'total_disbursed' => $totalDisbursed,
+            'non_taxable_total' => $nonTaxableTotal,
+            'taxable_total' => $taxableTotal,
+            'pending_count' => $pendingCount,
+            'pending_amount' => $pendingAmount,
+            'overdue_count' => $overdueCount,
+            'rejected_count' => $rejectedCount,
+            'rejected_amount' => $rejectedAmount,
+            'sla_on_time_rate' => $pendingCount > 0
+                ? round((($pendingCount - $overdueCount) / $pendingCount) * 100, 1)
                 : 100.0,
         ];
 
@@ -527,48 +536,50 @@ class ClaimController extends Controller
         $typeBreakdowns = [
             'expense' => [
                 'label' => 'Driver & Operational Expenses',
-                'count' => $allClaims->where('type', 'expense')->count(),
-                'approved_count' => $approvedClaims->where('type', 'expense')->count(),
-                'disbursed_amount' => (float) $approvedClaims->where('type', 'expense')->sum('amount'),
-                'pending_count' => $pendingClaims->where('type', 'expense')->count(),
+                'count' => Claim::where('type', 'expense')->count(),
+                'approved_count' => Claim::where('type', 'expense')->whereIn('approval_status', $disbursedStatus)->count(),
+                'disbursed_amount' => (float) Claim::where('type', 'expense')->whereIn('approval_status', $disbursedStatus)->sum('amount'),
+                'pending_count' => Claim::where('type', 'expense')->whereIn('approval_status', $pendingStatus)->count(),
             ],
             'incentive' => [
                 'label' => 'Driver Ride Milestone Rewards',
-                'count' => $allClaims->where('type', 'incentive')->count(),
-                'approved_count' => $approvedClaims->where('type', 'incentive')->count(),
-                'disbursed_amount' => (float) $approvedClaims->where('type', 'incentive')->sum('amount'),
-                'pending_count' => $pendingClaims->where('type', 'incentive')->count(),
+                'count' => Claim::where('type', 'incentive')->count(),
+                'approved_count' => Claim::where('type', 'incentive')->whereIn('approval_status', $disbursedStatus)->count(),
+                'disbursed_amount' => (float) Claim::where('type', 'incentive')->whereIn('approval_status', $disbursedStatus)->sum('amount'),
+                'pending_count' => Claim::where('type', 'incentive')->whereIn('approval_status', $pendingStatus)->count(),
             ],
             'performance' => [
                 'label' => 'Employee Performance Bonuses',
-                'count' => $allClaims->where('type', 'performance')->count(),
-                'approved_count' => $approvedClaims->where('type', 'performance')->count(),
-                'disbursed_amount' => (float) $approvedClaims->where('type', 'performance')->sum('amount'),
-                'pending_count' => $pendingClaims->where('type', 'performance')->count(),
+                'count' => Claim::where('type', 'performance')->count(),
+                'approved_count' => Claim::where('type', 'performance')->whereIn('approval_status', $disbursedStatus)->count(),
+                'disbursed_amount' => (float) Claim::where('type', 'performance')->whereIn('approval_status', $disbursedStatus)->sum('amount'),
+                'pending_count' => Claim::where('type', 'performance')->whereIn('approval_status', $pendingStatus)->count(),
             ],
             'maternity' => [
                 'label' => 'Statutory Maternity Advances',
-                'count' => $allClaims->where('type', 'maternity')->count(),
-                'approved_count' => $approvedClaims->where('type', 'maternity')->count(),
-                'disbursed_amount' => (float) $approvedClaims->where('type', 'maternity')->sum('amount'),
-                'pending_count' => $pendingClaims->where('type', 'maternity')->count(),
+                'count' => Claim::where('type', 'maternity')->count(),
+                'approved_count' => Claim::where('type', 'maternity')->whereIn('approval_status', $disbursedStatus)->count(),
+                'disbursed_amount' => (float) Claim::where('type', 'maternity')->whereIn('approval_status', $disbursedStatus)->sum('amount'),
+                'pending_count' => Claim::where('type', 'maternity')->whereIn('approval_status', $pendingStatus)->count(),
             ],
         ];
 
         // Department Cost Summary
-        $departments = Department::with(['employees.claims'])->get()->map(function ($dept) {
-            $deptClaims = $dept->employees->flatMap->claims;
-            $approved = $deptClaims->whereIn('approval_status', ['approved', 'payroll_queued', 'paid']);
-
-            return [
-                'name' => $dept->name,
-                'total_claims' => $deptClaims->count(),
-                'approved_count' => $approved->count(),
-                'disbursed_amount' => (float) $approved->sum('amount'),
-                'non_taxable_amount' => (float) $approved->sum('non_taxable_amount'),
-                'taxable_amount' => (float) $approved->sum('taxable_amount'),
-            ];
-        })->filter(fn ($d) => $d['total_claims'] > 0);
+        $departments = Department::withCount('claims')
+            ->withSum(['claims as disbursed_amount' => fn ($q) => $q->whereIn('approval_status', $disbursedStatus)], 'amount')
+            ->withSum(['claims as non_taxable_amount' => fn ($q) => $q->whereIn('approval_status', $disbursedStatus)], 'non_taxable_amount')
+            ->withSum(['claims as taxable_amount' => fn ($q) => $q->whereIn('approval_status', $disbursedStatus)], 'taxable_amount')
+            ->withCount(['claims as approved_count' => fn ($q) => $q->whereIn('approval_status', $disbursedStatus)])
+            ->get()
+            ->filter(fn ($d) => $d->claims_count > 0)
+            ->map(fn ($d) => [
+                'name' => $d->name,
+                'total_claims' => (int) $d->claims_count,
+                'approved_count' => (int) ($d->approved_count ?? 0),
+                'disbursed_amount' => (float) ($d->disbursed_amount ?? 0),
+                'non_taxable_amount' => (float) ($d->non_taxable_amount ?? 0),
+                'taxable_amount' => (float) ($d->taxable_amount ?? 0),
+            ]);
 
         $recentRejected = Claim::with(['employee.department'])
             ->where('approval_status', 'rejected')

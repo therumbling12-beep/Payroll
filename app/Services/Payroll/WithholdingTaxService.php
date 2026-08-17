@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Payroll;
 
+use App\Models\CompanySetting;
 use App\Models\GovernmentContributionTable;
 
 class WithholdingTaxService
@@ -23,8 +24,9 @@ class WithholdingTaxService
         // Annualize taxable compensation
         $multiplier = $isSemiMonthly ? 24 : 12;
         $annualTaxable = $taxableIncome * $multiplier;
+        $taxExemptThreshold = (float) CompanySetting::getValue('bir_train_tax_exempt_threshold', 250000.00);
 
-        if ($annualTaxable <= 250000.00) {
+        if ($annualTaxable <= $taxExemptThreshold) {
             return 0.00;
         }
 

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Payroll;
 
+use App\Models\CompanySetting;
 use App\Models\Employee;
 use App\Models\SalaryComputation;
 use Carbon\Carbon;
@@ -33,9 +34,14 @@ class ThirteenthMonthService
         $results = [];
         $totalBatchAmount = 0.00;
 
+        $workingDays = (float) CompanySetting::getValue('standard_working_days_per_month', 26.0);
+        $driverDefault = (float) CompanySetting::getValue('driver_default_baseline_salary', 28000.00);
+        $staffDefault = (float) CompanySetting::getValue('staff_default_baseline_salary', 25000.00);
+        $taxExemptCeiling = (float) CompanySetting::getValue('train_law_13th_month_tax_exempt_ceiling', 90000.00);
+
         foreach ($employees as $employee) {
             $isDriver = str_contains(strtolower($employee->position ?? ''), 'driver');
-            $monthlySalary = (float) ($employee->monthly_rate ?: ($employee->daily_rate ? $employee->daily_rate * 26 : ($isDriver ? 28000.00 : 25000.00)));
+            $monthlySalary = (float) ($employee->monthly_rate ?: ($employee->daily_rate ? $employee->daily_rate * $workingDays : ($isDriver ? $driverDefault : $staffDefault)));
 
             // 1. Calculate historical basic pay earned across all cutoffs in the year
             $computations = SalaryComputation::where('employee_id', $employee->id)
@@ -62,8 +68,8 @@ class ThirteenthMonthService
             }
 
             // TRAIN Law statutory ceiling for 13th month & other benefits is PHP 90,000.00
-            $nonTaxableExempt = min(90000.00, $amount);
-            $taxableExcess = max(0.00, $amount - 90000.00);
+            $nonTaxableExempt = min($taxExemptCeiling, $amount);
+            $taxableExcess = max(0.00, $amount - $taxExemptCeiling);
 
             $totalBatchAmount += $amount;
 
@@ -96,9 +102,14 @@ class ThirteenthMonthService
      */
     public function getDetailedAuditLedger(int $year, int $employeeId): array
     {
+        $workingDays = (float) CompanySetting::getValue('standard_working_days_per_month', 26.0);
+        $driverDefault = (float) CompanySetting::getValue('driver_default_baseline_salary', 28000.00);
+        $staffDefault = (float) CompanySetting::getValue('staff_default_baseline_salary', 25000.00);
+        $taxExemptCeiling = (float) CompanySetting::getValue('train_law_13th_month_tax_exempt_ceiling', 90000.00);
+
         $employee = Employee::with('department')->findOrFail($employeeId);
         $isDriver = str_contains(strtolower($employee->position ?? ''), 'driver');
-        $monthlySalary = (float) ($employee->monthly_rate ?: ($employee->daily_rate ? $employee->daily_rate * 26 : ($isDriver ? 28000.00 : 25000.00)));
+        $monthlySalary = (float) ($employee->monthly_rate ?: ($employee->daily_rate ? $employee->daily_rate * $workingDays : ($isDriver ? $driverDefault : $staffDefault)));
 
         $hireDate = $employee->hire_date ? Carbon::parse($employee->hire_date) : ($employee->created_at ? Carbon::parse($employee->created_at) : Carbon::create($year, 1, 1));
         $hireYear = (int) $hireDate->format('Y');
@@ -186,8 +197,8 @@ class ThirteenthMonthService
             $formula = "(PHP " . number_format($monthlySalary, 2) . " Monthly Base x {$monthsWorked} Months) / 12 = PHP " . number_format($amount, 2);
         }
 
-        $nonTaxableExempt = min(90000.00, $amount);
-        $taxableExcess = max(0.00, $amount - 90000.00);
+        $nonTaxableExempt = min($taxExemptCeiling, $amount);
+        $taxableExcess = max(0.00, $amount - $taxExemptCeiling);
 
         return [
             'year' => $year,
@@ -238,7 +249,9 @@ class ThirteenthMonthService
     public function computeProRatedForSeparation(Employee $employee, Carbon $separationDate): float
     {
         $year = (int) $separationDate->format('Y');
-        $monthlySalary = (float) ($employee->monthly_rate ?: ($employee->daily_rate ? $employee->daily_rate * 26 : 25000.00));
+        $workingDays = (float) CompanySetting::getValue('standard_working_days_per_month', 26.0);
+        $staffDefault = (float) CompanySetting::getValue('staff_default_baseline_salary', 25000.00);
+        $monthlySalary = (float) ($employee->monthly_rate ?: ($employee->daily_rate ? $employee->daily_rate * $workingDays : $staffDefault));
 
         $hireDate = $employee->hire_date ? Carbon::parse($employee->hire_date) : ($employee->created_at ? Carbon::parse($employee->created_at) : Carbon::create($year, 1, 1));
         $startDate = $hireDate->year === $year ? $hireDate : Carbon::create($year, 1, 1);

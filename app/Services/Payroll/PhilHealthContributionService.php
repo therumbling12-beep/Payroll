@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Payroll;
 
+use App\Models\CompanySetting;
 use App\Models\GovernmentContributionTable;
 
 class PhilHealthContributionService
@@ -15,22 +16,26 @@ class PhilHealthContributionService
      */
     public function compute(float $monthlyBasicSalary, bool $isSemiMonthly = false): array
     {
+        $defaultFloor = (float) CompanySetting::getValue('philhealth_salary_floor', 10000.00);
+        $defaultCeiling = (float) CompanySetting::getValue('philhealth_salary_ceiling', 100000.00);
+        $defaultEeRate = (float) CompanySetting::getValue('philhealth_employee_rate', 0.0250);
+
         $config = GovernmentContributionTable::where('table_type', 'PHILHEALTH')->first();
 
-        $floor = $config ? (float) $config->bracket_from : 10000.00;
-        $ceiling = $config ? (float) $config->bracket_to : 100000.00;
-        $rate = $config ? (float) $config->employee_rate : 0.0250;
+        $floor = $config ? (float) $config->bracket_from : $defaultFloor;
+        $ceiling = $config ? (float) $config->bracket_to : $defaultCeiling;
+        $rate = $config ? (float) $config->employee_rate : $defaultEeRate;
 
         if ($monthlyBasicSalary <= $floor) {
-            $eeShare = 250.00;
-            $erShare = 250.00;
-            $totalPremium = 500.00;
+            $eeShare = round($floor * $rate, 2);
+            $erShare = $eeShare;
+            $totalPremium = round($eeShare + $erShare, 2);
         } elseif ($monthlyBasicSalary >= $ceiling) {
-            $eeShare = 2500.00;
-            $erShare = 2500.00;
-            $totalPremium = 5000.00;
+            $eeShare = round($ceiling * $rate, 2);
+            $erShare = $eeShare;
+            $totalPremium = round($eeShare + $erShare, 2);
         } else {
-            $totalPremium = round($monthlyBasicSalary * 0.05, 2);
+            $totalPremium = round($monthlyBasicSalary * ($rate * 2), 2);
             $eeShare = round($monthlyBasicSalary * $rate, 2);
             $erShare = $eeShare;
         }

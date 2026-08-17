@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Payroll;
 
 use App\Models\Attendance;
+use App\Models\CompanySetting;
 use App\Models\Employee;
 use App\Models\Holiday;
 use Carbon\Carbon;
@@ -18,8 +19,13 @@ class HolidayPayService
      */
     public function compute(Employee $employee, ?Attendance $attendance, string $cutoffPeriod): array
     {
-        $dailyRate = (float) ($employee->daily_rate ?: ($employee->monthly_rate ? round($employee->monthly_rate / 26, 2) : 0.00));
-        $hourlyRate = $dailyRate > 0 ? round($dailyRate / 8, 2) : 0.00;
+        $workingDays = (float) CompanySetting::getValue('standard_working_days_per_month', 26.0);
+        $workingHours = (float) CompanySetting::getValue('standard_working_hours_per_day', 8.0);
+        $regularMultiplier = (float) CompanySetting::getValue('holiday_regular_worked_multiplier', 2.00);
+        $specialMultiplier = (float) CompanySetting::getValue('holiday_special_worked_multiplier', 1.30);
+
+        $dailyRate = (float) ($employee->daily_rate ?: ($employee->monthly_rate ? round($employee->monthly_rate / $workingDays, 2) : 0.00));
+        $hourlyRate = $dailyRate > 0 ? round($dailyRate / $workingHours, 2) : 0.00;
 
         if ($dailyRate <= 0) {
             return ['holiday_pay' => 0.00, 'details' => []];
@@ -39,22 +45,22 @@ class HolidayPayService
 
         // 1. Worked Regular Holiday (200% = 100% standard + 100% premium on hours worked)
         if ($regularHolidayHours > 0) {
-            $workedRegularPay = round($hourlyRate * 2.0 * $regularHolidayHours, 2);
+            $workedRegularPay = round($hourlyRate * $regularMultiplier * $regularHolidayHours, 2);
             $totalHolidayPay += $workedRegularPay;
             $details['worked_regular_holiday'] = [
                 'hours' => $regularHolidayHours,
-                'rate' => $hourlyRate * 2.0,
+                'rate' => $hourlyRate * $regularMultiplier,
                 'amount' => $workedRegularPay,
             ];
         }
 
         // 2. Worked Special Non-Working Day (130% = 30% premium on top of basic)
         if ($specialHolidayHours > 0) {
-            $workedSpecialPay = round($hourlyRate * 1.30 * $specialHolidayHours, 2);
+            $workedSpecialPay = round($hourlyRate * $specialMultiplier * $specialHolidayHours, 2);
             $totalHolidayPay += $workedSpecialPay;
             $details['worked_special_holiday'] = [
                 'hours' => $specialHolidayHours,
-                'rate' => $hourlyRate * 1.30,
+                'rate' => $hourlyRate * $specialMultiplier,
                 'amount' => $workedSpecialPay,
             ];
         }

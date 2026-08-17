@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Payroll;
 
+use App\Models\CompanySetting;
 use App\Models\Employee;
 use App\Models\SalaryComputation;
 use App\Models\ThirteenthMonthComputation;
@@ -40,6 +41,9 @@ class BirAlphalistService
         $totalOverWithheld = 0.00;
         $totalUnderWithheld = 0.00;
 
+        $staffDefault = (float) CompanySetting::getValue('staff_default_baseline_salary', 25000.00);
+        $taxExemptCeiling = (float) CompanySetting::getValue('train_law_13th_month_tax_exempt_ceiling', 90000.00);
+
         foreach ($employees as $employee) {
             // 1. Fetch all Salary Computations for the year
             $computations = SalaryComputation::where('employee_id', $employee->id)
@@ -62,11 +66,11 @@ class BirAlphalistService
                 ->where('year', $year)
                 ->first();
 
-            $thirteenthAmount = $thirteenth ? (float) $thirteenth->amount : (float) ($employee->monthly_rate ?: 25000.00);
+            $thirteenthAmount = $thirteenth ? (float) $thirteenth->amount : (float) ($employee->monthly_rate ?: $staffDefault);
             
             // TRAIN Law statutory ceiling for 13th month & other benefits is PHP 90,000.00
-            $exempt13th = min(90000.00, $thirteenthAmount);
-            $taxable13thExcess = max(0.00, $thirteenthAmount - 90000.00);
+            $exempt13th = min($taxExemptCeiling, $thirteenthAmount);
+            $taxable13thExcess = max(0.00, $thirteenthAmount - $taxExemptCeiling);
 
             // 3. Taxable Compensation Income
             $isDriver = str_contains(strtolower($employee->position ?? ''), 'driver');
@@ -138,12 +142,13 @@ class BirAlphalistService
      */
     public function calculateAnnualTrainTax(float $taxableIncome): float
     {
-        if ($taxableIncome <= 250000.00) {
+        $exemptThreshold = (float) CompanySetting::getValue('bir_train_tax_exempt_threshold', 250000.00);
+        if ($taxableIncome <= $exemptThreshold) {
             return 0.00;
         }
 
         if ($taxableIncome <= 400000.00) {
-            return round(($taxableIncome - 250000.00) * 0.15, 2);
+            return round(($taxableIncome - $exemptThreshold) * 0.15, 2);
         }
 
         if ($taxableIncome <= 800000.00) {

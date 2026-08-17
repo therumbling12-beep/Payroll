@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Payroll;
 
+use App\Models\CompanySetting;
 use App\Models\Employee;
 use App\Models\EmployeeLoan;
 use App\Models\OffCyclePayrollItem;
@@ -48,7 +49,9 @@ class FinalPaySettlementService
         float $otherDeductions = 0.0,
         float $reimbursements = 0.0
     ): array {
-        $dailyRate = (float) ($employee->daily_rate ?: ($employee->monthly_rate ? round($employee->monthly_rate / 26, 2) : 645.00));
+        $workingDays = (float) CompanySetting::getValue('standard_working_days_per_month', 26.0);
+        $minWageDaily = (float) CompanySetting::getValue('statutory_minimum_wage_daily_rate', 645.00);
+        $dailyRate = (float) ($employee->daily_rate ?: ($employee->monthly_rate ? round($employee->monthly_rate / $workingDays, 2) : $minWageDaily));
         
         // 1. Unpaid Regular Basic Pay in Final Period
         $basicPayEarned = round($dailyRate * $unpaidDays, 2);

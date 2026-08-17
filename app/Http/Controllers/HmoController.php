@@ -681,21 +681,40 @@ class HmoController extends Controller
         $employees = $query->paginate(12, ['*'], 'tce_page')->withQueryString();
         $departments = Department::orderBy('name')->get();
 
+        // Dynamic configuration values with safe fallbacks
+        $allowanceAmount = (float) CompanySetting::getValue('standard_employee_allowance_monthly', 3500.00);
+        $driverHmoSubsidy = (float) CompanySetting::getValue('driver_hmo_default_subsidy', 300.00);
+        $staffHmoSubsidy = (float) CompanySetting::getValue('staff_hmo_default_subsidy', 900.00);
+        $sssRate = (float) (CompanySetting::getValue('sss_employer_rate_pct', 9.5) / 100.0);
+        $sssMaxCap = (float) CompanySetting::getValue('sss_employer_max_cap', 1900.00);
+        $philhealthRate = (float) (CompanySetting::getValue('philhealth_employer_rate_pct', 2.5) / 100.0);
+        $philhealthMaxCap = (float) CompanySetting::getValue('philhealth_employer_max_cap', 1250.00);
+        $pagibigContribution = (float) CompanySetting::getValue('pagibig_employer_contribution', 200.00);
+
         // Calculate Total Cost of Employment per employee
-        $tceData = $employees->map(function ($emp) {
+        $tceData = $employees->map(function ($emp) use (
+            $allowanceAmount,
+            $driverHmoSubsidy,
+            $staffHmoSubsidy,
+            $sssRate,
+            $sssMaxCap,
+            $philhealthRate,
+            $philhealthMaxCap,
+            $pagibigContribution
+        ) {
             $isDriver = str_contains(strtolower($emp->position ?? ''), 'driver') ||
                         str_contains(strtolower($emp->department?->name ?? ''), 'fleet');
 
             $basicSalary = (float) ($emp->monthly_rate ?? 0);
-            $allowances = 3500.00; // Standard company allowance package
+            $allowances = $allowanceAmount;
 
             $activeEnrollment = $emp->hmoEnrollments->first();
-            $hmoEmployerShare = $activeEnrollment ? (float) $activeEnrollment->monthly_premium : ($isDriver ? 300.00 : 900.00);
+            $hmoEmployerShare = $activeEnrollment ? (float) $activeEnrollment->monthly_premium : ($isDriver ? $driverHmoSubsidy : $staffHmoSubsidy);
 
             // Statutory employer contributions (DOLE / SSS / PhilHealth / Pag-IBIG standard employer shares)
-            $sssEmployer = $isDriver ? 0.00 : min(1900.00, round($basicSalary * 0.095, 2));
-            $philhealthEmployer = $isDriver ? 0.00 : min(1250.00, round($basicSalary * 0.025, 2));
-            $pagibigEmployer = $isDriver ? 0.00 : 200.00;
+            $sssEmployer = $isDriver ? 0.00 : min($sssMaxCap, round($basicSalary * $sssRate, 2));
+            $philhealthEmployer = $isDriver ? 0.00 : min($philhealthMaxCap, round($basicSalary * $philhealthRate, 2));
+            $pagibigEmployer = $isDriver ? 0.00 : $pagibigContribution;
 
             $totalTce = $basicSalary + $allowances + $hmoEmployerShare + $sssEmployer + $philhealthEmployer + $pagibigEmployer;
 
@@ -723,19 +742,28 @@ class HmoController extends Controller
 
         $departmentSummaries = $allEmployees->groupBy(function ($emp) {
             return $emp->department?->name ?? 'General / Unassigned';
-        })->map(function ($emps, $deptName) {
+        })->map(function ($emps, $deptName) use (
+            $allowanceAmount,
+            $driverHmoSubsidy,
+            $staffHmoSubsidy,
+            $sssRate,
+            $sssMaxCap,
+            $philhealthRate,
+            $philhealthMaxCap,
+            $pagibigContribution
+        ) {
             $basic = $emps->sum(fn ($e) => (float) ($e->monthly_rate ?? 0));
-            $allowances = $emps->count() * 3500.00;
-            $hmo = $emps->sum(function ($e) {
+            $allowances = $emps->count() * $allowanceAmount;
+            $hmo = $emps->sum(function ($e) use ($driverHmoSubsidy, $staffHmoSubsidy) {
                 $isDriver = str_contains(strtolower($e->position ?? ''), 'driver');
                 $active = $e->hmoEnrollments->first();
-                return $active ? (float) $active->monthly_premium : ($isDriver ? 300.00 : 900.00);
+                return $active ? (float) $active->monthly_premium : ($isDriver ? $driverHmoSubsidy : $staffHmoSubsidy);
             });
-            $govt = $emps->sum(function ($e) {
+            $govt = $emps->sum(function ($e) use ($sssRate, $sssMaxCap, $philhealthRate, $philhealthMaxCap, $pagibigContribution) {
                 $isDriver = str_contains(strtolower($e->position ?? ''), 'driver');
                 $salary = (float) ($e->monthly_rate ?? 0);
                 if ($isDriver) return 0.00;
-                return min(1900.00, round($salary * 0.095, 2)) + min(1250.00, round($salary * 0.025, 2)) + 200.00;
+                return min($sssMaxCap, round($salary * $sssRate, 2)) + min($philhealthMaxCap, round($salary * $philhealthRate, 2)) + $pagibigContribution;
             });
 
             return [
@@ -822,6 +850,15 @@ class HmoController extends Controller
         ];
 
         $callback = function () use ($employees) {
+            $allowanceAmount = (float) CompanySetting::getValue('standard_employee_allowance_monthly', 3500.00);
+            $driverHmoSubsidy = (float) CompanySetting::getValue('driver_hmo_default_subsidy', 300.00);
+            $staffHmoSubsidy = (float) CompanySetting::getValue('staff_hmo_default_subsidy', 900.00);
+            $sssRate = (float) (CompanySetting::getValue('sss_employer_rate_pct', 9.5) / 100.0);
+            $sssMaxCap = (float) CompanySetting::getValue('sss_employer_max_cap', 1900.00);
+            $philhealthRate = (float) (CompanySetting::getValue('philhealth_employer_rate_pct', 2.5) / 100.0);
+            $philhealthMaxCap = (float) CompanySetting::getValue('philhealth_employer_max_cap', 1250.00);
+            $pagibigContribution = (float) CompanySetting::getValue('pagibig_employer_contribution', 200.00);
+
             $file = fopen('php://output', 'w');
             fputcsv($file, [
                 'Employee Code',
@@ -843,14 +880,14 @@ class HmoController extends Controller
                             str_contains(strtolower($emp->department?->name ?? ''), 'fleet');
 
                 $basicSalary = (float) ($emp->monthly_rate ?? 0);
-                $allowances = 3500.00;
+                $allowances = $allowanceAmount;
 
                 $activeEnrollment = $emp->hmoEnrollments->first();
-                $hmoEmployerShare = $activeEnrollment ? (float) $activeEnrollment->monthly_premium : ($isDriver ? 300.00 : 900.00);
+                $hmoEmployerShare = $activeEnrollment ? (float) $activeEnrollment->monthly_premium : ($isDriver ? $driverHmoSubsidy : $staffHmoSubsidy);
 
-                $sssEmployer = $isDriver ? 0.00 : min(1900.00, round($basicSalary * 0.095, 2));
-                $philhealthEmployer = $isDriver ? 0.00 : min(1250.00, round($basicSalary * 0.025, 2));
-                $pagibigEmployer = $isDriver ? 0.00 : 200.00;
+                $sssEmployer = $isDriver ? 0.00 : min($sssMaxCap, round($basicSalary * $sssRate, 2));
+                $philhealthEmployer = $isDriver ? 0.00 : min($philhealthMaxCap, round($basicSalary * $philhealthRate, 2));
+                $pagibigEmployer = $isDriver ? 0.00 : $pagibigContribution;
 
                 $totalMonthlyCost = $basicSalary + $allowances + $hmoEmployerShare + $sssEmployer + $philhealthEmployer + $pagibigEmployer;
                 $annualizedCost = $totalMonthlyCost * 12;

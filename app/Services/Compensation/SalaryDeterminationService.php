@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Compensation;
 
+use App\Models\CompanySetting;
 use App\Models\SalaryGrade;
 
 class SalaryDeterminationService
@@ -81,7 +82,7 @@ class SalaryDeterminationService
         $recommendedSalary = round($min + ($percentileDecimal * ($max - $min)), 2);
 
         // DOLE NCR-27 minimum wage compliance check (PHP 755/day = ~19,630/mo)
-        $ncr27Floor = 19630.00;
+        $ncr27Floor = (float) CompanySetting::getValue('ncr_monthly_minimum_wage_floor', 19630.00);
         $isMinWageCompliant = $recommendedSalary >= $ncr27Floor;
 
         $formulaString = "Score {$totalScore}/6.00 -> {$placementLabel} -> PHP " . number_format($min, 2) . " + ({$percentileDecimal} x PHP " . number_format($max - $min, 2) . ") = PHP " . number_format($recommendedSalary, 2);

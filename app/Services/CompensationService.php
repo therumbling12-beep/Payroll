@@ -5,14 +5,10 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Models\CompanySetting;
-use App\Models\CompensationAdjustment;
-use App\Models\Department;
 use App\Models\Employee;
 use App\Models\PayrollAuditTrail;
-use App\Models\PerformanceBonus;
 use App\Models\SalaryGrade;
 use App\Models\SalaryStep;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 class CompensationService
@@ -20,66 +16,6 @@ class CompensationService
     public function __construct(
         protected FinancialService $financialService
     ) {}
-
-    /**
-     * Calculate projected salary based on years of service and salary grade ranges / step tables.
-     * (Section 2.12 Tenure Step Process)
-     */
-    public function calculateSalaryGrowth(Employee $employee, int $additionalYears): array
-    {
-        $currentSalary = (float) ($employee->monthly_rate ?: ($employee->daily_rate ? $employee->daily_rate * 26 : 25000.00));
-        $grade = SalaryGrade::with('steps')->where('position_name', $employee->position)->first();
-
-        if (! $grade) {
-            $posLower = strtolower($employee->position);
-            $grade = SalaryGrade::with('steps')->get()->first(function ($sg) use ($posLower) {
-                return str_contains($posLower, strtolower(explode(' ', $sg->position_name)[0]));
-            });
-        }
-
-        $maxSalary = $grade ? (float) $grade->max_salary : ($currentSalary * 2);
-        $currentTenure = (float) $employee->years_of_service;
-        $targetTenure = $currentTenure + $additionalYears;
-
-        $projectedSalary = $currentSalary;
-
-        // 1. Check if SalaryStep table rules are defined for this grade
-        if ($grade && $grade->steps->isNotEmpty()) {
-            $steps = $grade->steps->sortBy('years_required');
-            $applicableStep = $steps->filter(fn (SalaryStep $step) => $targetTenure >= (float) $step->years_required)->last()
-                ?? $steps->first();
-
-            if ($applicableStep) {
-                $baseSalary = (float) $grade->min_salary;
-                $pct = (float) $applicableStep->increment_percentage;
-                $stepAmount = $applicableStep->base_amount
-                    ? (float) $applicableStep->base_amount
-                    : ($baseSalary + ($baseSalary * ($pct / 100)));
-
-                $projectedSalary = max($currentSalary, $stepAmount);
-            }
-        } else {
-            // 2. Fallback to annual growth rate percentage formula
-            $growthRate = $grade ? ($grade->annual_growth_rate / 100) : 0.05;
-            for ($i = 0; $i < $additionalYears; $i++) {
-                $projectedSalary += ($projectedSalary * $growthRate);
-            }
-        }
-
-        $projectedSalary = min($projectedSalary, $maxSalary);
-
-        return [
-            'employee_id' => $employee->id,
-            'employee_name' => "{$employee->first_name} {$employee->last_name}",
-            'position' => $employee->position,
-            'current_salary' => $currentSalary,
-            'current_tenure_years' => $currentTenure,
-            'years_added' => $additionalYears,
-            'target_tenure_years' => $targetTenure,
-            'projected_salary' => round($projectedSalary, 2),
-            'max_grade_cap' => $maxSalary,
-        ];
-    }
 
     /**
      * Automated Credential-Based Counter Offer & Offer Package Builder.
@@ -166,9 +102,10 @@ class CompensationService
         };
 
         // Standard allowances package (Section 2.6 Offer Package Builder)
-        $transpoAllowance = 2000.00;
-        $mealAllowance = 1500.00;
-        $signingBonus = $retentionRisk === 'high' ? 5000.00 : 0.00;
+        $transpoAllowance = (float) CompanySetting::getValue('standard_transpo_allowance', 2000.00);
+        $mealAllowance = (float) CompanySetting::getValue('standard_meal_allowance', 1500.00);
+        $highRiskBonus = (float) CompanySetting::getValue('high_retention_risk_signing_bonus', 5000.00);
+        $signingBonus = $retentionRisk === 'high' ? $highRiskBonus : 0.00;
         $totalPackage = $offeredSalary + $transpoAllowance + $mealAllowance + $signingBonus;
 
         // Check budget availability via FinancialService
@@ -196,62 +133,6 @@ class CompensationService
             'retention_risk' => $retentionRisk,
             'recommended_action' => $recommendedAction,
             'financial_budget_check' => $budgetCheck,
-        ];
-    }
-
-    /**
-     * Build Complete Salary Offer Package for an Applicant.
-     * (Section 2.6 Compensation for Applicants & Team 1 Integration)
-     */
-    public function buildOfferPackage(array $applicantData): array
-    {
-        $position = $applicantData['position'] ?? 'Operations Dispatcher';
-        $expectedSalary = (float) ($applicantData['expected_salary'] ?? 0.0);
-        $yearsExp = (int) ($applicantData['years_experience'] ?? 0);
-        $certsCount = (int) ($applicantData['certifications_count'] ?? 0);
-        $education = $applicantData['education_level'] ?? 'College Graduate';
-
-        $computed = $this->computeCounterOffer(
-            $position,
-            $yearsExp,
-            $certsCount,
-            $expectedSalary,
-            0.0,
-            $education
-        );
-
-        $offeredBase = $computed['computed_counter_offer'];
-        $transpo = 2000.00;
-        $meal = 1500.00;
-        $signingBonus = (float) ($applicantData['signing_bonus'] ?? 0.0);
-        $totalOffered = $offeredBase + $transpo + $meal + $signingBonus;
-
-        $basicDiff = $offeredBase - $expectedSalary;
-        $totalDiff = $totalOffered - ($expectedSalary + $transpo + $meal);
-
-        return [
-            'applicant_name' => $applicantData['applicant_name'] ?? 'Candidate',
-            'position' => $position,
-            'expected_salary' => $expectedSalary,
-            'offered_basic' => $offeredBase,
-            'transportation_allowance' => $transpo,
-            'meal_allowance' => $meal,
-            'hmo_coverage' => $applicantData['hmo_tier'] ?? 'Individual',
-            'signing_bonus' => $signingBonus,
-            'total_package' => round($totalOffered, 2),
-            'exceeds_band_max' => $expectedSalary > $computed['max_allowed'],
-            'salary_band' => [
-                'min' => $computed['base_salary'],
-                'mid' => $computed['midpoint_salary'],
-                'max' => $computed['max_allowed'],
-            ],
-            'comparison' => [
-                'basic_difference' => round($basicDiff, 2),
-                'basic_status' => $basicDiff >= 0 ? 'higher' : 'lower',
-                'total_difference' => round($totalDiff, 2),
-                'total_status' => $totalDiff >= 0 ? 'higher' : 'lower',
-            ],
-            'financial_budget_check' => $computed['financial_budget_check'],
         ];
     }
 
@@ -415,49 +296,6 @@ class CompensationService
     }
 
     /**
-     * Execute Regularization of an Employee.
-     * (Section 2.8 Regularization Workflow)
-     */
-    public function regularizeEmployee(Employee $employee, float $newRate, ?string $reason = null): array
-    {
-        return DB::transaction(function () use ($employee, $newRate, $reason) {
-            $oldRate = (float) ($employee->monthly_rate ?: ($employee->daily_rate ? $employee->daily_rate * 26 : 0.00));
-
-            $employee->employment_status = 'regular';
-            $employee->regularization_date = now();
-
-            $isDriver = str_contains($employee->position, 'Driver');
-            if ($isDriver) {
-                $employee->daily_rate = round($newRate / 26, 2);
-                $employee->monthly_rate = $newRate;
-            } else {
-                $employee->monthly_rate = $newRate;
-            }
-            $employee->save();
-
-            // Create logged compensation adjustment record
-            $adjustment = CompensationAdjustment::create([
-                'employee_id' => $employee->id,
-                'subject_type' => 'employee',
-                'type' => 'salary_config',
-                'old_rate' => $oldRate,
-                'new_rate' => $newRate,
-                'old_position' => $employee->position,
-                'new_position' => $employee->position,
-                'reason' => $reason ?? 'Official Regularization from Probationary Status: Standard Band Rate Increase',
-                'status' => 'approved',
-                'effective_date' => now(),
-            ]);
-
-            return [
-                'success' => true,
-                'employee' => $employee->fresh(),
-                'adjustment' => $adjustment,
-            ];
-        });
-    }
-
-    /**
      * Get Tenure Step Grid and Eligible Employees.
      * (Section 2.12 Tenure Step Process)
      */
@@ -518,131 +356,5 @@ class CompensationService
             'candidates' => $candidates,
         ];
     }
-
-    /**
-     * Apply Tenure Step Increment to an Employee.
-     * (Section 2.12.4 Step Approval Workflow)
-     */
-    public function applyStepIncrement(Employee $employee, int $targetStep, float $newRate, ?string $reason = null): array
-    {
-        return DB::transaction(function () use ($employee, $targetStep, $newRate, $reason) {
-            $oldRate = (float) ($employee->monthly_rate ?: ($employee->daily_rate ? $employee->daily_rate * 26 : 0.0));
-
-            $employee->current_step = $targetStep;
-            $employee->step_status = 'normal';
-            $employee->step_hold_reason = null;
-
-            $isDriver = str_contains($employee->position, 'Driver');
-            if ($isDriver) {
-                $employee->daily_rate = round($newRate / 26, 2);
-                $employee->monthly_rate = $newRate;
-            } else {
-                $employee->monthly_rate = $newRate;
-            }
-            $employee->save();
-
-            $adjustment = CompensationAdjustment::create([
-                'employee_id' => $employee->id,
-                'subject_type' => 'employee',
-                'type' => 'salary_config',
-                'old_rate' => $oldRate,
-                'new_rate' => $newRate,
-                'old_position' => $employee->position,
-                'new_position' => $employee->position,
-                'reason' => $reason ?? "Applied Tenure Step {$targetStep} Increment based on completed years of service.",
-                'status' => 'approved',
-                'effective_date' => now(),
-            ]);
-
-            return [
-                'success' => true,
-                'employee' => $employee->fresh(),
-                'adjustment' => $adjustment,
-            ];
-        });
-    }
-
-    /**
-     * Put a Step Increment on Hold.
-     * (Section 2.12.5 Step Hold Conditions)
-     */
-    public function holdStepIncrement(Employee $employee, string $reason): array
-    {
-        $employee->step_status = 'on_hold';
-        $employee->step_hold_reason = $reason;
-        $employee->save();
-
-        PayrollAuditTrail::create([
-            'user_name' => 'HR Compensation Head',
-            'action' => 'STEP_INCREMENT_HOLD',
-            'model_type' => 'Employee',
-            'model_id' => $employee->id,
-            'new_values' => [
-                'employee_code' => $employee->employee_code,
-                'reason' => $reason,
-                'status' => 'on_hold',
-            ],
-            'ip_address' => request()->ip() ?? '127.0.0.1',
-        ]);
-
-        return [
-            'success' => true,
-            'employee' => $employee->fresh(),
-        ];
-    }
-
-    /**
-     * Distribute Bonus Pool to Employees with Performance Multiplier.
-     * (Section 2.11 Bonus Allocation & Prof Note #4)
-     */
-    public function allocateBonuses(array $allocations, string $bonusType, float $poolAmount, ?int $departmentId = null): array
-    {
-        return DB::transaction(function () use ($allocations, $bonusType, $poolAmount, $departmentId) {
-            $createdCount = 0;
-            $totalAllocated = 0.0;
-            $cutoff = now()->format('Y-m');
-
-            foreach ($allocations as $item) {
-                $employeeId = (int) ($item['employee_id'] ?? 0);
-                $amount = (float) ($item['bonus_amount'] ?? 0.0);
-                $reason = $item['reason'] ?? "{$bonusType} Allocation ({$cutoff})";
-
-                if ($employeeId > 0 && $amount > 0) {
-                    PerformanceBonus::create([
-                        'employee_id' => $employeeId,
-                        'cutoff_period' => $cutoff,
-                        'bonus_amount' => $amount,
-                        'reason' => $reason,
-                    ]);
-
-                    $totalAllocated += $amount;
-                    $createdCount++;
-                }
-            }
-
-            // Log to Audit Trail
-            PayrollAuditTrail::create([
-                'user_name' => 'HR Compensation Head',
-                'action' => 'BONUS_POOL_ALLOCATION',
-                'model_type' => 'PerformanceBonus',
-                'model_id' => $createdCount,
-                'new_values' => [
-                    'bonus_type' => $bonusType,
-                    'pool_amount' => $poolAmount,
-                    'total_allocated' => $totalAllocated,
-                    'employees_count' => $createdCount,
-                    'department_id' => $departmentId,
-                ],
-                'ip_address' => request()->ip() ?? '127.0.0.1',
-            ]);
-
-            return [
-                'success' => true,
-                'created_count' => $createdCount,
-                'total_allocated' => round($totalAllocated, 2),
-                'pool_amount' => round($poolAmount, 2),
-                'remaining_pool' => round(max(0, $poolAmount - $totalAllocated), 2),
-            ];
-        });
-    }
 }
+

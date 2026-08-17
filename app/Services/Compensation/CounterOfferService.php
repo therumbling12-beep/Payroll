@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Compensation;
 
+use App\Models\CompanySetting;
 use App\Models\Employee;
 use App\Models\SalaryGrade;
 
@@ -35,7 +36,8 @@ class CounterOfferService
         $gradeMin = (float) $grade->min_salary;
         $gradeMax = (float) $grade->max_salary;
 
-        $targetOfferCap = round($competitorOffer * 1.10, 2);
+        $counterCapMult = (float) CompanySetting::getValue('counter_offer_target_cap_multiplier', 1.10);
+        $targetOfferCap = round($competitorOffer * $counterCapMult, 2);
         $maxStatutoryCap = min($gradeMax, $targetOfferCap > 0 ? $targetOfferCap : $gradeMax);
 
         $recommendedBase = (float) $determination['recommended_salary'];
@@ -46,7 +48,7 @@ class CounterOfferService
             $proposedBase = $recommendedBase;
         }
 
-        $exceedsBandMax = ($competitorOffer * 1.10) > $gradeMax;
+        $exceedsBandMax = ($competitorOffer * $counterCapMult) > $gradeMax;
 
         $ctc = $this->calculateTotalCostToCompany($proposedBase, 0.00, 0.00);
 
@@ -129,18 +131,24 @@ class CounterOfferService
         float $signingBonus = 0.0
     ): array {
         // 1. Employer SSS Contribution (2026 standard ~10.0% of MSC capped at 30,000 MSC)
-        $msc = min(30000.00, max(5000.00, $baseSalary));
-        $erSss = round($msc * 0.10, 2);
+        $sssMscMax = (float) CompanySetting::getValue('sss_msc_ceiling', 30000.00);
+        $sssMscMin = (float) CompanySetting::getValue('sss_msc_floor', 5000.00);
+        $sssErRate = (float) CompanySetting::getValue('sss_employer_contribution_rate', 0.10);
+        $msc = min($sssMscMax, max($sssMscMin, $baseSalary));
+        $erSss = round($msc * $sssErRate, 2);
 
         // 2. Employees' Compensation (EC) Program
-        $erEc = 30.00;
+        $erEc = (float) CompanySetting::getValue('ec_fixed_contribution', 30.00);
 
         // 3. Employer PhilHealth (2.5% share, capped at 100k salary = 2,500.00 max ER share)
-        $philHealthBasis = min(100000.00, max(10000.00, $baseSalary));
-        $erPhilHealth = round($philHealthBasis * 0.025, 2);
+        $phCeiling = (float) CompanySetting::getValue('philhealth_monthly_ceiling', 100000.00);
+        $phFloor = (float) CompanySetting::getValue('philhealth_monthly_floor', 10000.00);
+        $phErRate = (float) CompanySetting::getValue('philhealth_employer_rate', 0.025);
+        $philHealthBasis = min($phCeiling, max($phFloor, $baseSalary));
+        $erPhilHealth = round($philHealthBasis * $phErRate, 2);
 
         // 4. Employer Pag-IBIG (PHP 200.00 max standard employer share)
-        $erPagIbig = 200.00;
+        $erPagIbig = (float) CompanySetting::getValue('pagibig_employer_monthly_contribution', 200.00);
 
         $employerStatutoryTotal = round($erSss + $erEc + $erPhilHealth + $erPagIbig, 2);
 
@@ -200,9 +208,13 @@ class CounterOfferService
             ];
         }
 
-        $salaries = $peers->map(function (Employee $e) {
+        $workingDays = (float) CompanySetting::getValue('standard_working_days_per_month', 26.0);
+        $driverDefault = (float) CompanySetting::getValue('driver_default_baseline_salary', 28000.00);
+        $staffDefault = (float) CompanySetting::getValue('staff_default_baseline_salary', 25000.00);
+
+        $salaries = $peers->map(function (Employee $e) use ($workingDays, $driverDefault, $staffDefault) {
             $isDriver = str_contains(strtolower($e->position ?? ''), 'driver');
-            return (float) ($e->monthly_rate ?: ($e->daily_rate ? $e->daily_rate * 26 : ($isDriver ? 28000.00 : 25000.00)));
+            return (float) ($e->monthly_rate ?: ($e->daily_rate ? $e->daily_rate * $workingDays : ($isDriver ? $driverDefault : $staffDefault)));
         })->sort()->values();
 
         $count = $salaries->count();
@@ -213,10 +225,10 @@ class CounterOfferService
 
         $peerMin = $salaries->min();
         $peerMax = $salaries->max();
-
         $variancePct = $peerMedian > 0 ? round((($proposedSalary - $peerMedian) / $peerMedian) * 100, 1) : 0.0;
+        $distortionThresholdPct = (float) CompanySetting::getValue('internal_equity_distortion_threshold_pct', 15.0);
 
-        if ($proposedSalary > ($peerMedian * 1.15)) {
+        if ($proposedSalary > ($peerMedian * (1 + ($distortionThresholdPct / 100)))) {
             $status = 'WAGE_DISTORTION_WARNING';
             $message = "Proposed salary of PHP " . number_format($proposedSalary, 2) . " exceeds peer median (PHP " . number_format($peerMedian, 2) . ") by {$variancePct}%, which may cause internal wage distortion.";
         } else {

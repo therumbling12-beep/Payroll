@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Payroll;
 
+use App\Models\CompanySetting;
 use App\Models\GovernmentContributionTable;
 
 class SssContributionService
@@ -30,10 +31,18 @@ class SssContributionService
             $ec = (float) $bracket->ec_contribution;
         } else {
             // Heuristic fallback if table is not seeded
-            $msc = min(35000.00, max(5000.00, round($monthlyBasicSalary / 500) * 500));
-            $eeShare = round($msc * 0.05, 2);
-            $erShare = round($msc * 0.10, 2);
-            $ec = ($msc >= 15000.00) ? 30.00 : 10.00;
+            $mscCeiling = (float) CompanySetting::getValue('sss_msc_ceiling', 35000.00);
+            $mscFloor = (float) CompanySetting::getValue('sss_msc_floor', 5000.00);
+            $eeRate = (float) CompanySetting::getValue('sss_ee_share_rate', 0.05);
+            $erRate = (float) CompanySetting::getValue('sss_er_share_rate', 0.10);
+            $ecThreshold = (float) CompanySetting::getValue('sss_ec_threshold', 15000.00);
+            $ecHigh = (float) CompanySetting::getValue('sss_ec_high_amount', 30.00);
+            $ecLow = (float) CompanySetting::getValue('sss_ec_low_amount', 10.00);
+
+            $msc = min($mscCeiling, max($mscFloor, round($monthlyBasicSalary / 500) * 500));
+            $eeShare = round($msc * $eeRate, 2);
+            $erShare = round($msc * $erRate, 2);
+            $ec = ($msc >= $ecThreshold) ? $ecHigh : $ecLow;
         }
 
         if ($isSemiMonthly) {

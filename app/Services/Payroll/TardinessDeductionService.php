@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Payroll;
 
 use App\Models\Attendance;
+use App\Models\CompanySetting;
 use App\Models\Employee;
 
 class TardinessDeductionService
@@ -16,8 +17,12 @@ class TardinessDeductionService
      */
     public function compute(Employee $employee, ?Attendance $attendance): array
     {
-        $dailyRate = (float) ($employee->daily_rate ?: ($employee->monthly_rate ? round($employee->monthly_rate / 26, 2) : 0.00));
-        $hourlyRate = $dailyRate > 0 ? round($dailyRate / 8, 2) : 0.00;
+        $workingDays = (float) CompanySetting::getValue('standard_working_days_per_month', 26.0);
+        $workingHours = (float) CompanySetting::getValue('standard_working_hours_per_day', 8.0);
+        $defaultLateMins = (int) CompanySetting::getValue('tardiness_default_minutes_per_late', 15);
+
+        $dailyRate = (float) ($employee->daily_rate ?: ($employee->monthly_rate ? round($employee->monthly_rate / $workingDays, 2) : 0.00));
+        $hourlyRate = $dailyRate > 0 ? round($dailyRate / $workingHours, 2) : 0.00;
         $minuteRate = $hourlyRate > 0 ? round($hourlyRate / 60, 4) : 0.00;
 
         if (! $attendance || $minuteRate <= 0) {
@@ -32,9 +37,9 @@ class TardinessDeductionService
         $tardyMinutes = (int) $attendance->tardiness_minutes;
         $undertimeMinutes = (int) $attendance->undertime_minutes;
 
-        // If legacy lates_count is present but tardiness_minutes is 0, estimate 15 mins per late
+        // If legacy lates_count is present but tardiness_minutes is 0, estimate configured mins per late
         if ($tardyMinutes === 0 && ($attendance->lates_count ?? 0) > 0) {
-            $tardyMinutes = $attendance->lates_count * 15;
+            $tardyMinutes = $attendance->lates_count * $defaultLateMins;
         }
 
         $tardyDeduction = round($minuteRate * $tardyMinutes, 2);

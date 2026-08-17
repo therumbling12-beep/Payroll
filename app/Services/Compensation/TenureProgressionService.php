@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Compensation;
 
+use App\Models\CompanySetting;
 use App\Models\CompensationAdjustment;
 use App\Models\Employee;
 use App\Models\PayrollAuditTrail;
@@ -24,8 +25,12 @@ class TenureProgressionService
      */
     public function computeNextStep(Employee $employee): array
     {
+        $workingDays = (float) CompanySetting::getValue('standard_working_days_per_month', 26.0);
+        $driverDefault = (float) CompanySetting::getValue('driver_default_baseline_salary', 28000.00);
+        $staffDefault = (float) CompanySetting::getValue('staff_default_baseline_salary', 25000.00);
+
         $isDriver = str_contains(strtolower($employee->position ?? ''), 'driver');
-        $currentSalary = (float) ($employee->monthly_rate ?: ($employee->daily_rate ? $employee->daily_rate * 26 : ($isDriver ? 28000.00 : 25000.00)));
+        $currentSalary = (float) ($employee->monthly_rate ?: ($employee->daily_rate ? $employee->daily_rate * $workingDays : ($isDriver ? $driverDefault : $staffDefault)));
 
         $grade = SalaryGrade::where('position_name', $employee->position)->first()
             ?? SalaryGrade::where('min_salary', '<=', $currentSalary)->where('max_salary', '>=', $currentSalary)->first()
@@ -42,19 +47,22 @@ class TenureProgressionService
             ->where('step_number', $nextStepNum)
             ->first() : null;
 
-        $nextStepSalary = $nextStepRecord ? (float) $nextStepRecord->step_salary : round($currentSalary * 1.03, 2);
+        $stepIncrementPct = (float) CompanySetting::getValue('tenure_step_default_increment_pct', 3.0);
+        $defaultAllowance = (float) CompanySetting::getValue('standard_employee_allowance_monthly', 3500.00);
+
+        $nextStepSalary = $nextStepRecord ? (float) $nextStepRecord->step_salary : round($currentSalary * (1 + ($stepIncrementPct / 100)), 2);
         if ($nextStepSalary <= $currentSalary && $currentStepNum < 7) {
-            $nextStepSalary = round($currentSalary * 1.03, 2);
+            $nextStepSalary = round($currentSalary * (1 + ($stepIncrementPct / 100)), 2);
         }
         if ($currentStepNum >= 7) {
             $nextStepSalary = $currentSalary;
         }
 
         $incrementAmount = round(max(0.0, $nextStepSalary - $currentSalary), 2);
-        $pct = $currentSalary > 0 ? round(($incrementAmount / $currentSalary) * 100, 2) : 3.0;
+        $pct = $currentSalary > 0 ? round(($incrementAmount / $currentSalary) * 100, 2) : $stepIncrementPct;
 
-        $oldCtc = $this->counterOfferService->calculateTotalCostToCompany($currentSalary, 3500.00);
-        $newCtc = $this->counterOfferService->calculateTotalCostToCompany($nextStepSalary, 3500.00);
+        $oldCtc = $this->counterOfferService->calculateTotalCostToCompany($currentSalary, $defaultAllowance);
+        $newCtc = $this->counterOfferService->calculateTotalCostToCompany($nextStepSalary, $defaultAllowance);
 
         return [
             'employee_id' => $employee->id,
@@ -110,12 +118,14 @@ class TenureProgressionService
             ];
 
             if ($isDriver) {
-                $updateData['daily_rate'] = round($newRate / 26, 2);
+                $workingDays = (float) CompanySetting::getValue('standard_working_days_per_month', 26.0);
+                $updateData['daily_rate'] = round($newRate / $workingDays, 2);
             }
 
             $employee->update($updateData);
 
-            $ctc = $this->counterOfferService->calculateTotalCostToCompany($newRate, 3500.00);
+            $defaultAllowance = (float) CompanySetting::getValue('standard_employee_allowance_monthly', 3500.00);
+            $ctc = $this->counterOfferService->calculateTotalCostToCompany($newRate, $defaultAllowance);
 
             CompensationAdjustment::create([
                 'employee_id' => $employee->id,

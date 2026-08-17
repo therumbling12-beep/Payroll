@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Compensation;
 
+use App\Models\CompanySetting;
 use App\Models\CompensationAdjustment;
 use App\Models\Employee;
 use App\Models\PayrollAuditTrail;
@@ -24,13 +25,18 @@ class ProbationaryConversionService
      */
     public function evaluateProbationaryStatus(Employee $employee): array
     {
+        $maxProbationDays = (int) CompanySetting::getValue('probationary_statutory_max_days', 180);
+        $workingDays = (float) CompanySetting::getValue('standard_working_days_per_month', 26.0);
+        $driverDefault = (float) CompanySetting::getValue('driver_default_baseline_salary', 28000.00);
+        $staffDefault = (float) CompanySetting::getValue('staff_default_baseline_salary', 25000.00);
+
         $hireDate = $employee->hire_date ? \Carbon\Carbon::parse($employee->hire_date) : now()->subMonths(5);
         $daysRendered = (int) abs(now()->diffInDays($hireDate));
-        $daysRemaining = max(0, 180 - $daysRendered);
-        $milestoneReached = $daysRendered >= 150; // At or beyond 5th month evaluation
+        $daysRemaining = max(0, $maxProbationDays - $daysRendered);
+        $milestoneReached = $daysRendered >= ($maxProbationDays - 30); // At or beyond 5th month evaluation
 
         $isDriver = str_contains(strtolower($employee->position ?? ''), 'driver');
-        $currentSalary = (float) ($employee->monthly_rate ?: ($employee->daily_rate ? $employee->daily_rate * 26 : ($isDriver ? 28000.00 : 25000.00)));
+        $currentSalary = (float) ($employee->monthly_rate ?: ($employee->daily_rate ? $employee->daily_rate * $workingDays : ($isDriver ? $driverDefault : $staffDefault)));
 
         $rating = $employee->performance_rating ?? 'Satisfactory';
         $score = $this->resolveScoreFromRating($rating);
@@ -39,9 +45,12 @@ class ProbationaryConversionService
             ?? SalaryGrade::where('min_salary', '<=', $currentSalary)->where('max_salary', '>=', $currentSalary)->first()
             ?? SalaryGrade::first();
 
-        // Step 2 alignment or default 7.5% regularization increment
+        // Step 2 alignment or default regularization increment
         $step2 = SalaryStep::where('salary_grade_id', $grade->id)->where('step_number', 2)->first();
-        $recommendedBumpPct = $score >= 4.5 ? 10.0 : ($score >= 3.0 ? 7.5 : 0.0);
+        $honorsRaisePct = (float) CompanySetting::getValue('probation_honors_raise_pct', 10.0);
+        $standardRaisePct = (float) CompanySetting::getValue('probation_standard_raise_pct', 7.5);
+        $recommendedBumpPct = $score >= 4.5 ? $honorsRaisePct : ($score >= 3.0 ? $standardRaisePct : 0.0);
+
         $recommendedSalary = $step2 ? (float) $step2->step_salary : round($currentSalary * (1 + ($recommendedBumpPct / 100)), 2);
         if ($recommendedSalary <= $currentSalary && $score >= 3.0) {
             $recommendedSalary = round($currentSalary * (1 + ($recommendedBumpPct / 100)), 2);
@@ -49,11 +58,12 @@ class ProbationaryConversionService
 
         $isEligible = $score >= 3.0;
         $recommendation = $isEligible
-            ? ($score >= 4.5 ? 'Strongly Recommended: Regularize with Step 2 Placement + Honors Bump' : 'Recommended: Regularize with Standard 7.5% Increment')
+            ? ($score >= 4.5 ? "Strongly Recommended: Regularize with Step 2 Placement + Honors Bump ({$honorsRaisePct}%)" : "Recommended: Regularize with Standard {$standardRaisePct}% Increment")
             : 'Not Recommended: Below 3.0 Performance Benchmark (Extend or Issue Separation Notice)';
 
-        $oldCtc = $this->counterOfferService->calculateTotalCostToCompany($currentSalary, 3500.00);
-        $newCtc = $this->counterOfferService->calculateTotalCostToCompany($recommendedSalary, 3500.00);
+        $defaultAllowance = (float) CompanySetting::getValue('standard_employee_allowance_monthly', 3500.00);
+        $oldCtc = $this->counterOfferService->calculateTotalCostToCompany($currentSalary, $defaultAllowance);
+        $newCtc = $this->counterOfferService->calculateTotalCostToCompany($recommendedSalary, $defaultAllowance);
 
         return [
             'employee_id' => $employee->id,
@@ -99,13 +109,15 @@ class ProbationaryConversionService
             ];
 
             if ($isDriver) {
-                $updateData['daily_rate'] = round($newSalary / 26, 2);
+                $workingDays = (float) CompanySetting::getValue('standard_working_days_per_month', 26.0);
+                $updateData['daily_rate'] = round($newSalary / $workingDays, 2);
             }
 
             $employee->update($updateData);
 
             // Compute CTC
-            $ctc = $this->counterOfferService->calculateTotalCostToCompany($newSalary, 3500.00);
+            $defaultAllowance = (float) CompanySetting::getValue('standard_employee_allowance_monthly', 3500.00);
+            $ctc = $this->counterOfferService->calculateTotalCostToCompany($newSalary, $defaultAllowance);
 
             // Record in CompensationAdjustment
             CompensationAdjustment::create([

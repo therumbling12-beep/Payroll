@@ -908,6 +908,97 @@
             </div>
         </div>
 
+        <!-- ========================================================================= -->
+        <!-- MODAL: EDIT HMO ENROLLMENT POLICY -->
+        <!-- ========================================================================= -->
+        <div x-show="showEditModal" x-cloak class="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+            <div @click.away="showEditModal = false" class="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+                <div class="flex items-center justify-between border-b border-gray-100 pb-3">
+                    <div>
+                        <h2 class="text-base font-black font-outfit text-gray-900">Edit HMO Policy Enrollment</h2>
+                        <p class="text-xs text-gray-400 mt-0.5" x-text="'Update policy record for ' + (selectedEnrollment && selectedEnrollment.employee ? selectedEnrollment.employee.first_name + ' ' + selectedEnrollment.employee.last_name : (selectedEnrollment ? selectedEnrollment.hmo_card_number : ''))"></p>
+                    </div>
+                    <button @click="showEditModal = false" type="button" class="text-gray-400 hover:text-gray-600 text-lg">&times;</button>
+                </div>
+
+                <form :action="'{{ url('/hmo-benefits/plans') }}/' + (selectedEnrollment ? selectedEnrollment.id : '') + '/update'" method="POST" class="space-y-4">
+                    @csrf
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 mb-1">HMO Provider *</label>
+                            <input type="text" name="hmo_provider" :value="selectedEnrollment ? selectedEnrollment.hmo_provider : 'Maxicare'" required class="w-full text-xs font-bold bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2 text-gray-800 focus:outline-none focus:border-gray-900">
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 mb-1">Provider Plan Name *</label>
+                            <input type="text" name="provider_plan" :value="selectedEnrollment ? selectedEnrollment.provider_plan : 'Standard Plus'" required class="w-full text-xs font-bold bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2 text-gray-800 focus:outline-none focus:border-gray-900">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 mb-1">Coverage Tier *</label>
+                            <select name="coverage_tier" required class="w-full text-xs font-bold bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2 text-gray-800 focus:outline-none focus:border-gray-900">
+                                <option value="Basic" :selected="selectedEnrollment && selectedEnrollment.coverage_tier === 'Basic'">Basic</option>
+                                <option value="Plus" :selected="selectedEnrollment && selectedEnrollment.coverage_tier === 'Plus'">Plus</option>
+                                <option value="Premium" :selected="selectedEnrollment && selectedEnrollment.coverage_tier === 'Premium'">Premium</option>
+                                <option value="Driver Fleet Care" :selected="selectedEnrollment && selectedEnrollment.coverage_tier === 'Driver Fleet Care'">Driver Fleet Care</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 mb-1">Enrollment Status *</label>
+                            <select name="status" required class="w-full text-xs font-bold bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2 text-gray-800 focus:outline-none focus:border-gray-900">
+                                <option value="active" :selected="selectedEnrollment && selectedEnrollment.status === 'active'">Active</option>
+                                <option value="inactive" :selected="selectedEnrollment && selectedEnrollment.status === 'inactive'">Inactive</option>
+                                <option value="expired" :selected="selectedEnrollment && selectedEnrollment.status === 'expired'">Expired</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 mb-1">Annual MBL Limit (PHP) *</label>
+                            <input type="number" step="100" name="annual_limit" :value="selectedEnrollment ? (selectedEnrollment.annual_limit || selectedEnrollment.mbl_amount) : ''" required class="w-full text-xs font-bold font-mono bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2 text-gray-800 focus:outline-none focus:border-gray-900">
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 mb-1">Monthly Premium (PHP) *</label>
+                            <input type="number" step="10" name="monthly_premium" :value="selectedEnrollment ? selectedEnrollment.monthly_premium : ''" required class="w-full text-xs font-bold font-mono bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2 text-gray-800 focus:outline-none focus:border-gray-900">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 mb-1">Coverage Start Date *</label>
+                            <input type="date" name="coverage_start_date" :value="selectedEnrollment && selectedEnrollment.coverage_start_date ? selectedEnrollment.coverage_start_date.substring(0, 10) : ''" required class="w-full text-xs font-bold bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2 text-gray-800 focus:outline-none focus:border-gray-900">
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 mb-1">Coverage End Date *</label>
+                            <input type="date" name="coverage_end_date" :value="selectedEnrollment && selectedEnrollment.coverage_end_date ? selectedEnrollment.coverage_end_date.substring(0, 10) : ''" required class="w-full text-xs font-bold bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2 text-gray-800 focus:outline-none focus:border-gray-900">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 mb-1">Number of Dependents</label>
+                        <input type="number" name="dependent_count" min="0" max="10" :value="selectedEnrollment ? (selectedEnrollment.dependent_count || (selectedEnrollment.dependents ? selectedEnrollment.dependents.length : 0)) : 0" class="w-full text-xs font-bold bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2 text-gray-800 focus:outline-none focus:border-gray-900">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 mb-1">Policy Modification Notes</label>
+                        <textarea name="notes" rows="2" placeholder="Reason for modification, endorsement ref, or special rider terms..." :value="selectedEnrollment ? selectedEnrollment.notes : ''" class="w-full text-xs bg-gray-50 border border-gray-200 rounded-xl p-2.5 text-gray-800 focus:outline-none focus:border-gray-900"></textarea>
+                    </div>
+
+                    <div class="flex items-center justify-end gap-3 pt-3 border-t border-gray-100">
+                        <button @click="showEditModal = false" type="button" class="text-xs font-bold text-gray-500 px-4 py-2">Cancel</button>
+                        <button type="submit" class="bg-gray-900 hover:bg-black text-white font-black text-xs px-5 py-2 rounded-xl transition-all shadow-sm">Save Policy Changes</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
     </div>
 
 @endsection

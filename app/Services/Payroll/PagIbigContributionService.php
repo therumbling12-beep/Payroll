@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Payroll;
 
+use App\Models\CompanySetting;
 use App\Models\GovernmentContributionTable;
 
 class PagIbigContributionService
@@ -15,16 +16,22 @@ class PagIbigContributionService
      */
     public function compute(float $monthlyBasicSalary, bool $isSemiMonthly = false): array
     {
-        if ($monthlyBasicSalary <= 1500.00) {
-            $eeRate = 0.01;
-            $erRate = 0.02;
-            $eeShare = min(200.00, round($monthlyBasicSalary * $eeRate, 2));
-            $erShare = min(200.00, round($monthlyBasicSalary * $erRate, 2));
+        $lowThreshold = (float) CompanySetting::getValue('pagibig_low_income_threshold', 1500.00);
+        $lowEeRate = (float) CompanySetting::getValue('pagibig_low_income_ee_rate', 0.01);
+        $stdEeRate = (float) CompanySetting::getValue('pagibig_standard_ee_rate', 0.02);
+        $stdErRate = (float) CompanySetting::getValue('pagibig_standard_er_rate', 0.02);
+        $monthlyCap = (float) CompanySetting::getValue('pagibig_standard_monthly_cap', 200.00);
+
+        if ($monthlyBasicSalary <= $lowThreshold) {
+            $eeRate = $lowEeRate;
+            $erRate = $stdErRate;
+            $eeShare = min($monthlyCap, round($monthlyBasicSalary * $eeRate, 2));
+            $erShare = min($monthlyCap, round($monthlyBasicSalary * $erRate, 2));
         } else {
-            $eeRate = 0.02;
-            $erRate = 0.02;
-            $eeShare = min(200.00, round($monthlyBasicSalary * $eeRate, 2));
-            $erShare = min(200.00, round($monthlyBasicSalary * $erRate, 2));
+            $eeRate = $stdEeRate;
+            $erRate = $stdErRate;
+            $eeShare = min($monthlyCap, round($monthlyBasicSalary * $eeRate, 2));
+            $erShare = min($monthlyCap, round($monthlyBasicSalary * $erRate, 2));
         }
 
         if ($isSemiMonthly) {

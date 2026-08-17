@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Payroll;
 
 use App\Models\Attendance;
+use App\Models\CompanySetting;
 use App\Models\Employee;
 
 class OvertimePayService
@@ -16,8 +17,14 @@ class OvertimePayService
      */
     public function compute(Employee $employee, ?Attendance $attendance): array
     {
-        $dailyRate = (float) ($employee->daily_rate ?: ($employee->monthly_rate ? round($employee->monthly_rate / 26, 2) : 0.00));
-        $hourlyRate = $dailyRate > 0 ? round($dailyRate / 8, 2) : 0.00;
+        $workingDays = (float) CompanySetting::getValue('standard_working_days_per_month', 26.0);
+        $workingHours = (float) CompanySetting::getValue('standard_working_hours_per_day', 8.0);
+        $regularOtRate = (float) CompanySetting::getValue('overtime_regular_multiplier', 1.25);
+        $restDayOtRate = (float) CompanySetting::getValue('overtime_rest_day_multiplier', 1.69);
+        $nsdRate = (float) CompanySetting::getValue('night_shift_differential_rate', 0.10);
+
+        $dailyRate = (float) ($employee->daily_rate ?: ($employee->monthly_rate ? round($employee->monthly_rate / $workingDays, 2) : 0.00));
+        $hourlyRate = $dailyRate > 0 ? round($dailyRate / $workingHours, 2) : 0.00;
 
         if (! $attendance || $hourlyRate <= 0) {
             return [
@@ -32,15 +39,15 @@ class OvertimePayService
         $nightDiffHours = (float) $attendance->night_diff_hours;
 
         // 1. Regular Day Overtime (125% rate)
-        $regularOtPay = round($hourlyRate * 1.25 * $overtimeHours, 2);
+        $regularOtPay = round($hourlyRate * $regularOtRate * $overtimeHours, 2);
 
         // 2. Rest Day Overtime (169% rate)
-        $restDayOtPay = round($hourlyRate * 1.69 * $restDayHours, 2);
+        $restDayOtPay = round($hourlyRate * $restDayOtRate * $restDayHours, 2);
 
         $totalOtPay = round($regularOtPay + $restDayOtPay, 2);
 
         // 3. Night Shift Differential (10% premium for 10:00 PM - 6:00 AM)
-        $nightDiffPay = round($hourlyRate * 0.10 * $nightDiffHours, 2);
+        $nightDiffPay = round($hourlyRate * $nsdRate * $nightDiffHours, 2);
 
         return [
             'overtime_pay' => $totalOtPay,
