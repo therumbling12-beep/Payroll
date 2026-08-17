@@ -156,13 +156,13 @@
                                         </div>
                                     </a>
                                     <!-- Item 4 -->
-                                    <a href="#payroll" class="flex gap-2.5 p-2 rounded-lg hover:bg-forest-soft transition-all group">
+                                    <a href="{{ route('ess.dashboard') }}" class="flex gap-2.5 p-2 rounded-lg hover:bg-forest-soft transition-all group">
                                         <div class="w-8 h-8 rounded-lg bg-forest/10 flex items-center justify-center text-forest group-hover:bg-forest group-hover:text-white transition-colors flex-shrink-0">
                                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                                         </div>
                                         <div>
-                                            <h5 class="text-xs font-bold text-gray-900 font-outfit">Payroll & Benefits</h5>
-                                            <p class="text-[10px] text-gray-500">Claims, HMO & Compensation</p>
+                                            <h5 class="text-xs font-bold text-gray-900 font-outfit">Payroll & Benefits (ESS)</h5>
+                                            <p class="text-[10px] text-gray-500">Employee Self-Service Portal</p>
                                         </div>
                                     </a>
                                     <!-- Item 5 -->
@@ -358,15 +358,18 @@
                         </div>
                     </a>
 
-                    <!-- Team 4: Payroll & Benefits -->
-                    <a href="{{ env('TEAM4_URL', '#') }}" target="_blank" class="flex items-start gap-4 p-4 rounded-2xl border border-gray-100 hover:border-brand/35 hover:shadow-md transition-all group bg-gray-50/50">
-                        <div class="w-10 h-10 rounded-xl bg-gray-100 text-gray-700 flex items-center justify-center flex-shrink-0 group-hover:bg-brand group-hover:text-white transition-colors">
+                    <!-- Team 4: Payroll & Benefits (Employee Self-Service) -->
+                    <a href="{{ route('ess.dashboard') }}" class="flex items-start gap-4 p-4 rounded-2xl border border-brand/30 hover:border-brand/60 hover:shadow-md transition-all group bg-brand/5 relative overflow-hidden">
+                        <div class="w-10 h-10 rounded-xl bg-brand text-white flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform shadow-sm">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                         </div>
-                        <div>
-                            <span class="text-[9px] font-bold text-gray-500 uppercase tracking-wider bg-gray-200 px-2 py-0.5 rounded">Team 4</span>
-                            <h4 class="text-sm font-bold text-gray-900 font-outfit mt-1 group-hover:text-brand transition-colors">Payroll & Benefits</h4>
-                            <p class="text-[11px] text-gray-500 mt-0.5 leading-relaxed">Payroll runs, compensation matrices, HMO listings, and benefits reimbursement status.</p>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center gap-2">
+                                <span class="text-[9px] font-bold text-white uppercase tracking-wider bg-brand px-2 py-0.5 rounded">Team 4</span>
+                                <span class="text-[9px] font-black text-emerald-700 bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded-full">Active Self-Service</span>
+                            </div>
+                            <h4 class="text-sm font-bold text-gray-900 font-outfit mt-1 group-hover:text-brand transition-colors">Payroll & Benefits Self-Service (ESS)</h4>
+                            <p class="text-[11px] text-gray-600 mt-0.5 leading-relaxed">Access your personal digital HMO card, interactive payslips, APE schedule, Group Life coverage, and benefit claims.</p>
                         </div>
                     </a>
 
@@ -718,12 +721,17 @@
                         <p class="text-xs text-gray-500 mb-4 leading-relaxed">
                             Automated payroll calculations, benefits administration, HMO compliance records, claims logs, and employee compensation files.
                         </p>
-                        <div class="mt-auto pt-3 border-t border-gray-200/50">
+                        <div class="mt-auto space-y-2.5 pt-3 border-t border-gray-200/50">
                             <ul class="flex flex-wrap gap-1">
                                 <li class="text-[9px] font-medium text-forest bg-forest/5 px-2 py-0.5 rounded">Payroll Calculation</li>
                                 <li class="text-[9px] font-medium text-forest bg-forest/5 px-2 py-0.5 rounded">Claims Tracking</li>
                                 <li class="text-[9px] font-medium text-forest bg-forest/5 px-2 py-0.5 rounded">HMO & Benefits</li>
                             </ul>
+                            <div class="pt-1">
+                                <a href="{{ route('ess.dashboard') }}" class="block w-full text-center py-2 px-3 bg-brand hover:bg-brand-dark text-white font-bold text-[11px] rounded-lg transition-all shadow-xs">
+                                    Launch Employee Self-Service (ESS)
+                                </a>
+                            </div>
                         </div>
                     </div>
 

@@ -23,7 +23,7 @@ class GroqAiComplianceService
             return $this->fallbackHeuristicEvaluation($computation);
         }
 
-        $prompt = "You are an AI Compliance & Audit Assistant for a Philippine TNVS Payroll System. Your role is NOT to recalculate tax math, but to detect regulatory risk patterns, unusual anomalies, and DOLE advisory warnings.
+        $prompt = "You are an AI Compliance & Audit Assistant for a Philippine TNVS Payroll System. Your role is to detect regulatory risk patterns, unusual anomalies, and DOLE advisory warnings.
 
 Data to evaluate:
 - Employee Name: {$computation->employee?->first_name} {$computation->employee?->last_name}
@@ -38,10 +38,10 @@ Data to evaluate:
 - Net Pay Payout: ₱{$computation->net_pay}
 
 Pattern Rules to Audit:
-1. Mandatory Statutory Deductions: Ensure SSS, PhilHealth, and Pag-IBIG contributions are non-zero.
+1. Mandatory Statutory Deductions: Ensure SSS, PhilHealth, and Pag-IBIG contributions follow official 2026 Philippine tables.
 2. DOLE Advisory Deduction Ceiling: Flag if Total Deductions exceed 50% of Gross Pay.
-3. Minimum Wage Safety Floor: Flag if Net Pay falls below reasonable standard daily floor thresholds (e.g. ₱500/day equivalent).
-4. Tax & Reimbursement Integrity: Ensure non-taxable reimbursements are reasonable relative to gross pay.
+3. Minimum Wage Safety Floor (DOLE Wage Order NCR-27): Flag if regular staff net pay or daily rate falls below ₱755.00/day.
+4. Tax & Reimbursement Integrity: Ensure non-taxable reimbursements are supported by legitimate business expense types.
 
 Respond ONLY in valid JSON with this exact structure:
 {
@@ -96,24 +96,23 @@ Respond ONLY in valid JSON with this exact structure:
         $score = 100;
         $status = 'PASSED';
 
-        $wageFloor = (float) \App\Models\CompanySetting::getValue('ai_wage_safety_floor', 755.00);
-        $isDriver = $computation->employee && str_contains($computation->employee->position, 'Driver');
+        $wageFloor = 755.00; // NCR-27 baseline
 
-        if (!$isDriver && (float) $computation->net_pay < $wageFloor) {
+        if ((float) $computation->net_pay < $wageFloor && (float) $computation->gross_pay > 0) {
             $issues[] = 'Net pay payout (₱' . number_format((float)$computation->net_pay, 2) . ') falls below DOLE minimum daily wage safety floor threshold (₱' . number_format($wageFloor, 2) . ').';
             $suggestions[] = 'Use Manual Override to adjust base pay or review excessive deductions to ensure net pay meets DOLE daily minimum limits.';
             $score -= 30;
             $status = 'WARNING';
         }
 
-        if ((float) $computation->total_deductions > ((float) $computation->gross_pay * 0.5)) {
+        if ((float) $computation->gross_pay > 0 && (float) $computation->total_deductions > ((float) $computation->gross_pay * 0.5)) {
             $issues[] = 'Total deductions (₱' . number_format((float)$computation->total_deductions, 2) . ') exceed the DOLE advisory ceiling of 50% of gross pay (₱' . number_format((float)$computation->gross_pay, 2) . ').';
             $suggestions[] = 'Click Manual Override to reduce optional deductions (e.g. HMO, driver cash advances) so total deductions stay under 50%.';
             $score -= 20;
             $status = 'WARNING';
         }
 
-        if (!$isDriver && ((float) $computation->sss_deduction == 0 || (float) $computation->philhealth_deduction == 0 || (float) $computation->pagibig_deduction == 0)) {
+        if ((float) $computation->gross_pay > 0 && ((float) $computation->sss_deduction == 0 && (float) $computation->philhealth_deduction == 0 && (float) $computation->pagibig_deduction == 0)) {
             $issues[] = 'Missing mandatory statutory government contributions (SSS, PhilHealth, or Pag-IBIG).';
             $suggestions[] = 'Verify employee government contribution settings or perform a manual override to recalculate statutory deductions.';
             $score -= 25;

@@ -22,4 +22,15 @@ class CompanySetting extends Model
         $setting = static::where('key', $key)->first();
         return $setting ? $setting->value : $default;
     }
+
+    public static function setValue(string $key, mixed $value, ?string $description = null): static
+    {
+        return static::updateOrCreate(
+            ['key' => $key],
+            array_filter([
+                'value' => (string) $value,
+                'description' => $description,
+            ], fn ($v) => $v !== null)
+        );
+    }
 }

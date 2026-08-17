@@ -259,7 +259,7 @@
                     ['label' => 'Team 1 - Recruitment', 'url' => env('TEAM1_URL', '#')],
                     ['label' => 'Team 2 - Workforce', 'url' => env('TEAM2_URL', '#')],
                     ['label' => 'Team 3 - Talent & Dev', 'url' => env('TEAM3_URL', '#')],
-                    ['label' => 'Team 4 - Payroll', 'url' => env('TEAM4_URL', '#')],
+                    ['label' => 'Team 4 - Payroll & Benefits', 'url' => env('TEAM4_URL', '#')],
                     ['label' => 'Team 5 - Finance Ledger', 'url' => env('TEAM5_URL', '#')],
                     ['label' => 'Team 6 - Inventory', 'url' => env('TEAM6_URL', '#')],
                     ['label' => 'Team 7 - Fleet Planning', 'url' => env('TEAM7_URL', '#')],

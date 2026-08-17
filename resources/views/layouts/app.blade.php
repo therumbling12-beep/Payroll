@@ -20,6 +20,12 @@
             theme: {
                 extend: {
                     colors: {
+                        white: '#faf9f6',
+                        gray: {
+                            50: '#f1efe9',
+                            100: '#e7e4dc',
+                            200: '#dad5c9',
+                        },
                         brand: {
                             DEFAULT: '#F44336',
                             dark: '#D32F2F',
@@ -55,7 +61,7 @@
     <style>
         [x-cloak] { display: none !important; }
         body {
-            background-color: #f8f9fa;
+            background-color: #f1efe9;
             font-family: 'Plus Jakarta Sans', sans-serif;
         }
         .font-outfit { font-family: 'Outfit', sans-serif; }
@@ -73,7 +79,7 @@
 
         /* Custom Scrollbar */
         ::-webkit-scrollbar { width: 5px; }
-        ::-webkit-scrollbar-track { background: #f1efe9; }
+        ::-webkit-scrollbar-track { background: #f3f2ef; }
         ::-webkit-scrollbar-thumb { background: #F44336; border-radius: 4px; }
         ::-webkit-scrollbar-thumb:hover { background: #D32F2F; }
 

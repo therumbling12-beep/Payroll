@@ -21,14 +21,83 @@ class Employee extends Model
         'last_name',
         'email',
         'position',
+        'hire_date',
+        'regularization_date',
+        'employment_status',
+        'performance_rating',
         'daily_rate',
         'monthly_rate',
+        'current_step',
+        'step_status',
+        'step_hold_reason',
         'payment_mode',
         'bank_account_no',
         'payment_method',
         'bank_name',
         'bank_account_number',
     ];
+
+    protected $casts = [
+        'hire_date' => 'date',
+        'regularization_date' => 'date',
+        'daily_rate' => 'float',
+        'monthly_rate' => 'float',
+        'current_step' => 'integer',
+    ];
+
+    /**
+     * Calculate tenure (years of service) from regularization or hire date.
+     */
+    public function getYearsOfServiceAttribute(): float
+    {
+        $startDate = $this->regularization_date ?? $this->hire_date;
+        if (! $startDate) {
+            return 0.0;
+        }
+
+        $days = (float) now()->diffInDays($startDate, false);
+        if ($days > 0) {
+            return 0.0;
+        }
+
+        return round(abs($days) / 365.25, 1);
+    }
+
+    /**
+     * Get tenure summary string (e.g., "3 yrs, 4 mos").
+     */
+    public function getTenureTextAttribute(): string
+    {
+        $startDate = $this->regularization_date ?? $this->hire_date;
+        if (! $startDate) {
+            return '0 months';
+        }
+
+        $diff = now()->diff($startDate);
+        $years = $diff->y;
+        $months = $diff->m;
+
+        if ($years > 0) {
+            return "{$years} yrs, {$months} mos";
+        }
+
+        return "{$months} mos";
+    }
+
+    /**
+     * Days remaining until standard 6-month probationary end date.
+     */
+    public function getProbationaryDaysRemainingAttribute(): ?int
+    {
+        if ($this->employment_status !== 'probationary' || ! $this->hire_date) {
+            return null;
+        }
+
+        $targetDate = $this->hire_date->copy()->addMonths(6);
+
+        return (int) now()->diffInDays($targetDate, false);
+    }
+
 
     public function department(): BelongsTo
     {
@@ -43,6 +112,56 @@ class Employee extends Model
     public function salaryComputations(): HasMany
     {
         return $this->hasMany(SalaryComputation::class);
+    }
+
+    public function compensationAdjustments(): HasMany
+    {
+        return $this->hasMany(CompensationAdjustment::class);
+    }
+
+    public function tripIncomes(): HasMany
+    {
+        return $this->hasMany(TripIncome::class);
+    }
+
+    public function claims(): HasMany
+    {
+        return $this->hasMany(Claim::class);
+    }
+
+    public function performanceBonuses(): HasMany
+    {
+        return $this->hasMany(PerformanceBonus::class);
+    }
+
+    public function hmoEnrollments(): HasMany
+    {
+        return $this->hasMany(HmoEnrollment::class);
+    }
+
+    public function accidentClaims(): HasMany
+    {
+        return $this->hasMany(AccidentClaim::class);
+    }
+
+    public function hmoUtilizationLogs(): HasMany
+    {
+        return $this->hasMany(HmoUtilizationLog::class);
+    }
+
+    public function loans(): HasMany
+    {
+        return $this->hasMany(EmployeeLoan::class);
+    }
+
+    public function annualPhysicalExams(): HasMany
+    {
+        return $this->hasMany(AnnualPhysicalExam::class);
+    }
+
+    public function groupLifePolicies(): HasMany
+    {
+        return $this->hasMany(GroupLifePolicy::class);
     }
 
     public function scopeSearch(Builder $query, ?string $term): void
@@ -61,5 +180,30 @@ class Employee extends Model
         if ($deptId && $deptId !== 'all') {
             $query->where('department_id', $deptId);
         }
+    }
+
+    /**
+     * Check if the employee is a driver or fleet crew member
+     */
+    public function isDriver(): bool
+    {
+        $pos = strtolower((string) $this->position);
+        $dept = strtolower((string) ($this->department?->name ?? ''));
+
+        return str_contains($pos, 'driver')
+            || str_contains($pos, 'chauffeur')
+            || str_contains($dept, 'fleet');
+    }
+
+    /**
+     * Scope a query to only include drivers or fleet crew members
+     */
+    public function scopeDrivers(Builder $query): void
+    {
+        $query->where(function (Builder $q) {
+            $q->where('position', 'like', '%driver%')
+              ->orWhere('position', 'like', '%chauffeur%')
+              ->orWhereHas('department', fn (Builder $d) => $d->where('name', 'like', '%fleet%'));
+        });
     }
 }

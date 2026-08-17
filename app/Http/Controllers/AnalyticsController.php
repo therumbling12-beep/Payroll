@@ -6,6 +6,7 @@ namespace App\Http\Controllers;
 
 use App\Models\AccidentClaim;
 use App\Models\BudgetRequisition;
+use App\Models\Claim;
 use App\Models\Employee;
 use App\Models\HmoEnrollment;
 use App\Models\SalaryComputation;
@@ -13,6 +14,35 @@ use Illuminate\View\View;
 
 class AnalyticsController extends Controller
 {
+    /**
+     * Executive Overview Analytics Dashboard
+     */
+    public function overview(): View
+    {
+        $totalEmployees = Employee::count();
+        $totalDrivers = Employee::where('position', 'like', '%Driver%')->count();
+        $totalStaff = max(0, $totalEmployees - $totalDrivers);
+
+        $totalGrossPayroll = (float) SalaryComputation::sum('gross_pay');
+        $totalNetPayroll = (float) SalaryComputation::sum('net_pay');
+        $totalDeductions = (float) SalaryComputation::sum('total_deductions');
+
+        $activeHmoEnrolled = HmoEnrollment::where('status', 'active')->count();
+        $totalClaimsDisbursed = (float) Claim::whereIn('approval_status', ['approved', 'payroll_queued', 'paid'])->sum('amount');
+        $pendingClaimsCount = Claim::whereIn('approval_status', ['pending_hr', 'pending_admin', 'pending_finance', 'pending'])->count();
+
+        return view('payroll-benefits.analytics.overview', compact(
+            'totalEmployees',
+            'totalDrivers',
+            'totalStaff',
+            'totalGrossPayroll',
+            'totalNetPayroll',
+            'totalDeductions',
+            'activeHmoEnrolled',
+            'totalClaimsDisbursed',
+            'pendingClaimsCount'
+        ));
+    }
     /**
      * Performance Analytics Dashboard
      */
