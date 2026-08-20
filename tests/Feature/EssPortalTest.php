@@ -66,7 +66,7 @@ test('ess dashboard loads clean interface without HMO, APE, or Life Insurance ca
     $response->assertSeeText('Employee Self-Service');
     $response->assertSeeText('File Claim & Upload Receipt');
     $response->assertSeeText('Danilo Reyes');
-    $response->assertSeeText('Bank Deposit Information');
+    $response->assertSeeText('Security Bank Account Setup');
 
     // Asserts zero HMO / wellness clutter
     $response->assertDontSeeText('Digital E-Card');

@@ -161,6 +161,16 @@ class Employee extends Model
         return $this->hasMany(ChristmasBonusDisbursement::class);
     }
 
+    public function bankAccountSubmissions(): HasMany
+    {
+        return $this->hasMany(BankAccountSubmission::class);
+    }
+
+    public function latestBankSubmission(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(BankAccountSubmission::class)->latestOfMany();
+    }
+
     public function scopeSearch(Builder $query, ?string $term): void
     {
         if ($term) {

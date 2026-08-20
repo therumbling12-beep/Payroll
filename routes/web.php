@@ -143,6 +143,8 @@ Route::prefix('payroll')->name('payroll.')->group(function () {
     Route::get('/export/{year}/alphalist', [PayrollController::class, 'exportBirAlphalist'])->name('export.alphalist');
     Route::get('/payment-modes', [PayrollController::class, 'paymentModes'])->name('payment-modes');
     Route::post('/payment-modes/{employee}', [PayrollController::class, 'updatePaymentMode'])->name('payment-modes.update');
+    Route::post('/bank-verifications/{submission}/approve', [PayrollController::class, 'approveBankVerification'])->name('bank-verifications.approve');
+    Route::post('/bank-verifications/{submission}/reject', [PayrollController::class, 'rejectBankVerification'])->name('bank-verifications.reject');
     Route::get('/audit-trail', [PayrollController::class, 'auditTrail'])->name('audit-trail');
 
     // Loan Amortization Management (Phase 3)
@@ -235,6 +237,7 @@ Route::prefix('analytics')->name('analytics.')->group(function () {
 Route::prefix('ess')->name('ess.')->group(function () {
     Route::get('/dashboard', [EssController::class, 'index'])->name('dashboard');
     Route::post('/claims/submit', [EssController::class, 'submitClaim'])->name('claims.submit');
+    Route::post('/bank-account/submit', [EssController::class, 'submitBankAccount'])->name('bank-account.submit');
     Route::post('/bank-details', [EssController::class, 'updateBankDetails'])->name('bank-details');
 });
 

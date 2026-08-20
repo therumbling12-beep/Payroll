@@ -35,7 +35,9 @@ use App\Services\Payroll\WithholdingTaxService;
 use App\Services\PayrollEngineService;
 use App\Http\Requests\BatchPayrollUpdateRequest;
 use App\Http\Requests\ManualPayrollRequest;
+use App\Http\Requests\ReviewBankAccountSubmissionRequest;
 use App\Http\Requests\UpdatePaymentChannelRequest;
+use App\Models\BankAccountSubmission;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -603,7 +605,12 @@ class PayrollController extends Controller
 
         $employees = $query->paginate(10)->withQueryString();
 
-        return view('payroll-benefits.payroll.payment-modes', compact('employees', 'search', 'mode'));
+        $pendingSubmissions = BankAccountSubmission::with('employee.department')
+            ->where('status', 'pending')
+            ->latest()
+            ->get();
+
+        return view('payroll-benefits.payroll.payment-modes', compact('employees', 'search', 'mode', 'pendingSubmissions'));
     }
 
     /**
@@ -1383,5 +1390,49 @@ class PayrollController extends Controller
             'Content-Type' => 'text/csv',
             'Content-Disposition' => "attachment; filename=\"{$filename}\"",
         ]);
+    }
+
+    /**
+     * Approve Bank Account Submission (1-Click Auto Channel Switch)
+     */
+    public function approveBankVerification(Request $request, BankAccountSubmission $submission): RedirectResponse
+    {
+        $employee = $submission->employee;
+
+        DB::transaction(function () use ($submission, $employee) {
+            $employee->update([
+                'payment_mode' => 'bank',
+                'bank_name' => $submission->bank_name,
+                'bank_account_number' => $submission->account_number,
+            ]);
+
+            $submission->update([
+                'status' => 'approved',
+                'reviewed_by' => auth()->id(),
+                'reviewed_at' => now(),
+            ]);
+        });
+
+        return redirect()->route('payroll.payment-modes')
+            ->with('status', "Security Bank account for {$employee->first_name} {$employee->last_name} verified and approved. Payment mode switched to Bank Transfer.");
+    }
+
+    /**
+     * Reject Bank Account Submission with Reason
+     */
+    public function rejectBankVerification(ReviewBankAccountSubmissionRequest $request, BankAccountSubmission $submission): RedirectResponse
+    {
+        $validated = $request->validated();
+        $employee = $submission->employee;
+
+        $submission->update([
+            'status' => 'rejected',
+            'rejection_reason' => $validated['rejection_reason'],
+            'reviewed_by' => auth()->id(),
+            'reviewed_at' => now(),
+        ]);
+
+        return redirect()->route('payroll.payment-modes')
+            ->with('status', "Bank account submission for {$employee->first_name} {$employee->last_name} was rejected. Employee remains on Physical Cash.");
     }
 }

@@ -296,37 +296,131 @@
                 </div>
             @endif
 
-            <!-- Bank Deposit Setup Card -->
-            <div class="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
-                <h3 class="text-sm font-bold text-gray-900 font-outfit mb-1">Bank Deposit Information</h3>
-                <p class="text-[11px] text-gray-400 mb-4">Configure your preferred mode of payment for salary releases.</p>
-
-                <form action="{{ route('ess.bank-details') }}" method="POST" class="space-y-4">
-                    @csrf
-                    <input type="hidden" name="employee_id" value="{{ $selectedEmployee->id }}">
-
+            <!-- Security Bank Payroll Account Setup Card -->
+            <div x-data="{
+                bankProofPreview: null,
+                bankFileName: '',
+                handleProofUpload(event) {
+                    const file = event.target.files[0];
+                    if (file) {
+                        this.bankFileName = file.name;
+                        if (file.type.startsWith('image/')) {
+                            const reader = new FileReader();
+                            reader.onload = (e) => { this.bankProofPreview = e.target.result; };
+                            reader.readAsDataURL(file);
+                        } else {
+                            this.bankProofPreview = null;
+                        }
+                    }
+                }
+            }" class="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm space-y-4">
+                <div class="flex items-center justify-between">
                     <div>
-                        <label class="block text-xs font-semibold text-gray-700 mb-1.5">Payment Mode</label>
-                        <select name="payment_method" class="w-full text-xs bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-gray-800 focus:outline-none focus:border-gray-900">
-                            <option value="bank" {{ strtolower($selectedEmployee->payment_method ?? 'bank') === 'bank' ? 'selected' : '' }}>Direct Bank Deposit</option>
-                            <option value="cash" {{ strtolower($selectedEmployee->payment_method ?? '') === 'cash' ? 'selected' : '' }}>Cash Payroll Disbursement</option>
-                        </select>
+                        <h3 class="text-sm font-black text-gray-900 font-outfit">Security Bank Account Setup</h3>
+                        <p class="text-[11px] text-gray-400 mt-0.5">Submit your Security Bank ATM or account slip for direct salary deposits.</p>
                     </div>
+                    @if($selectedEmployee->payment_mode === 'bank')
+                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black bg-emerald-50 text-emerald-800 border border-emerald-200">
+                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
+                            Direct Deposit Active
+                        </span>
+                    @elseif($bankSubmission && $bankSubmission->status === 'pending')
+                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black bg-amber-50 text-amber-800 border border-amber-200">
+                            <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                            Under HR Verification
+                        </span>
+                    @else
+                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black bg-gray-100 text-gray-700">
+                            Physical Cash Payout
+                        </span>
+                    @endif
+                </div>
 
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-700 mb-1.5">Bank Provider Name</label>
-                        <input type="text" name="bank_name" value="{{ $selectedEmployee->bank_name ?? 'BDO Unibank' }}" placeholder="e.g. BDO, BPI, UnionBank" class="w-full text-xs bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-gray-800 focus:outline-none focus:border-gray-900">
+                @if($bankSubmission && $bankSubmission->status === 'rejected')
+                    <div class="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 space-y-1">
+                        <div class="font-black text-[11px] uppercase flex items-center gap-1.5">
+                            <svg class="w-4 h-4 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                            </svg>
+                            Submission Returned by HR
+                        </div>
+                        <p class="text-[11px]">{{ $bankSubmission->rejection_reason }}</p>
                     </div>
+                @endif
 
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-700 mb-1.5">Bank Account / Reference No.</label>
-                        <input type="text" name="bank_account_number" value="{{ $selectedEmployee->bank_account_number ?? $selectedEmployee->bank_account_no ?? '1092-3849-2849' }}" placeholder="Account Number" class="w-full text-xs bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-gray-800 focus:outline-none focus:border-gray-900">
+                @if($selectedEmployee->payment_mode === 'bank')
+                    <div class="p-3.5 bg-emerald-50/50 border border-emerald-100 rounded-xl space-y-2 text-xs">
+                        <div class="flex justify-between">
+                            <span class="text-gray-500">Bank Provider:</span>
+                            <span class="font-bold text-gray-900">{{ $selectedEmployee->bank_name ?? 'Security Bank Corporation' }}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-500">Account Number:</span>
+                            @php
+                                $acct = $selectedEmployee->bank_account_number ?: ($selectedEmployee->bank_account_no ?: '');
+                                $masked = strlen($acct) >= 4 ? str_repeat('*', max(0, strlen($acct) - 4)) . substr($acct, -4) : $acct;
+                            @endphp
+                            <span class="font-mono font-black text-emerald-900">{{ $masked }}</span>
+                        </div>
+                        <div class="text-[10px] text-gray-400 pt-1 border-t border-emerald-100">
+                            Your weekly payroll net pay is disbursed directly via Security Bank Corporate Batch Transfer.
+                        </div>
                     </div>
+                @else
+                    <form action="{{ route('ess.bank-account.submit') }}" method="POST" enctype="multipart/form-data" class="space-y-3.5 text-xs">
+                        @csrf
+                        <input type="hidden" name="employee_id" value="{{ $selectedEmployee->id }}">
+                        <input type="hidden" name="bank_name" value="Security Bank Corporation">
 
-                    <button type="submit" class="w-full bg-gray-900 text-white text-xs font-bold py-2.5 px-4 rounded-xl hover:bg-black transition shadow-sm">
-                        Update Bank Account Info
-                    </button>
-                </form>
+                        <div>
+                            <label class="block font-bold text-gray-700 mb-1">Security Bank Account Number *</label>
+                            <input type="text" name="account_number" required placeholder="e.g. 0012-3456-7890" 
+                                   value="{{ old('account_number', $bankSubmission?->account_number ?? '') }}"
+                                   class="w-full bg-gray-50 border border-gray-200 rounded-xl p-2.5 font-mono font-bold text-gray-900 focus:outline-none focus:border-[#F44336]">
+                            <span class="text-[10px] text-gray-400 block mt-1">Enter the 10-20 digit account number from your Security Bank ATM or deposit slip.</span>
+                        </div>
+
+                        <div>
+                            <label class="block font-bold text-gray-700 mb-1">ATM Card / Account Slip Photo Proof</label>
+                            <div class="border-2 border-dashed border-gray-200 rounded-xl p-3 text-center bg-gray-50/50 hover:bg-gray-50 transition cursor-pointer relative">
+                                <input type="file" name="proof_document" accept="image/*,.pdf" @change="handleProofUpload($event)"
+                                       class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+                                
+                                <template x-if="!bankProofPreview && !bankFileName">
+                                    <div class="space-y-1">
+                                        <svg class="w-6 h-6 text-gray-400 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/>
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/>
+                                        </svg>
+                                        <span class="text-[11px] font-bold text-gray-600 block">Tap to snap or upload ATM card photo</span>
+                                        <span class="text-[10px] text-gray-400 block">JPG, PNG, or PDF up to 5MB</span>
+                                    </div>
+                                </template>
+
+                                <template x-if="bankProofPreview">
+                                    <div class="space-y-1.5">
+                                        <img :src="bankProofPreview" class="h-24 mx-auto rounded-lg object-cover border border-gray-200">
+                                        <span class="text-[10px] font-mono font-bold text-gray-700 block" x-text="bankFileName"></span>
+                                    </div>
+                                </template>
+
+                                <template x-if="!bankProofPreview && bankFileName">
+                                    <div class="space-y-1">
+                                        <span class="text-xs font-bold text-emerald-700" x-text="bankFileName"></span>
+                                        <span class="text-[10px] text-gray-400 block">File attached ready to submit</span>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="w-full bg-[#F44336] hover:bg-[#D32F2F] text-white text-xs font-black py-2.5 px-4 rounded-xl transition shadow-sm flex items-center justify-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                            </svg>
+                            Submit Security Bank Details to HR
+                        </button>
+                    </form>
+                @endif
             </div>
 
         </div>

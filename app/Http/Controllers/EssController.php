@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Http\Requests\EssClaimSubmissionRequest;
+use App\Http\Requests\SubmitBankAccountRequest;
+use App\Models\BankAccountSubmission;
 use App\Models\Claim;
 use App\Models\ClaimCategory;
 use App\Models\CompanySetting;
@@ -74,6 +76,7 @@ class EssController extends Controller
 
             $silRecord = $this->silService->getOrCreateAnnualRecord($selectedEmployee, (int) date('Y'));
             $christmasBonusProjection = $this->christmasBonusService->calculateForEmployee($selectedEmployee, (int) date('Y'));
+            $bankSubmission = BankAccountSubmission::where('employee_id', $selectedEmployee->id)->latest()->first();
 
             if (str_contains(strtolower($selectedEmployee->position ?? ''), 'driver') || str_contains(strtolower($selectedEmployee->department?->name ?? ''), 'fleet')) {
                 $driverPoolHistory = $this->driverPoolService->getDriverContributionHistory($selectedEmployee);
@@ -100,12 +103,52 @@ class EssController extends Controller
             'maternityTypes',
             'silRecord',
             'christmasBonusProjection',
-            'driverPoolHistory'
+            'driverPoolHistory',
+            'bankSubmission'
         ));
     }
 
     /**
-     * Employee Bank / Payment Method Details Setup
+     * Submit Security Bank Account Details & Photo Proof via ESS
+     */
+    public function submitBankAccount(SubmitBankAccountRequest $request): RedirectResponse
+    {
+        $validated = $request->validated();
+        $employee = Employee::findOrFail($validated['employee_id']);
+
+        $attachmentPath = null;
+        if ($request->hasFile('proof_document')) {
+            $attachmentPath = $request->file('proof_document')->store('bank_proofs', 'public');
+        }
+
+        $submission = BankAccountSubmission::create([
+            'employee_id' => $employee->id,
+            'bank_name' => $validated['bank_name'],
+            'account_number' => $validated['account_number'],
+            'proof_attachment_path' => $attachmentPath,
+            'status' => 'pending',
+        ]);
+
+        PayrollAuditTrail::create([
+            'action' => 'ESS_BANK_ACCOUNT_SUBMITTED',
+            'model_type' => BankAccountSubmission::class,
+            'model_id' => $submission->id,
+            'user_name' => $employee->first_name . ' ' . $employee->last_name,
+            'ip_address' => $request->ip() ?? '127.0.0.1',
+            'old_values' => [],
+            'new_values' => [
+                'bank_name' => $validated['bank_name'],
+                'account_number' => $validated['account_number'],
+                'has_proof' => (bool) $attachmentPath,
+            ],
+        ]);
+
+        return redirect()->route('ess.dashboard', ['employee_id' => $employee->id])
+            ->with('status', 'Your Security Bank account details and ATM proof have been submitted to HR for verification.');
+    }
+
+    /**
+     * Employee Bank / Payment Method Details Setup (Legacy Support)
      */
     public function updateBankDetails(Request $request): RedirectResponse
     {
@@ -119,6 +162,7 @@ class EssController extends Controller
         $employee = Employee::findOrFail($validated['employee_id']);
         $employee->update([
             'payment_method' => $validated['payment_method'],
+            'payment_mode' => $validated['payment_method'],
             'bank_name' => $validated['bank_name'],
             'bank_account_number' => $validated['bank_account_number'],
         ]);
