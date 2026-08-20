@@ -39,6 +39,34 @@
             </div>
         </div>
 
+        <!-- Flash Status Message -->
+        @if(session('status'))
+            <div class="p-4 bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-2xl flex items-center justify-between text-xs font-bold shadow-xs">
+                <div class="flex items-center gap-2.5">
+                    <svg class="w-4 h-4 text-emerald-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                    </svg>
+                    <span>{{ session('status') }}</span>
+                </div>
+            </div>
+        @endif
+
+        @if($errors->any())
+            <div class="p-4 bg-rose-50 border border-rose-200 text-rose-900 rounded-2xl text-xs space-y-1 shadow-xs font-bold">
+                <div class="flex items-center gap-2 text-rose-800 font-black uppercase text-[11px]">
+                    <svg class="w-4 h-4 text-rose-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                    </svg>
+                    <span>Validation Errors</span>
+                </div>
+                <ul class="list-disc pl-5 space-y-0.5">
+                    @foreach($errors->all() as $err)
+                        <li>{{ $err }}</li>
+                    @endforeach
+                </ul>
+            </div>
+        @endif
+
         <!-- ========================================================================= -->
         <!-- EMPLOYEE PAYMENT REGISTRY -->
         <!-- ========================================================================= -->
@@ -91,6 +119,10 @@
                             @forelse($employees as $emp)
                                 @php
                                     $isCash = $emp->payment_mode === 'cash';
+                                    $rawAcct = $emp->bank_account_number ?: ($emp->bank_account_no ?: '');
+                                    $maskedAcct = strlen($rawAcct) >= 4 
+                                        ? str_repeat('*', max(0, strlen($rawAcct) - 4)) . substr($rawAcct, -4) 
+                                        : ($rawAcct ?: 'No Account Set');
                                 @endphp
                                 <tr class="hover:bg-gray-50/75 transition-colors">
                                     <td class="py-3.5 px-4 font-black text-gray-900">
@@ -114,9 +146,9 @@
                                     <td class="py-3.5 px-4">
                                         @if(!$isCash)
                                             <div class="font-bold text-gray-900">{{ $emp->bank_name ?? 'Security Bank Corporation' }}</div>
-                                            <span class="font-mono text-gray-500 text-[11px]">{{ $emp->bank_account_number ?: ($emp->bank_account_no ?: 'SBC-0012345678') }}</span>
+                                            <span class="font-mono text-gray-500 text-[11px]">{{ $maskedAcct }}</span>
                                         @else
-                                            <span class="text-gray-400 font-bold italic">Over-The-Counter Envelope</span>
+                                            <span class="text-amber-700 font-bold text-[11px] bg-amber-50 px-2 py-0.5 rounded border border-amber-200">Cash Envelope & Voucher</span>
                                         @endif
                                     </td>
                                     <td class="py-3.5 px-4 text-right">
@@ -162,7 +194,8 @@
                 </div>
 
                 <template x-if="activeEmployee">
-                    <form @submit.prevent="editModal = false" class="space-y-4 text-xs">
+                    <form :action="'{{ url('/payroll/payment-modes') }}/' + activeEmployee.id" method="POST" class="space-y-4 text-xs">
+                        @csrf
                         <div class="p-3.5 bg-gray-50 rounded-2xl border border-gray-200 space-y-1">
                             <span class="font-black text-sm text-gray-900 block" x-text="activeEmployee.first_name + ' ' + activeEmployee.last_name"></span>
                             <span class="text-xs text-gray-500 font-mono block" x-text="activeEmployee.employee_code + ' • ' + activeEmployee.position"></span>
@@ -190,21 +223,27 @@
                         <div x-show="mode === 'bank'" class="space-y-3 pt-1">
                             <div>
                                 <label class="block font-bold text-gray-700 mb-1">Bank Name</label>
-                                <select x-model="bankName" class="w-full bg-gray-50 border border-gray-200 rounded-xl p-2.5 font-bold text-gray-900 focus:outline-none focus:border-[#F44336]">
+                                <select name="bank_name" x-model="bankName" class="w-full bg-gray-50 border border-gray-200 rounded-xl p-2.5 font-bold text-gray-900 focus:outline-none focus:border-[#F44336]">
                                     <option value="Security Bank Corporation">Security Bank Corporation (Corporate Payroll)</option>
                                     <option value="Security Bank Easy Savings">Security Bank Easy Savings Account</option>
                                 </select>
                             </div>
 
                             <div>
-                                <label class="block font-bold text-gray-700 mb-1">Account Number</label>
-                                <input type="text" x-model="accountNo" class="w-full bg-gray-50 border border-gray-200 rounded-xl p-2.5 font-mono font-bold text-gray-900 focus:outline-none focus:border-[#F44336]">
+                                <label class="block font-bold text-gray-700 mb-1">Security Bank Account Number</label>
+                                <input type="text" name="bank_account_number" x-model="accountNo" placeholder="e.g. 0012-3456-7890" class="w-full bg-gray-50 border border-gray-200 rounded-xl p-2.5 font-mono font-bold text-gray-900 focus:outline-none focus:border-[#F44336]">
+                                <span class="text-[10px] text-gray-400 block mt-1">10-20 digits Security Bank ATM / Corporate payroll account.</span>
                             </div>
                         </div>
 
                         <div class="flex items-center justify-end gap-2 pt-2 border-t border-gray-100">
                             <button type="button" @click="editModal = false" class="px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl transition-all">Cancel</button>
-                            <button type="submit" class="px-5 py-2.5 bg-[#F44336] hover:bg-[#D32F2F] text-white font-black rounded-xl shadow-sm transition-all">Save Channel</button>
+                            <button type="submit" class="px-5 py-2.5 bg-[#F44336] hover:bg-[#D32F2F] text-white font-black rounded-xl shadow-sm transition-all flex items-center gap-1.5">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                                </svg>
+                                Save Channel
+                            </button>
                         </div>
                     </form>
                 </template>

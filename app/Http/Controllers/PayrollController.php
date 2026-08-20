@@ -35,6 +35,7 @@ use App\Services\Payroll\WithholdingTaxService;
 use App\Services\PayrollEngineService;
 use App\Http\Requests\BatchPayrollUpdateRequest;
 use App\Http\Requests\ManualPayrollRequest;
+use App\Http\Requests\UpdatePaymentChannelRequest;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -1341,6 +1342,27 @@ class PayrollController extends Controller
             'Content-Type' => 'text/csv',
             'Content-Disposition' => "attachment; filename=\"{$filename}\"",
         ]);
+    }
+
+    /**
+     * Update Employee Disbursement Channel (Security Bank vs Physical Cash)
+     */
+    public function updatePaymentMode(UpdatePaymentChannelRequest $request, Employee $employee): RedirectResponse
+    {
+        $validated = $request->validated();
+
+        DB::transaction(function () use ($employee, $validated) {
+            $employee->update([
+                'payment_mode' => $validated['payment_mode'],
+                'bank_name' => $validated['payment_mode'] === 'bank' ? ($validated['bank_name'] ?? 'Security Bank Corporation') : null,
+                'bank_account_number' => $validated['payment_mode'] === 'bank' ? ($validated['bank_account_number'] ?? null) : null,
+            ]);
+        });
+
+        $channelLabel = $validated['payment_mode'] === 'bank' ? 'Security Bank Corporation' : 'Physical Cash (Over-the-Counter)';
+
+        return redirect()->route('payroll.payment-modes')
+            ->with('status', "Disbursement channel for {$employee->first_name} {$employee->last_name} successfully updated to {$channelLabel}.");
     }
 
     /**

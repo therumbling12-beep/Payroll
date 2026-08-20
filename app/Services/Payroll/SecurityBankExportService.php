@@ -118,4 +118,55 @@ class SecurityBankExportService
 
         return $csv !== false ? $csv : '';
     }
+
+    /**
+     * Calculate optimal BSP cash denomination units for net cash payouts (Teller Breakdown).
+     *
+     * @param Collection<int, mixed> $computations
+     * @return array{total_cash: float, unbanked_count: int, denominations: array<int, int>}
+     */
+    public function calculateCashDenominationBreakdown(Collection $computations): array
+    {
+        $denominations = [
+            1000 => 0,
+            500 => 0,
+            200 => 0,
+            100 => 0,
+            50 => 0,
+            20 => 0,
+            10 => 0,
+            5 => 0,
+            1 => 0,
+        ];
+
+        $totalCash = 0.0;
+        $unbankedCount = 0;
+
+        foreach ($computations as $comp) {
+            $emp = $comp->employee ?? null;
+            $mode = is_array($emp) ? ($emp['payment_mode'] ?? 'bank') : ($emp?->payment_mode ?? 'bank');
+            if ($mode !== 'cash') {
+                continue;
+            }
+
+            $unbankedCount++;
+            $netPay = (float) (is_array($comp) ? ($comp['net_pay'] ?? 0) : ($comp->net_pay ?? 0));
+            $totalCash += $netPay;
+
+            $remaining = (int) floor($netPay);
+            foreach (array_keys($denominations) as $denom) {
+                if ($remaining >= $denom) {
+                    $count = (int) intdiv($remaining, $denom);
+                    $denominations[$denom] += $count;
+                    $remaining %= $denom;
+                }
+            }
+        }
+
+        return [
+            'total_cash' => round($totalCash, 2),
+            'unbanked_count' => $unbankedCount,
+            'denominations' => $denominations,
+        ];
+    }
 }

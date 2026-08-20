@@ -190,6 +190,26 @@
                     <span>Batch Payslips</span>
                 </a>
 
+                <!-- Security Bank Bulk CSV Export -->
+                <a href="{{ route('payroll.export.security-bank', $cutoff) }}" 
+                   title="Export Security Bank Corporation (SBC) Bulk Payroll CSV"
+                   class="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-black text-xs px-3.5 py-2.5 rounded-xl border border-emerald-200 shadow-2xs flex items-center gap-1.5 transition-all">
+                    <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+                    </svg>
+                    <span>Security Bank CSV</span>
+                </a>
+
+                <!-- Cash Vouchers & Envelope Register Export -->
+                <a href="{{ route('payroll.export.cash-voucher', $cutoff) }}" 
+                   title="Export Cash Disbursement Vouchers for Unbanked Personnel"
+                   class="bg-amber-50 hover:bg-amber-100 text-amber-800 font-black text-xs px-3.5 py-2.5 rounded-xl border border-amber-200 shadow-2xs flex items-center gap-1.5 transition-all">
+                    <svg class="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/>
+                    </svg>
+                    <span>Cash Vouchers CSV</span>
+                </a>
+
                 <!-- Manual Entry Button -->
                 <button type="button" @click="openOverrideModal(null)" 
                         class="bg-gray-900 hover:bg-black text-white font-bold text-xs px-4 py-2.5 rounded-xl transition-all shadow-xs flex items-center gap-1.5">

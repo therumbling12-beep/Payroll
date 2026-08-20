@@ -142,6 +142,7 @@ Route::prefix('payroll')->name('payroll.')->group(function () {
     Route::get('/export/{cutoff}/cash-voucher', [PayrollController::class, 'exportCashVoucher'])->name('export.cash-voucher');
     Route::get('/export/{year}/alphalist', [PayrollController::class, 'exportBirAlphalist'])->name('export.alphalist');
     Route::get('/payment-modes', [PayrollController::class, 'paymentModes'])->name('payment-modes');
+    Route::post('/payment-modes/{employee}', [PayrollController::class, 'updatePaymentMode'])->name('payment-modes.update');
     Route::get('/audit-trail', [PayrollController::class, 'auditTrail'])->name('audit-trail');
 
     // Loan Amortization Management (Phase 3)
