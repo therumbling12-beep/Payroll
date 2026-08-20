@@ -50,10 +50,10 @@ Route::post('/login', function (Request $request) {
     return back()->withErrors(['email' => 'The provided credentials do not match our records.'])->onlyInput('email');
 })->name('login.post');
 
-// Dashboard Route
+// Dashboard Route — open access for evaluation & presentation
 Route::get('/dashboard', function () {
     return view('dashboard');
-})->middleware('auth')->name('dashboard');
+})->name('dashboard');
 
 // Passenger Booking App Simulator (Team 10)
 Route::get('/passenger-booking-app', function () {
