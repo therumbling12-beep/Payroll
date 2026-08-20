@@ -43,13 +43,13 @@ beforeEach(function () {
     ]);
 });
 
-test('Categories page renders clean catalog and statutory guide without mock simulator', function () {
+test('Categories page renders clean catalog without mock simulator', function () {
     $response = $this->get(route('claims.categories'));
 
     $response->assertOk()
         ->assertSee('Claim & Incentive Categories', false)
         ->assertSee('Official Toll Fees')
-        ->assertSee('Statutory Governance Guide')
+        ->assertSee('Master Category Catalog')
         ->assertDontSee('Interactive BIR TRAIN Law Taxability Simulator')
         ->assertDontSee('Recalculate Tax Breakdown');
 });

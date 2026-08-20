@@ -14,7 +14,7 @@ class SssContributionService
      *
      * @return array{msc: float, employee_share: float, employer_share: float, ec_contribution: float, total_contribution: float}
      */
-    public function compute(float $monthlyBasicSalary, bool $isSemiMonthly = false): array
+    public function compute(float $monthlyBasicSalary, bool $isSemiMonthly = false, bool $isWeekly = false): array
     {
         $bracket = GovernmentContributionTable::where('table_type', 'SSS')
             ->where('bracket_from', '<=', $monthlyBasicSalary)
@@ -45,7 +45,12 @@ class SssContributionService
             $ec = ($msc >= $ecThreshold) ? $ecHigh : $ecLow;
         }
 
-        if ($isSemiMonthly) {
+        if ($isWeekly) {
+            $weeksPerYear = (float) CompanySetting::getValue('payroll_standard_weeks_per_year', 52.0);
+            $eeShare = round(($eeShare * 12) / $weeksPerYear, 2);
+            $erShare = round(($erShare * 12) / $weeksPerYear, 2);
+            $ec = round(($ec * 12) / $weeksPerYear, 2);
+        } elseif ($isSemiMonthly) {
             $eeShare = round($eeShare / 2, 2);
             $erShare = round($erShare / 2, 2);
             $ec = round($ec / 2, 2);

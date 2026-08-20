@@ -18,6 +18,7 @@ use App\Models\PayrollBatch;
 use App\Models\SalaryComputation;
 use App\Models\ThirteenthMonthBatch;
 use App\Models\ThirteenthMonthComputation;
+use App\Services\Benefits\DriverInsurancePoolService;
 use App\Services\Payroll\BirAlphalistService;
 use App\Services\Payroll\FinalPaySettlementService;
 use App\Services\Payroll\LoanAmortizationService;
@@ -32,9 +33,12 @@ use App\Services\Payroll\SssContributionService;
 use App\Services\Payroll\ThirteenthMonthService;
 use App\Services\Payroll\WithholdingTaxService;
 use App\Services\PayrollEngineService;
+use App\Http\Requests\BatchPayrollUpdateRequest;
+use App\Http\Requests\ManualPayrollRequest;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -63,11 +67,9 @@ class PayrollController extends Controller
             ->get();
 
         if ($cutoffs->isEmpty()) {
-            $currYearMonth = date('Y-m');
-            $lastDay = date('t');
             $cutoffs = collect([
                 (object)[
-                    'cutoff_period' => "{$currYearMonth}-01_15",
+                    'cutoff_period' => '2026-08-06_12',
                     'total_employees' => 0,
                     'total_gross' => 0,
                     'total_deductions' => 0,
@@ -75,7 +77,7 @@ class PayrollController extends Controller
                     'last_run' => now(),
                 ],
                 (object)[
-                    'cutoff_period' => "{$currYearMonth}-16_{$lastDay}",
+                    'cutoff_period' => '2026-08-13_19',
                     'total_employees' => 0,
                     'total_gross' => 0,
                     'total_deductions' => 0,
@@ -96,7 +98,7 @@ class PayrollController extends Controller
      */
     public function salaryComputation(Request $request, ?string $cutoff = null): View
     {
-        $cutoff = $cutoff ?? $request->query('period', '2026-07-01_15');
+        $cutoff = $cutoff ?? $request->query('period', '2026-08-06_12');
         $search = $request->query('search');
         $deptId = $request->query('department');
 
@@ -195,7 +197,7 @@ class PayrollController extends Controller
     {
         $validated = $request->validate([
             'employee_id' => ['required', 'exists:employees,id'],
-            'loan_type' => ['required', 'string', 'in:sss_salary_loan,sss_calamity_loan,hdmf_multi_purpose_loan,hdmf_housing_loan,company_emergency_loan'],
+            'loan_type' => ['required', 'string', 'in:sss_salary_loan,sss_calamity_loan,hdmf_multi_purpose_loan,hdmf_housing_loan,company_emergency_loan,cash_advance'],
             'reference_no' => ['required', 'string', 'max:50', 'unique:employee_loans,reference_no'],
             'principal_amount' => ['required', 'numeric', 'min:1'],
             'total_amount_due' => ['required', 'numeric', 'min:1'],
@@ -451,68 +453,16 @@ class PayrollController extends Controller
     }
 
     /**
-     * Payslips Distribution & Management Dashboard (Phase 6)
+     * Payslips Overview — Redirects to Unified Salary Computation Desk (Phase 6)
      */
-    public function payslips(Request $request): View
+    public function payslips(Request $request): RedirectResponse
     {
-        $cutoffs = SalaryComputation::select('cutoff_period')
-            ->distinct()
-            ->orderBy('cutoff_period', 'desc')
-            ->get();
-
-        $defaultCutoff = $cutoffs->first()?->cutoff_period ?? '2026-07-01_15';
-        $cutoff = $request->query('period', $defaultCutoff);
-        $search = $request->query('search');
-        $deptId = $request->query('department');
-        $mode = $request->query('mode');
-
-        $query = SalaryComputation::with(['employee.department', 'employee.loans'])
-            ->where('cutoff_period', $cutoff);
-
-        if ($search) {
-            $query->whereHas('employee', function ($q) use ($search) {
-                $q->search($search);
-            });
+        $period = $request->query('period');
+        if ($period) {
+            return redirect()->route('payroll.salary-computation.show', $period);
         }
 
-        if ($deptId && $deptId !== 'all') {
-            $query->whereHas('employee', function ($q) use ($deptId) {
-                $q->where('department_id', $deptId);
-            });
-        }
-
-        if ($mode && $mode !== 'all') {
-            $query->whereHas('employee', function ($q) use ($mode) {
-                $q->where('payment_mode', $mode);
-            });
-        }
-
-        $computations = $query->paginate(10)->withQueryString();
-        $departments = Department::all();
-
-        // Cutoff Summary Metrics
-        $totalGross = (float) SalaryComputation::where('cutoff_period', $cutoff)->sum('gross_pay');
-        $totalNet = (float) SalaryComputation::where('cutoff_period', $cutoff)->sum('net_pay');
-        $bankCount = SalaryComputation::where('cutoff_period', $cutoff)
-            ->whereHas('employee', fn($q) => $q->where('payment_mode', 'bank'))
-            ->count();
-        $cashCount = SalaryComputation::where('cutoff_period', $cutoff)
-            ->whereHas('employee', fn($q) => $q->where('payment_mode', 'cash'))
-            ->count();
-
-        return view('payroll-benefits.payroll.payslips', compact(
-            'computations',
-            'cutoffs',
-            'cutoff',
-            'departments',
-            'search',
-            'deptId',
-            'mode',
-            'totalGross',
-            'totalNet',
-            'bankCount',
-            'cashCount'
-        ));
+        return redirect()->route('payroll.salary-computation');
     }
 
     /**
@@ -592,9 +542,10 @@ class PayrollController extends Controller
      */
     public function thirteenthMonth(Request $request): View
     {
-        $year = (int) $request->query('year', (string) date('Y'));
+        $year = (int) $request->query('year', 2026);
         $search = $request->query('search');
         $deptId = $request->query('department');
+        $availableYears = [2026, 2027, 2028];
 
         $query = ThirteenthMonthComputation::with('employee.department')
             ->where('year', $year);
@@ -619,7 +570,7 @@ class PayrollController extends Controller
             ['status' => PayrollBatchStatus::DRAFT]
         );
 
-        return view('payroll-benefits.payroll.thirteenth-month', compact('computations', 'departments', 'search', 'deptId', 'year', 'batch'));
+        return view('payroll-benefits.payroll.thirteenth-month', compact('computations', 'departments', 'search', 'deptId', 'year', 'batch', 'availableYears'));
     }
 
     /**
@@ -659,7 +610,7 @@ class PayrollController extends Controller
      */
     public function batchCompute(Request $request): RedirectResponse
     {
-        $periodInput = $request->input('period', '2026-07-01_15');
+        $periodInput = $request->input('period', '2026-08-13_19');
         
         if ($periodInput === 'custom') {
             $startDate = $request->input('start_date');
@@ -667,7 +618,7 @@ class PayrollController extends Controller
             if ($startDate && $endDate) {
                 $cutoff = $startDate . '_' . Carbon::parse($endDate)->format('d');
             } else {
-                $cutoff = '2026-07-01_15';
+                $cutoff = '2026-08-13_19';
             }
         } else {
             $cutoff = $periodInput;
@@ -706,7 +657,7 @@ class PayrollController extends Controller
 
         $basePay = (float) ($validated['base_pay'] ?? 0);
         $tripEarnings = (float) ($validated['trip_earnings'] ?? 0);
-        $driverTripIncentive = (float) ($validated['driver_trip_incentive'] ?? 0);
+        $driverTripIncentive = 0.00;
         $holidayPay = (float) ($validated['holiday_pay'] ?? 0);
         $overtimePay = (float) ($validated['overtime_pay'] ?? 0);
         $nightDiffPay = (float) ($validated['night_diff_pay'] ?? 0);
@@ -716,7 +667,6 @@ class PayrollController extends Controller
         $grossPay = round($basePay + $tripEarnings + $driverTripIncentive + $holidayPay + $overtimePay + $nightDiffPay + $performanceBonus, 2);
 
         $statutoryMinBasis = (float) CompanySetting::getValue('statutory_minimum_monthly_basis', 10000.00);
-        $driverHmoRate = (float) CompanySetting::getValue('driver_group_hmo_deduction_rate', 0.03);
         $platformFeeRate = (float) CompanySetting::getValue('driver_tnc_platform_fee_rate', 0.20);
 
         $monthlyBasis = max($statutoryMinBasis, $employee?->monthly_rate ?: ($grossPay * 2));
@@ -727,7 +677,6 @@ class PayrollController extends Controller
         $sss = isset($validated['sss_deduction']) ? (float) $validated['sss_deduction'] : $sssRes['employee_share'];
         $philhealth = isset($validated['philhealth_deduction']) ? (float) $validated['philhealth_deduction'] : $philRes['employee_share'];
         $pagibig = isset($validated['pagibig_deduction']) ? (float) $validated['pagibig_deduction'] : $pagibigRes['employee_share'];
-        $hmoDeduction = (float) ($validated['hmo_insurance_deduction'] ?? ($isDriver ? round($grossPay * $driverHmoRate, 2) : 0));
         $platformFee = $isDriver ? round($tripEarnings * $platformFeeRate, 2) : 0.00;
         $loanDeduction = (float) ($validated['loan_deduction'] ?? 0);
         $tardinessDeduction = (float) ($validated['tardiness_deduction'] ?? 0);
@@ -736,10 +685,10 @@ class PayrollController extends Controller
         $taxableIncome = max(0.00, $grossPay - ($sss + $philhealth + $pagibig + $tardinessDeduction + $undertimeDeduction));
         $withholdingTax = isset($validated['withholding_tax']) 
             ? (float) $validated['withholding_tax'] 
-            : app(WithholdingTaxService::class)->compute($taxableIncome, true);
+            : app(WithholdingTaxService::class)->compute($taxableIncome, false, true);
 
-        $totalDeductions = round($sss + $philhealth + $pagibig + $hmoDeduction + $platformFee + $loanDeduction + $withholdingTax + $tardinessDeduction + $undertimeDeduction, 2);
-        $netPay = round(($grossPay - $totalDeductions) + $reimbursements, 2);
+        $totalDeductions = round($sss + $philhealth + $pagibig + $platformFee + $loanDeduction + $withholdingTax + $tardinessDeduction + $undertimeDeduction, 2);
+        $netPay = round($grossPay - $totalDeductions, 2);
 
         $computation = SalaryComputation::updateOrCreate(
             [
@@ -763,7 +712,6 @@ class PayrollController extends Controller
                 'pagibig_deduction' => $pagibig,
                 'pagibig_employer' => $pagibigRes['employer_share'],
                 'ec_contribution' => $sssRes['ec_contribution'],
-                'hmo_insurance_deduction' => $hmoDeduction,
                 'platform_fee_deduction' => $platformFee,
                 'loan_deduction' => $loanDeduction,
                 'withholding_tax' => $withholdingTax,
@@ -778,6 +726,76 @@ class PayrollController extends Controller
         app(\App\Services\GroqAiComplianceService::class)->analyzeCompliance($computation);
 
         return redirect()->back()->with('status', 'Manual payroll computation override saved and logged to Audit Trail.');
+    }
+
+    /**
+     * Save batch manual payroll encodings and statutory deductions atomically.
+     */
+    public function batchUpdateManual(BatchPayrollUpdateRequest $request): RedirectResponse
+    {
+        $validated = $request->validated();
+        $cutoff = $validated['cutoff_period'];
+
+        DB::transaction(function () use ($validated, $cutoff) {
+            foreach ($validated['computations'] as $row) {
+                $comp = SalaryComputation::findOrFail($row['id']);
+                
+                $basePay = (float) $row['base_pay'];
+                $tripEarnings = (float) ($row['trip_earnings'] ?? 0);
+                $tripIncentive = 0.00;
+                $otPay = (float) ($row['overtime_pay'] ?? 0);
+                $holidayPay = (float) ($row['holiday_pay'] ?? 0);
+                $nightDiff = (float) ($row['night_diff_pay'] ?? 0);
+                $reimbursements = (float) ($row['reimbursements'] ?? 0);
+
+                $grossPay = round($basePay + $tripEarnings + $tripIncentive + $otPay + $holidayPay + $nightDiff, 2);
+
+                $sss = (float) $row['sss_deduction'];
+                $philhealth = (float) $row['philhealth_deduction'];
+                $pagibig = (float) $row['pagibig_deduction'];
+                $loan = (float) ($row['loan_deduction'] ?? 0);
+                $tardy = (float) ($row['tardiness_deduction'] ?? 0);
+                $undertime = (float) ($row['undertime_deduction'] ?? 0);
+
+                $taxableIncome = max(0.00, $grossPay - ($sss + $philhealth + $pagibig + $tardy + $undertime));
+                $withholdingTax = app(WithholdingTaxService::class)->compute($taxableIncome, false, true);
+
+                $totalDeductions = round($sss + $philhealth + $pagibig + $loan + $withholdingTax + $tardy + $undertime, 2);
+                $netPay = round($grossPay - $totalDeductions, 2);
+
+                $comp->update([
+                    'base_pay' => $basePay,
+                    'trip_earnings' => $tripEarnings,
+                    'driver_trip_incentive' => $tripIncentive,
+                    'overtime_pay' => $otPay,
+                    'holiday_pay' => $holidayPay,
+                    'night_diff_pay' => $nightDiff,
+                    'reimbursements' => $reimbursements,
+                    'gross_pay' => $grossPay,
+                    'sss_deduction' => $sss,
+                    'philhealth_deduction' => $philhealth,
+                    'pagibig_deduction' => $pagibig,
+                    'loan_deduction' => $loan,
+                    'tardiness_deduction' => $tardy,
+                    'undertime_deduction' => $undertime,
+                    'withholding_tax' => $withholdingTax,
+                    'total_deductions' => $totalDeductions,
+                    'net_pay' => $netPay,
+                ]);
+            }
+
+            PayrollAuditTrail::create([
+                'user_name' => auth()->user()?->name ?? 'HR Operations Officer',
+                'action' => 'MANUAL_PAYROLL_BATCH_UPDATED',
+                'model_type' => SalaryComputation::class,
+                'model_id' => null,
+                'new_values' => ['cutoff_period' => $cutoff, 'rows_updated' => count($validated['computations'])],
+                'ip_address' => request()->ip() ?? '127.0.0.1',
+            ]);
+        });
+
+        return redirect()->route('payroll.salary-computation.show', $cutoff)
+            ->with('status', 'Manual payroll encodings and statutory deductions saved successfully.');
     }
 
     /**
@@ -861,13 +879,15 @@ class PayrollController extends Controller
 
         $computations = SalaryComputation::where('cutoff_period', $cutoff)->get();
         $loanService = app(LoanAmortizationService::class);
+        $driverPoolService = app(DriverInsurancePoolService::class);
 
         foreach ($computations as $computation) {
             $computation->update(['status' => 'released_financial']);
             $loanService->applyDeductions($computation);
+            $driverPoolService->recordPayrollContribution($computation);
         }
 
-        return redirect()->back()->with('status', "Payroll batch [{$cutoff}] successfully released and paid out. Loan amortizations recorded to ledger.");
+        return redirect()->back()->with('status', "Payroll batch [{$cutoff}] successfully released and paid out. Loan amortizations and driver pool contributions recorded to ledger.");
     }
 
     /**
@@ -875,7 +895,7 @@ class PayrollController extends Controller
      */
     public function computeThirteenthMonth(Request $request): RedirectResponse
     {
-        $year = (int) $request->input('year', (string) date('Y'));
+        $year = (int) $request->input('year', 2026);
         $service = app(ThirteenthMonthService::class);
         $annualData = $service->computeAnnual($year);
 
@@ -992,7 +1012,7 @@ class PayrollController extends Controller
             ->orderBy('cutoff_period', 'desc')
             ->get();
 
-        $defaultCutoff = $cutoffs->first()?->cutoff_period ?? '2026-07-01_15';
+        $defaultCutoff = $cutoffs->first()?->cutoff_period ?? '2026-08-06_12';
         $cutoff = $request->query('period', $defaultCutoff);
         $deptId = $request->query('department');
         $year = (int) $request->query('year', (string) date('Y'));
@@ -1133,7 +1153,6 @@ class PayrollController extends Controller
                 'SSS (Employee)',
                 'PhilHealth (Employee)',
                 'Pag-IBIG (Employee)',
-                'Driver HMO Insurance',
                 'TNC Platform Fee',
                 'Loan Amortization Deductions',
                 'BIR Withholding Tax',
@@ -1167,7 +1186,6 @@ class PayrollController extends Controller
                     number_format((float) $c->sss_deduction, 2, '.', ''),
                     number_format((float) $c->philhealth_deduction, 2, '.', ''),
                     number_format((float) $c->pagibig_deduction, 2, '.', ''),
-                    number_format((float) $c->hmo_insurance_deduction, 2, '.', ''),
                     number_format((float) $c->platform_fee_deduction, 2, '.', ''),
                     number_format((float) ($c->loan_deduction ?? 0), 2, '.', ''),
                     number_format((float) $c->withholding_tax, 2, '.', ''),

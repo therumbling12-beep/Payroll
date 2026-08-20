@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
 @php
-    $pageTitle = 'Merit & Promotions Planning Desk';
+    $pageTitle = 'Salary Progression, Merit & Promotions Planning Desk';
     $currentPage = 'compensation.merit-promotions';
 
     // Map salary grades by position for fast lookup
@@ -16,13 +16,13 @@
     <!-- Page Header -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
-            <h1 class="text-2xl font-black font-outfit text-gray-900 tracking-tight">Merit & Promotion Planning Desk</h1>
-            <p class="text-xs text-gray-500 mt-1">Calibrate 5-tier merit increases using read-only Team 3 ratings, promotion advancement rules (15%), and compute retroactive pay differentials.</p>
+            <h1 class="text-2xl font-black font-outfit text-gray-900 tracking-tight">Salary Progression, Merit & Promotion Planning Desk</h1>
+            <p class="text-xs text-gray-500 mt-1">Calibrate performance-driven merit increases, tenure step progressions (Steps 1–7), and synchronize approved salary grade increases from Team 3 (Talent Management) promotions into weekly payroll.</p>
         </div>
         <div class="flex items-center gap-3">
             <span class="flex items-center gap-2 text-xs font-bold text-gray-800 bg-white border border-gray-200 px-3.5 py-1.5 rounded-full shadow-2xs">
                 <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                5-Tier Merit Review Live
+                Salary Progression Live
             </span>
             <span class="text-xs text-gray-400 font-semibold font-mono">{{ now()->format('M j, Y') }}</span>
         </div>
@@ -38,29 +38,16 @@
     @endif
 
     <div x-data="{
-        activeTab: 'table', {{-- 'table', 'matrix', 'proposals' --}}
+        activeTab: 'table', {{-- 'table', 'tenure-matrix', 'matrix', 'proposals' --}}
         selectedDept: '{{ $deptId ?? 'all' }}',
-        retroModalOpen: false,
-        promoModalOpen: false,
-        activeRetroEmployee: null,
-        activePromoEmployee: null,
-        
-        // Retroactive Form State
-        retroNewMonthly: 30000,
-        retroEffectiveDate: '{{ date('Y-m-01') }}',
-        retroDaysWorked: 13,
-        retroResult: null,
-        retroLoading: false,
+        selectedGradeId: '{{ $salaryGrades->first()?->id }}',
+        searchQuery: '',
+        quickFilter: 'all',
 
-        // Promotion Form State
-        promoTargetGradeId: '{{ $salaryGrades->first()?->id ?? 1 }}',
-        promoResult: null,
-        promoLoading: false,
-
-        employeesData: {{ Js::from($employees->map(function($e) use ($gradeMap) {
+        employeesData: {{ Js::from($employees->map(function($e) use ($gradeMap, $tenureProgressionService, $salaryGrades, $team3Promotions) {
             $isDriver = str_contains(strtolower($e->position ?? ''), 'driver');
             $currentSalary = (float)($isDriver ? ($e->daily_rate * 26) : ($e->monthly_rate ?: 25000.00));
-            $posKey = strtolower(trim($e->position));
+            $posKey = strtolower(trim($e->position ?? ''));
             $grade = $gradeMap[$posKey] ?? null;
             $maxSalary = $grade ? (float)$grade->max_salary : ($currentSalary * 1.5);
             $rating = $e->performance_rating ?? 'Satisfactory';
@@ -73,6 +60,36 @@
                 default => 0.0,
             };
 
+            $isMaxStep = (int) ($e->current_step ?? 1) >= 7;
+            $nextStepCalc = isset($tenureProgressionService) ? $tenureProgressionService->computeNextStep($e) : null;
+            $nextStepSalary = $nextStepCalc ? (float) $nextStepCalc['next_step_salary'] : round($currentSalary * 1.03, 2);
+            $incrementAmount = $nextStepCalc ? (float) $nextStepCalc['increment_amount'] : round(max(0.0, $nextStepSalary - $currentSalary), 2);
+            $incrementPct = $isMaxStep ? 0.0 : ($nextStepCalc ? (float) $nextStepCalc['increment_percentage'] : 3.0);
+            $totalSuggestedPct = round($suggestedPct + $incrementPct, 1);
+
+            // Team 3 Career Progression Ladder Resolution (Workday Standard)
+            $targetGrade = match(true) {
+                str_contains($posKey, 'driver') => $salaryGrades->firstWhere('grade_code', 'PG-2') ?? $salaryGrades->skip(1)->first(),
+                str_contains($posKey, 'dispatcher'), str_contains($posKey, 'assistant') => $salaryGrades->firstWhere('grade_code', 'PG-3') ?? $salaryGrades->skip(2)->first(),
+                default => $salaryGrades->firstWhere('grade_code', 'PG-4') ?? $salaryGrades->last(),
+            } ?? $salaryGrades->first();
+
+            $targetPosition = match(true) {
+                str_contains($posKey, 'driver') => 'Lead Fleet Driver',
+                str_contains($posKey, 'dispatcher') => 'Fleet Operations Lead',
+                str_contains($posKey, 'assistant') => 'HR Specialist',
+                str_contains($posKey, 'specialist') => 'Senior HR Specialist',
+                str_contains($posKey, 'accountant') => 'Finance & Accounting Lead',
+                default => 'Senior ' . ($e->position ?: 'Staff'),
+            };
+
+            // Check for official approved promotion order from Team 3 (Handshake Contract)
+            $team3Promo = isset($team3Promotions) ? $team3Promotions->get($e->id) : null;
+            $isPromoted = $team3Promo !== null;
+            $promotedPosition = $team3Promo?->new_position ?? $targetPosition;
+            $promotedGradeId = $targetGrade?->id;
+            $promotedSalary = $isPromoted ? max((float)($targetGrade?->min_salary ?? 28000.00), round($currentSalary * 1.15, 2)) : null;
+
             return [
                 'id' => $e->id,
                 'name' => $e->first_name . ' ' . $e->last_name,
@@ -83,23 +100,86 @@
                 'current_salary' => $currentSalary,
                 'max_salary' => $maxSalary,
                 'rating' => $rating,
-                'raise_pct' => $suggestedPct,
-                'new_salary' => round($currentSalary * (1 + ($suggestedPct / 100)), 2),
+                'merit_pct' => $suggestedPct,
+                'tenure_pct' => $incrementPct,
+                'raise_pct' => $isPromoted ? round((($promotedSalary - $currentSalary) / $currentSalary) * 100, 1) : $totalSuggestedPct,
+                'new_salary' => $isPromoted ? $promotedSalary : round($currentSalary * (1 + ($totalSuggestedPct / 100)), 2),
+                'years_of_service' => (float) ($e->years_of_service ?? 1.0),
+                'current_step' => (int) ($e->current_step ?? 1),
+                'next_step' => $nextStepCalc ? (int) $nextStepCalc['next_step'] : min(7, (int) ($e->current_step ?? 1) + 1),
+                'next_step_salary' => $nextStepSalary,
+                'step_increment_amount' => $incrementAmount,
+                'step_increment_pct' => $incrementPct,
+                'is_max_step' => $isMaxStep,
+                'step_status' => $e->step_status ?? 'normal',
+                'next_career_grade_id' => $targetGrade?->id,
+                'next_career_position' => $targetPosition,
+                'next_career_grade_code' => $targetGrade?->grade_code ?? 'PG-2',
+                'next_career_min_salary' => (float)($targetGrade?->min_salary ?? 28000.00),
+                'next_career_max_salary' => (float)($targetGrade?->max_salary ?? 40000.00),
+                'is_promoted' => $isPromoted,
+                'promoted_position' => $promotedPosition,
+                'promoted_grade_id' => $promotedGradeId,
+                'promoted_salary' => $promotedSalary,
+                'promoted_step' => 1,
                 'selected' => true,
             ];
         })) }},
 
+        get totalPromotedCount() {
+            return this.employeesData.filter(e => e.is_promoted).length;
+        },
+
         get filteredEmployees() {
-            if (this.selectedDept === 'all' || !this.selectedDept) {
-                return this.employeesData;
+            let list = this.employeesData;
+
+            // Department filter
+            if (this.selectedDept !== 'all' && this.selectedDept) {
+                list = list.filter(e => e.department_id == this.selectedDept);
             }
-            return this.employeesData.filter(e => e.department_id == this.selectedDept);
+
+            // Quick Filter
+            if (this.quickFilter === 'promoted') {
+                list = list.filter(e => e.is_promoted);
+            } else if (this.quickFilter === 'top-merit') {
+                list = list.filter(e => e.rating === 'Outstanding' || e.rating === '5.0' || (Number(e.merit_pct) >= 8.0));
+            } else if (this.quickFilter === 'max-step') {
+                list = list.filter(e => e.is_max_step || (Number(e.current_step) >= 7));
+            }
+
+            // Search query filter
+            if (this.searchQuery && this.searchQuery.trim() !== '') {
+                const q = this.searchQuery.toLowerCase().trim();
+                list = list.filter(e => 
+                    (e.name && e.name.toLowerCase().includes(q)) ||
+                    (e.code && e.code.toLowerCase().includes(q)) ||
+                    (e.position && e.position.toLowerCase().includes(q)) ||
+                    (e.department && e.department.toLowerCase().includes(q))
+                );
+            }
+
+            return list;
+        },
+
+        getEmployeeTotalRaise(emp) {
+            if (emp.is_promoted && emp.promoted_salary) {
+                return Math.round(((emp.promoted_salary - emp.current_salary) / emp.current_salary) * 100 * 10) / 10;
+            }
+            return Math.round(((Number(emp.merit_pct) || 0) + (Number(emp.tenure_pct) || 0)) * 10) / 10;
+        },
+
+        getEmployeeNewSalary(emp) {
+            if (emp.is_promoted && emp.promoted_salary) {
+                return emp.promoted_salary;
+            }
+            const totalPct = this.getEmployeeTotalRaise(emp);
+            return Math.min(emp.max_salary, Math.round(emp.current_salary * (1 + (totalPct / 100))));
         },
 
         get totalIncrementalSalary() {
             return this.filteredEmployees.reduce((acc, emp) => {
-                if (!emp.selected) return acc;
-                return acc + (emp.current_salary * (emp.raise_pct / 100));
+                const totalPct = this.getEmployeeTotalRaise(emp);
+                return acc + (emp.current_salary * (totalPct / 100));
             }, 0);
         },
 
@@ -111,70 +191,6 @@
         get totalAnnualFinancialRequisition() {
             // (Monthly CTC x 12) + 13th month liability
             return (this.totalIncrementalMonthlyCTC * 12) + this.totalIncrementalSalary;
-        },
-
-        openRetroModal(emp) {
-            this.activeRetroEmployee = emp;
-            this.retroNewMonthly = Math.round(emp.current_salary * (1 + (emp.raise_pct / 100)));
-            this.retroModalOpen = true;
-            this.calculateRetroDiff();
-        },
-
-        calculateRetroDiff() {
-            if (!this.activeRetroEmployee) return;
-            this.retroLoading = true;
-            fetch('{{ route('compensation.retroactive.calculate') }}', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': '{{ csrf_token() }}'
-                },
-                body: JSON.stringify({
-                    employee_id: this.activeRetroEmployee.id,
-                    new_monthly_rate: Number(this.retroNewMonthly) || 0,
-                    effective_date: this.retroEffectiveDate,
-                    days_worked: parseInt(this.retroDaysWorked) || 13
-                })
-            })
-            .then(r => r.json())
-            .then(data => {
-                this.retroResult = data;
-                this.retroLoading = false;
-            })
-            .catch(() => {
-                this.retroLoading = false;
-            });
-        },
-
-        openPromoModal(emp) {
-            this.activePromoEmployee = emp;
-            this.promoModalOpen = true;
-            this.calculatePromoPreview();
-        },
-
-        calculatePromoPreview() {
-            if (!this.activePromoEmployee) return;
-            this.promoLoading = true;
-            fetch('{{ route('compensation.merit-promotions.calculate') }}', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': '{{ csrf_token() }}'
-                },
-                body: JSON.stringify({
-                    employee_id: this.activePromoEmployee.id,
-                    type: 'promotion',
-                    new_grade_id: this.promoTargetGradeId
-                })
-            })
-            .then(r => r.json())
-            .then(data => {
-                this.promoResult = data;
-                this.promoLoading = false;
-            })
-            .catch(() => {
-                this.promoLoading = false;
-            });
         }
     }" class="space-y-6 pb-12">
 
@@ -182,33 +198,43 @@
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-200 pb-3">
             <div class="flex items-center gap-1.5 bg-gray-100 p-1 rounded-2xl">
                 
-                <!-- Tab 1: Merit Planning Table -->
+                <!-- Tab 1: Merit & Progression Planning Table -->
                 <button type="button" @click="activeTab = 'table'" 
                         :class="activeTab === 'table' ? 'bg-white text-gray-900 font-black shadow-sm' : 'text-gray-500 hover:text-gray-900 font-bold'" 
                         class="px-4 py-2 text-xs rounded-xl transition-all flex items-center gap-2">
                     <svg class="w-4 h-4 text-[#F44336]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
                     </svg>
-                    Merit Calibrator (5-Tier Matrix)
+                    Progression Roster
                     <span class="px-2 py-0.5 text-[10px] font-black rounded-full bg-gray-200 text-gray-800">{{ $employees->count() }}</span>
                 </button>
 
-                <!-- Tab 2: 5-Tier Policy Reference -->
+                <!-- Tab 2: Tenure Step Matrix (Steps 1–7) -->
+                <button type="button" @click="activeTab = 'tenure-matrix'" 
+                        :class="activeTab === 'tenure-matrix' ? 'bg-white text-gray-900 font-black shadow-sm' : 'text-gray-500 hover:text-gray-900 font-bold'" 
+                        class="px-4 py-2 text-xs rounded-xl transition-all flex items-center gap-2">
+                    <svg class="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    Tenure Step Matrix (Steps 1–7)
+                </button>
+
+                <!-- Tab 3: 5-Tier Policy Reference -->
                 <button type="button" @click="activeTab = 'matrix'" 
                         :class="activeTab === 'matrix' ? 'bg-white text-gray-900 font-black shadow-sm' : 'text-gray-500 hover:text-gray-900 font-bold'" 
                         class="px-4 py-2 text-xs rounded-xl transition-all flex items-center gap-2">
                     <svg class="w-4 h-4 text-[#F44336]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
                     </svg>
-                    5-Tier Policy Matrix Matrix
+                    5-Tier Merit Policy
                 </button>
 
-                <!-- Tab 3: History & Past Proposals -->
+                <!-- Tab 4: History & Past Proposals -->
                 <button type="button" @click="activeTab = 'proposals'" 
                         :class="activeTab === 'proposals' ? 'bg-white text-gray-900 font-black shadow-sm' : 'text-gray-500 hover:text-gray-900 font-bold'" 
                         class="px-4 py-2 text-xs rounded-xl transition-all flex items-center gap-2">
-                    <svg class="w-4 h-4 text-[#F44336]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    <svg class="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
                     </svg>
                     Approved Adjustments Queue
                     <span class="px-2 py-0.5 text-[10px] font-black rounded-full bg-gray-200 text-gray-800">{{ $adjustments->total() }}</span>
@@ -232,37 +258,47 @@
         <!-- ========================================================================= -->
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             
-            <!-- Card 1: Selected Headcount -->
+            <!-- Card 1: Evaluated Headcount -->
             <div class="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm space-y-1">
-                <span class="text-xs font-bold uppercase tracking-wider text-gray-400">Evaluated Headcount</span>
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-bold uppercase tracking-wider text-gray-400">Evaluated Headcount</span>
+                    <span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-gray-100 text-gray-700">
+                        {{ $departments->count() }} Depts
+                    </span>
+                </div>
                 <div class="text-2xl font-black font-outfit text-gray-900" x-text="filteredEmployees.length + ' Personnel'"></div>
                 <p class="text-xs text-gray-500 font-medium">Active merit cycle review</p>
             </div>
 
-            <!-- Card 2: Incremental Monthly Salary -->
-            <div class="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm space-y-1">
-                <span class="text-xs font-bold uppercase tracking-wider text-gray-400">Monthly Salary Increase</span>
-                <div class="text-2xl font-black font-outfit text-purple-900" x-text="'PHP ' + Number(totalIncrementalSalary).toLocaleString(undefined, {minimumFractionDigits: 2})"></div>
-                <p class="text-xs text-gray-500 font-medium">Net base pay increment</p>
-            </div>
-
-            <!-- Card 3: Incremental Monthly CTC -->
-            <div class="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm space-y-1">
-                <span class="text-xs font-bold uppercase tracking-wider text-gray-400">Monthly Employer CTC</span>
-                <div class="text-2xl font-black font-outfit text-blue-900" x-text="'PHP ' + Number(totalIncrementalMonthlyCTC).toLocaleString(undefined, {minimumFractionDigits: 2})"></div>
-                <p class="text-xs text-blue-700 font-bold">Includes SSS, PhilHealth & EC</p>
-            </div>
-
-            <!-- Card 4: Team 5 Annual Financial Requisition -->
-            <div class="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm space-y-1">
+            <!-- Card 2: Promotions Pending Sync -->
+            <div class="bg-white rounded-2xl border border-purple-100 p-5 shadow-sm space-y-1 bg-gradient-to-br from-white to-purple-50/30">
                 <div class="flex items-center justify-between">
-                    <span class="text-xs font-bold uppercase tracking-wider text-gray-400">Annual Budget Requisition</span>
-                    <span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-100 text-blue-900">
-                        Team 5 Sync
+                    <span class="text-xs font-bold uppercase tracking-wider text-purple-900">Promotions Pending</span>
+                    <span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-purple-100 text-purple-950 font-mono">
+                        Team 3 Order
                     </span>
                 </div>
-                <div class="text-2xl font-black font-outfit text-emerald-800" x-text="'PHP ' + Number(totalAnnualFinancialRequisition).toLocaleString(undefined, {minimumFractionDigits: 2})"></div>
-                <p class="text-xs text-gray-500 font-medium">Annualized burden + 13th month</p>
+                <div class="text-2xl font-black font-outfit text-purple-950" x-text="totalPromotedCount + ' Approved'"></div>
+                <p class="text-xs text-purple-700 font-medium">Ready for payroll calibration</p>
+            </div>
+
+            <!-- Card 3: Monthly Base Growth -->
+            <div class="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm space-y-1">
+                <span class="text-xs font-bold uppercase tracking-wider text-gray-400">Monthly Base Growth</span>
+                <div class="text-2xl font-black font-outfit text-purple-900" x-text="'PHP ' + Number(totalIncrementalSalary).toLocaleString(undefined, {minimumFractionDigits: 2})"></div>
+                <p class="text-xs text-gray-500 font-medium">Net incremental salary expense</p>
+            </div>
+
+            <!-- Card 4: Monthly Employer CTC -->
+            <div class="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm space-y-1">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-bold uppercase tracking-wider text-gray-400">Monthly Employer CTC</span>
+                    <span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-100 text-blue-900">
+                        +13.5% Load
+                    </span>
+                </div>
+                <div class="text-2xl font-black font-outfit text-blue-950" x-text="'PHP ' + Number(totalIncrementalMonthlyCTC).toLocaleString(undefined, {minimumFractionDigits: 2})"></div>
+                <p class="text-xs text-blue-700 font-medium">Includes SSS, PhilHealth & EC</p>
             </div>
         </div>
 
@@ -278,70 +314,191 @@
                     </div>
                 </div>
 
-                <div class="overflow-x-auto">
+                <!-- Quick Filter Pills & Search Bar -->
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 pt-1 pb-1">
+                    <!-- Quick Filter Pills -->
+                    <div class="flex flex-wrap items-center gap-1.5">
+                        <button type="button" @click="quickFilter = 'all'"
+                                :class="quickFilter === 'all' ? 'bg-gray-900 text-white font-black' : 'bg-gray-100 text-gray-700 hover:bg-gray-200 font-bold'"
+                                class="px-3 py-1.5 rounded-xl text-xs transition-all flex items-center gap-1.5 shadow-2xs">
+                            All Personnel
+                            <span class="px-1.5 py-0.2 rounded-full text-[10px]" :class="quickFilter === 'all' ? 'bg-gray-700 text-gray-200' : 'bg-gray-200 text-gray-700'" x-text="employeesData.length"></span>
+                        </button>
+
+                        <button type="button" @click="quickFilter = 'promoted'"
+                                :class="quickFilter === 'promoted' ? 'bg-purple-900 text-white font-black' : 'bg-purple-50 text-purple-900 hover:bg-purple-100 font-bold'"
+                                class="px-3 py-1.5 rounded-xl text-xs transition-all flex items-center gap-1.5 border border-purple-200 shadow-2xs">
+                            Promoted by Team 3
+                            <span class="px-1.5 py-0.2 rounded-full text-[10px] bg-purple-200 text-purple-950 font-mono" x-text="totalPromotedCount"></span>
+                        </button>
+
+                        <button type="button" @click="quickFilter = 'top-merit'"
+                                :class="quickFilter === 'top-merit' ? 'bg-emerald-800 text-white font-black' : 'bg-emerald-50 text-emerald-900 hover:bg-emerald-100 font-bold'"
+                                class="px-3 py-1.5 rounded-xl text-xs transition-all border border-emerald-200 shadow-2xs">
+                            Top Merit (5.0)
+                        </button>
+
+                        <button type="button" @click="quickFilter = 'max-step'"
+                                :class="quickFilter === 'max-step' ? 'bg-amber-800 text-white font-black' : 'bg-amber-50 text-amber-900 hover:bg-amber-100 font-bold'"
+                                class="px-3 py-1.5 rounded-xl text-xs transition-all border border-amber-200 shadow-2xs">
+                            Reached Max Step
+                        </button>
+                    </div>
+
+                    <!-- Search Input -->
+                    <div class="relative w-full md:w-64">
+                        <input type="text" x-model="searchQuery" placeholder="Search name, role, code..."
+                               class="w-full bg-gray-50 border border-gray-200 rounded-xl pl-8 pr-3 py-1.5 text-xs font-bold text-gray-800 placeholder-gray-400 focus:outline-none focus:border-[#F44336] focus:bg-white transition-all">
+                        <svg class="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                        </svg>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto rounded-2xl border border-gray-200/80 shadow-2xs">
                     <table class="w-full text-left border-collapse text-xs">
                         <thead>
-                            <tr class="border-b border-gray-200 text-gray-400 font-extrabold uppercase">
-                                <th class="py-3 px-4">Employee</th>
-                                <th class="py-3 px-4">Department & Position</th>
-                                <th class="py-3 px-4 text-center">Team 3 Rating (Read-Only)</th>
-                                <th class="py-3 px-4 text-right">Current Salary</th>
-                                <th class="py-3 px-4 text-center w-36">Merit Increase (%)</th>
-                                <th class="py-3 px-4 text-right">Proposed Salary</th>
-                                <th class="py-3 px-4 text-right">Monthly Incremental CTC</th>
-                                <th class="py-3 px-4 text-right">Actions</th>
+                            <tr class="bg-gray-50/80 border-b border-gray-200 text-gray-500 font-extrabold uppercase tracking-wider text-[11px]">
+                                <th class="py-3.5 px-4">Employee Profile</th>
+                                <th class="py-3.5 px-4 text-center">Appraisal Rating</th>
+                                <th class="py-3.5 px-4 text-center min-w-[170px]">Team 3 Promotion Status</th>
+                                <th class="py-3.5 px-4 text-center min-w-[220px]">Raise Calibrator</th>
+                                <th class="py-3.5 px-4 text-right min-w-[140px]">Salary Progression</th>
+                                <th class="py-3.5 px-4 text-right min-w-[140px]">Monthly Employer CTC</th>
+                                <th class="py-3.5 px-4 text-center min-w-[130px]">Status / Action</th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-gray-100">
+                        <tbody class="divide-y divide-gray-100 bg-white">
                             <template x-for="emp in filteredEmployees" :key="emp.id">
-                                <tr class="hover:bg-gray-50">
-                                    <td class="py-3.5 px-4 font-black text-gray-900">
-                                        <div x-text="emp.name"></div>
-                                        <span class="text-gray-400 font-mono text-[11px]" x-text="emp.code"></span>
-                                    </td>
+                                <tr :class="emp.is_promoted ? 'bg-purple-50/25 border-l-4 border-purple-500 hover:bg-purple-50/40' : 'hover:bg-gray-50/70'"
+                                    class="transition-colors duration-150">
+                                    
+                                    <!-- Col 1: Employee Profile & Role -->
                                     <td class="py-3.5 px-4">
-                                        <div class="font-bold text-gray-800" x-text="emp.position"></div>
-                                        <span class="text-[11px] text-gray-400" x-text="emp.department"></span>
+                                        <div class="space-y-1">
+                                            <div class="flex items-center gap-2">
+                                                <span class="font-black text-sm font-outfit text-gray-900" x-text="emp.name"></span>
+                                                <span class="text-gray-400 font-mono text-[11px]" x-text="'(' + emp.code + ')'"></span>
+                                            </div>
+                                            <div class="text-xs font-bold text-gray-700 flex items-center gap-1.5">
+                                                <span x-text="emp.position"></span>
+                                                <span class="text-gray-300">•</span>
+                                                <span class="text-gray-500 font-medium" x-text="emp.department"></span>
+                                            </div>
+                                            <div class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black bg-amber-50 text-amber-900 border border-amber-200/60 shadow-2xs">
+                                                <span>Step <span x-text="emp.current_step"></span></span>
+                                                <span class="text-amber-700 font-semibold" x-text="'(' + Number(emp.years_of_service).toFixed(1) + ' yrs service)'"></span>
+                                            </div>
+                                        </div>
                                     </td>
+
+                                    <!-- Col 2: Team 3 Appraisal Rating -->
                                     <td class="py-3.5 px-4 text-center">
-                                        <span class="px-2.5 py-1 rounded-full text-xs font-black"
+                                        <span class="px-3 py-1.5 rounded-xl text-xs font-black inline-block shadow-2xs"
                                               :class="{
-                                                  'bg-emerald-100 text-emerald-900': emp.rating === 'Outstanding' || emp.rating === '5.0',
-                                                  'bg-blue-100 text-blue-900': emp.rating === 'Very Satisfactory' || emp.rating === '4.5',
-                                                  'bg-purple-100 text-purple-900': emp.rating === 'Satisfactory' || emp.rating === '3.5',
-                                                  'bg-amber-100 text-amber-900': emp.rating === 'Needs Improvement' || emp.rating === '2.5',
-                                                  'bg-rose-100 text-rose-900': emp.rating === 'Unsatisfactory' || emp.rating === '1.5'
+                                                  'bg-emerald-100 text-emerald-900 border border-emerald-200': emp.rating === 'Outstanding' || emp.rating === '5.0',
+                                                  'bg-blue-100 text-blue-900 border border-blue-200': emp.rating === 'Very Satisfactory' || emp.rating === '4.5',
+                                                  'bg-purple-100 text-purple-900 border border-purple-200': emp.rating === 'Satisfactory' || emp.rating === '3.5',
+                                                  'bg-amber-100 text-amber-900 border border-amber-200': emp.rating === 'Needs Improvement' || emp.rating === '2.5',
+                                                  'bg-rose-100 text-rose-900 border border-rose-200': emp.rating === 'Unsatisfactory' || emp.rating === '1.5'
                                               }"
                                               x-text="emp.rating">
                                         </span>
                                     </td>
-                                    <td class="py-3.5 px-4 text-right font-black font-outfit text-sm text-gray-900">
-                                        PHP <span x-text="Number(emp.current_salary).toLocaleString(undefined, {minimumFractionDigits: 2})"></span>
-                                    </td>
+
+                                    <!-- Col 3: Team 3 Promotion Track (Read-Only) -->
                                     <td class="py-3.5 px-4 text-center">
-                                        <div class="flex items-center justify-center gap-1">
-                                            <input type="number" step="0.5" min="0" max="20" x-model="emp.raise_pct"
-                                                   class="w-16 bg-gray-50 border border-gray-200 rounded-lg px-2 py-1 text-xs font-black text-center text-purple-950 focus:outline-none focus:border-[#F44336]">
-                                            <span class="font-bold text-gray-500">%</span>
-                                        </div>
+                                        <template x-if="emp.is_promoted">
+                                            <div class="inline-flex flex-col items-center gap-1">
+                                                <span class="px-2.5 py-1 rounded-full text-[11px] font-black bg-purple-100 text-purple-950 border border-purple-300 shadow-2xs">
+                                                    Promoted: <span x-text="emp.promoted_position"></span>
+                                                </span>
+                                                <span class="text-[10px] font-bold text-purple-700 font-mono"
+                                                      x-text="'+PHP ' + Number(emp.promoted_salary - emp.current_salary).toLocaleString(undefined, {minimumFractionDigits: 2}) + ' / mo'">
+                                                </span>
+                                            </div>
+                                        </template>
+                                        <template x-if="!emp.is_promoted">
+                                            <span class="px-2.5 py-1 rounded-full text-[11px] font-bold bg-gray-100 text-gray-500 font-mono">
+                                                Standard Grade Track
+                                            </span>
+                                        </template>
                                     </td>
-                                    <td class="py-3.5 px-4 text-right font-black font-outfit text-sm text-purple-950">
-                                        PHP <span x-text="Number(emp.current_salary * (1 + (emp.raise_pct / 100))).toLocaleString(undefined, {minimumFractionDigits: 2})"></span>
+
+                                    <!-- Col 4: Raise Calibrator (Merit + Step) -->
+                                    <td class="py-3.5 px-4 text-center">
+                                        <template x-if="emp.is_promoted">
+                                            <div class="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-black bg-purple-50 text-purple-900 border border-purple-200">
+                                                <span>15.0% Promotional Floor</span>
+                                            </div>
+                                        </template>
+                                        <template x-if="!emp.is_promoted">
+                                            <div class="flex flex-col items-center gap-1.5">
+                                                <div class="flex items-center justify-center gap-2">
+                                                    <div class="flex items-center gap-1 bg-gray-50 px-2 py-1 rounded-lg border border-gray-200">
+                                                        <span class="text-[10px] font-extrabold text-gray-500 uppercase">Merit:</span>
+                                                        <input type="number" step="0.5" min="0" max="20" x-model.number="emp.merit_pct"
+                                                               class="w-12 bg-white border border-gray-300 rounded px-1 py-0.5 text-xs font-black text-center text-purple-950 focus:outline-none focus:border-[#F44336]">
+                                                        <span class="font-bold text-gray-400 text-[10px]">%</span>
+                                                    </div>
+                                                    <div class="flex items-center gap-1 bg-amber-50/70 px-2 py-1 rounded-lg border border-amber-200">
+                                                        <span class="text-[10px] font-extrabold text-amber-800 uppercase">Step:</span>
+                                                        <input type="number" step="0.5" min="0" max="15" x-model.number="emp.tenure_pct" :disabled="emp.is_max_step"
+                                                               :class="emp.is_max_step ? 'bg-gray-100 text-gray-400 cursor-not-allowed border-gray-200' : 'bg-white border-amber-300 text-amber-950'"
+                                                               class="w-12 border rounded px-1 py-0.5 text-xs font-black text-center focus:outline-none focus:border-amber-500">
+                                                        <span class="font-bold text-amber-600 text-[10px]">%</span>
+                                                    </div>
+                                                </div>
+                                                <div class="flex items-center gap-1.5">
+                                                    <span class="text-[10px] font-black text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200"
+                                                          x-text="'Total: +' + getEmployeeTotalRaise(emp) + '%'">
+                                                    </span>
+                                                    <span x-show="!emp.is_max_step && emp.tenure_pct > 0" class="text-[10px] font-bold text-amber-700 font-mono" x-text="'(Step ' + emp.current_step + ' -> ' + emp.next_step + ')'"></span>
+                                                    <span x-show="emp.is_max_step" class="text-[10px] font-bold text-purple-700">(Max Step Ceiling)</span>
+                                                </div>
+                                            </div>
+                                        </template>
                                     </td>
-                                    <td class="py-3.5 px-4 text-right font-black font-outfit text-sm text-emerald-800">
-                                        +PHP <span x-text="Number((emp.current_salary * (emp.raise_pct / 100)) * 1.135).toLocaleString(undefined, {minimumFractionDigits: 2})"></span>
-                                    </td>
+
+                                    <!-- Col 5: Salary Progression (Baseline -> Proposed) -->
                                     <td class="py-3.5 px-4 text-right">
-                                        <div class="flex items-center justify-end gap-1.5">
-                                            <button type="button" @click="openRetroModal(emp)" 
-                                                    class="px-2.5 py-1 rounded-lg text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 transition-all">
-                                                Retro Pay
-                                            </button>
-                                            <button type="button" @click="openPromoModal(emp)"
-                                                    class="px-2.5 py-1 rounded-lg text-xs font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 transition-all">
-                                                Compute Promotion Rate
-                                            </button>
+                                        <div class="text-right space-y-0.5">
+                                            <div class="text-[11px] text-gray-400 font-mono line-through"
+                                                 x-text="'PHP ' + Number(emp.current_salary).toLocaleString(undefined, {minimumFractionDigits: 2})">
+                                            </div>
+                                            <div class="text-sm font-black font-outfit text-purple-950"
+                                                 x-text="'PHP ' + Number(getEmployeeNewSalary(emp)).toLocaleString(undefined, {minimumFractionDigits: 2})">
+                                            </div>
+                                            <div class="text-[10px] font-bold text-emerald-700 font-mono"
+                                                 x-text="'+PHP ' + Number(getEmployeeNewSalary(emp) - emp.current_salary).toLocaleString(undefined, {minimumFractionDigits: 2}) + ' / mo'">
+                                            </div>
                                         </div>
+                                    </td>
+
+                                    <!-- Col 6: Monthly Employer CTC Load -->
+                                    <td class="py-3.5 px-4 text-right">
+                                        <div class="text-right space-y-0.5">
+                                            <div class="text-xs font-black font-outfit text-blue-950"
+                                                 x-text="'PHP ' + Number(getEmployeeNewSalary(emp) * 1.135).toLocaleString(undefined, {minimumFractionDigits: 2})">
+                                            </div>
+                                            <div class="text-[10px] font-bold text-emerald-800 font-mono"
+                                                 x-text="'+PHP ' + Number((getEmployeeNewSalary(emp) - emp.current_salary) * 1.135).toLocaleString(undefined, {minimumFractionDigits: 2}) + ' load'">
+                                            </div>
+                                        </div>
+                                    </td>
+
+                                    <!-- Col 7: Status & Action -->
+                                    <td class="py-3.5 px-4 text-center">
+                                        <template x-if="emp.is_promoted">
+                                            <span class="px-2.5 py-1 rounded-xl text-xs font-bold text-purple-800 bg-purple-50 border border-purple-200">
+                                                Team 3 Promo Applied
+                                            </span>
+                                        </template>
+                                        <template x-if="!emp.is_promoted">
+                                            <span class="px-2.5 py-1 rounded-xl text-xs font-bold text-gray-500 bg-gray-50 border border-gray-200">
+                                                Active Track
+                                            </span>
+                                        </template>
                                     </td>
                                 </tr>
                             </template>
@@ -349,14 +506,15 @@
                     </table>
                 </div>
 
-                <!-- Batch Approval Submission -->
-                <div class="flex items-center justify-between pt-4 border-t border-gray-100">
-                    <span class="text-xs text-gray-500 font-medium">Ready to commit selected compensation plans into active employee payroll profiles.</span>
+                <!-- Inline Submission Footer -->
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-4 border-t border-gray-100 mt-4">
+                    <span class="text-xs text-gray-500 font-medium">Ready to commit compensation plans into active employee payroll profiles.</span>
                     <form action="{{ route('compensation.merit-promotions.complete') }}" method="POST">
                         @csrf
-                        <input type="hidden" name="plans_json" :value="JSON.stringify(filteredEmployees.map(e => ({ ...e, new_salary: Math.min(e.max_salary, Math.round(e.current_salary * (1 + (e.raise_pct / 100)))) })))">
-                        <button type="submit" class="bg-gray-900 hover:bg-black text-white text-xs font-black px-6 py-2.5 rounded-xl transition-all shadow-sm">
-                            Commit & Submit Batch for Finance Validation
+                        <input type="hidden" name="plans_json" :value="JSON.stringify(filteredEmployees.map(e => ({ ...e, raise_pct: getEmployeeTotalRaise(e), new_salary: getEmployeeNewSalary(e), new_position: e.is_promoted ? e.promoted_position : null })))">
+                        <button type="submit" 
+                                class="bg-[#F44336] hover:bg-[#D32F2F] text-white text-xs font-black px-6 py-2.5 rounded-xl transition-all shadow-sm">
+                            Submit
                         </button>
                     </form>
                 </div>
@@ -364,7 +522,100 @@
         </div>
 
         <!-- ========================================================================= -->
-        <!-- TAB 2: 5-TIER POLICY MATRIX REFERENCE -->
+        <!-- TAB 2: TENURE STEP MATRIX (STEPS 1–7) CONFIGURATION -->
+        <!-- ========================================================================= -->
+        <div x-show="activeTab === 'tenure-matrix'" x-transition class="space-y-6">
+            <div class="bg-white/80 backdrop-blur-sm rounded-2xl border border-gray-100 p-6 shadow-sm space-y-4">
+                
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-100 pb-4">
+                    <div>
+                        <h2 class="text-base font-extrabold font-outfit text-gray-900">Salary Grade Step Increment Tables (Steps 1–7)</h2>
+                        <p class="text-xs text-gray-500 mt-0.5">Multi-year tenure longevity rate ladders configured per job position.</p>
+                    </div>
+
+                    <!-- Grade Selector Pills -->
+                    <div class="flex items-center gap-1.5 overflow-x-auto bg-gray-100 p-1 rounded-2xl">
+                        @foreach($salaryGrades as $grade)
+                            <button type="button" @click="selectedGradeId = '{{ $grade->id }}'" 
+                                    :class="selectedGradeId == '{{ $grade->id }}' ? 'bg-white text-gray-900 font-black shadow-sm' : 'text-gray-500 font-bold'" 
+                                    class="px-3 py-1.5 text-xs rounded-xl transition-all whitespace-nowrap">
+                                {{ $grade->position_name }}
+                            </button>
+                        @endforeach
+                    </div>
+                </div>
+
+                @foreach($salaryGrades as $grade)
+                    <div x-show="selectedGradeId == '{{ $grade->id }}'" class="space-y-4">
+                        <div class="flex items-center justify-between bg-gray-50 p-3.5 rounded-xl border border-gray-200/60">
+                            <div>
+                                <span class="text-xs font-black text-gray-900">{{ $grade->position_name }}</span>
+                                <span class="text-[11px] text-gray-500 font-mono ml-2">Grade Base: PHP {{ number_format((float)$grade->min_salary, 2) }} – PHP {{ number_format((float)$grade->max_salary, 2) }}</span>
+                            </div>
+                            <span class="text-xs font-bold text-amber-800 bg-amber-100/60 px-2.5 py-1 rounded-lg">
+                                Standard Increment: +3.00% / Step
+                            </span>
+                        </div>
+
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left border-collapse">
+                                <thead>
+                                    <tr class="border-b border-gray-200 text-xs font-extrabold text-gray-400 uppercase tracking-wider">
+                                        <th class="py-3.5 px-4">Step Level</th>
+                                        <th class="py-3.5 px-4 text-center">Required Service</th>
+                                        <th class="py-3.5 px-4 text-right">Step Base Monthly Rate</th>
+                                        <th class="py-3.5 px-4 text-right">Increment Percentage</th>
+                                        <th class="py-3.5 px-4 text-right">Estimated Monthly CTC</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-gray-100 text-xs">
+                                    @php
+                                        $baseSalary = (float)$grade->min_salary;
+                                    @endphp
+                                    @for($stepNum = 1; $stepNum <= 7; $stepNum++)
+                                        @php
+                                            $stepRecord = $grade->steps->firstWhere('step_number', $stepNum);
+                                            $yearsReq = $stepRecord ? (float)$stepRecord->years_required : ($stepNum - 1) * 1.0;
+                                            $stepSalary = $stepRecord ? (float)$stepRecord->step_salary : round($baseSalary * pow(1.03, $stepNum - 1), 2);
+                                            $incPct = $stepRecord ? (float)$stepRecord->increment_percentage : ($stepNum === 1 ? 0.0 : 3.0);
+                                            $estCtc = round($stepSalary * 1.135, 2);
+                                        @endphp
+                                        <tr class="hover:bg-gray-50/75 transition-colors">
+                                            <td class="py-4 px-4 font-black text-sm text-gray-900 flex items-center gap-2">
+                                                <span class="w-6 h-6 rounded-full bg-amber-100 text-amber-900 text-[11px] font-black inline-flex items-center justify-center">
+                                                    {{ $stepNum }}
+                                                </span>
+                                                <span>Step {{ $stepNum }}</span>
+                                                @if($stepNum === 1)
+                                                    <span class="text-[10px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded font-bold">Entry Level</span>
+                                                @elseif($stepNum === 7)
+                                                    <span class="text-[10px] bg-purple-100 text-purple-900 px-1.5 py-0.5 rounded font-bold">Max Ceiling</span>
+                                                @endif
+                                            </td>
+                                            <td class="py-4 px-4 text-center font-bold text-gray-700">
+                                                {{ number_format($yearsReq, 1) }} {{ $yearsReq == 1.0 ? 'Year' : 'Years' }}
+                                            </td>
+                                            <td class="py-4 px-4 text-right font-mono font-black text-gray-900 text-sm">
+                                                PHP {{ number_format($stepSalary, 2) }}
+                                            </td>
+                                            <td class="py-4 px-4 text-right font-mono font-bold text-emerald-700">
+                                                {{ $stepNum === 1 ? '— (Baseline)' : '+' . number_format($incPct, 2) . '%' }}
+                                            </td>
+                                            <td class="py-4 px-4 text-right font-mono font-bold text-purple-900">
+                                                PHP {{ number_format($estCtc, 2) }}
+                                            </td>
+                                        </tr>
+                                    @endfor
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                @endforeach
+            </div>
+        </div>
+
+        <!-- ========================================================================= -->
+        <!-- TAB 3: 5-TIER POLICY MATRIX REFERENCE -->
         <!-- ========================================================================= -->
         <div x-show="activeTab === 'matrix'" x-transition class="space-y-6">
             <div class="bg-white/80 backdrop-blur-sm rounded-2xl border border-gray-100 p-6 shadow-sm space-y-4">
@@ -483,157 +734,6 @@
                         {{ $adjustments->links() }}
                     </div>
                 @endif
-            </div>
-        </div>
-
-        <!-- ========================================================================= -->
-        <!-- MODAL: RETROACTIVE PAY CALCULATOR -->
-        <!-- ========================================================================= -->
-        <div x-show="retroModalOpen" style="display: none;" 
-             class="fixed inset-0 z-50 overflow-y-auto bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-            <div @click.away="retroModalOpen = false" class="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-gray-100 space-y-4">
-                <div class="flex items-center justify-between border-b border-gray-100 pb-3">
-                    <div>
-                        <h3 class="text-base font-black font-outfit text-gray-900">Retroactive Pay Calculation Engine</h3>
-                        <p class="text-xs text-gray-500 mt-0.5">Daily rate conversion (Daily Rate / 26) and prior rendered days differential.</p>
-                    </div>
-                    <button @click="retroModalOpen = false" class="text-gray-400 hover:text-gray-600 text-sm font-bold">✕</button>
-                </div>
-
-                <div class="space-y-4 text-xs">
-                    <template x-if="activeRetroEmployee">
-                        <div class="p-3 bg-gray-50 rounded-xl border border-gray-200 font-bold text-gray-900 flex justify-between">
-                            <span x-text="activeRetroEmployee.name + ' (' + activeRetroEmployee.position + ')'"></span>
-                            <span class="font-mono text-purple-900" x-text="'Current: PHP ' + Number(activeRetroEmployee.current_salary).toLocaleString()"></span>
-                        </div>
-                    </template>
-
-                    <div class="grid grid-cols-2 gap-3">
-                        <div>
-                            <label class="block font-bold text-gray-700 uppercase mb-1">New Monthly Rate (PHP)</label>
-                            <input type="number" step="500" x-model="retroNewMonthly" @input="calculateRetroDiff()"
-                                   class="w-full bg-gray-50 border border-gray-200 rounded-xl p-2.5 font-black text-gray-900 focus:outline-none focus:border-[#F44336]">
-                        </div>
-                        <div>
-                            <label class="block font-bold text-gray-700 uppercase mb-1">Prior Days Rendered</label>
-                            <input type="number" min="1" max="60" x-model="retroDaysWorked" @input="calculateRetroDiff()"
-                                   class="w-full bg-gray-50 border border-gray-200 rounded-xl p-2.5 font-black text-gray-900 focus:outline-none focus:border-[#F44336]">
-                        </div>
-                    </div>
-
-                    <div>
-                        <label class="block font-bold text-gray-700 uppercase mb-1">Retroactive Effective Date</label>
-                        <input type="date" x-model="retroEffectiveDate" @change="calculateRetroDiff()"
-                               class="w-full bg-gray-50 border border-gray-200 rounded-xl p-2.5 font-bold text-gray-900 focus:outline-none focus:border-[#F44336]">
-                    </div>
-
-                    <!-- Live Calculation Result Card -->
-                    <template x-if="retroResult">
-                        <div class="p-4 bg-blue-50/70 rounded-2xl border border-blue-200 space-y-3">
-                            <div class="flex justify-between items-center text-xs">
-                                <div>
-                                    <span class="text-[10px] font-black text-blue-900 uppercase block">Daily Rate Conversion</span>
-                                    <div class="font-mono font-bold text-blue-950 mt-0.5">
-                                        Old: PHP <span x-text="Number(retroResult.old_daily_rate).toFixed(2)"></span> -> New: PHP <span x-text="Number(retroResult.new_daily_rate).toFixed(2)"></span>
-                                    </div>
-                                </div>
-                                <div class="text-right">
-                                    <span class="text-[10px] font-black text-blue-900 uppercase block">Daily Differential</span>
-                                    <div class="font-mono font-black text-blue-900 text-sm">
-                                        +PHP <span x-text="Number(retroResult.daily_differential).toFixed(2)"></span> / day
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="p-3 bg-blue-950 text-white rounded-xl flex items-center justify-between">
-                                <span class="text-xs font-bold text-blue-200">Total Retroactive Differential Pay:</span>
-                                <span class="text-xl font-black font-outfit text-blue-100"
-                                      x-text="'PHP ' + Number(retroResult.retroactive_pay).toLocaleString(undefined, {minimumFractionDigits: 2})">
-                                </span>
-                            </div>
-                        </div>
-                    </template>
-
-                    <div class="flex items-center justify-end pt-2">
-                        <button type="button" @click="retroModalOpen = false" class="bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold text-xs px-5 py-2.5 rounded-xl transition-all">
-                            Close Calculator
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- ========================================================================= -->
-        <!-- MODAL: PROMOTION ADVANCEMENT CALCULATOR -->
-        <!-- ========================================================================= -->
-        <div x-show="promoModalOpen" style="display: none;" 
-             class="fixed inset-0 z-50 overflow-y-auto bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-            <div @click.away="promoModalOpen = false" class="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-gray-100 space-y-4">
-                <div class="flex items-center justify-between border-b border-gray-100 pb-3">
-                    <div>
-                        <h3 class="text-base font-black font-outfit text-gray-900">Promotion Salary & CTC Calibrator (Team 3 Integration)</h3>
-                        <p class="text-xs text-gray-500 mt-0.5">Calculates financial compensation floor for approved promotion: MAX(New Grade Min, Current Salary x 1.15).</p>
-                    </div>
-                    <button @click="promoModalOpen = false" class="text-gray-400 hover:text-gray-600 text-sm font-bold">✕</button>
-                </div>
-
-                <div class="space-y-4 text-xs">
-                    <template x-if="activePromoEmployee">
-                        <div class="p-3 bg-gray-50 rounded-xl border border-gray-200 font-bold text-gray-900 flex justify-between">
-                            <span x-text="activePromoEmployee.name + ' (' + activePromoEmployee.position + ')'"></span>
-                            <span class="font-mono text-purple-900" x-text="'Current: PHP ' + Number(activePromoEmployee.current_salary).toLocaleString()"></span>
-                        </div>
-                    </template>
-
-                    <div>
-                        <label class="block font-bold text-gray-700 uppercase mb-1">Target Higher Pay Grade</label>
-                        <select x-model="promoTargetGradeId" @change="calculatePromoPreview()"
-                                class="w-full bg-gray-50 border border-gray-200 rounded-xl p-2.5 font-bold text-gray-900 focus:outline-none focus:border-[#F44336]">
-                            @foreach($salaryGrades as $sg)
-                                <option value="{{ $sg->id }}">
-                                    {{ $sg->grade_code ?? ('PG-' . $loop->iteration) }} — {{ $sg->position_name }} (PHP {{ number_format((float)$sg->min_salary, 0) }} - PHP {{ number_format((float)$sg->max_salary, 0) }})
-                                </option>
-                            @endforeach
-                        </select>
-                    </div>
-
-                    <!-- Live Promotion Preview -->
-                    <template x-if="promoResult">
-                        <div class="p-4 bg-purple-50/70 rounded-2xl border border-purple-200 space-y-3">
-                            <div class="flex justify-between items-center text-xs">
-                                <div>
-                                    <span class="text-[10px] font-black text-purple-900 uppercase block">15% Standard Raise Floor</span>
-                                    <div class="font-mono font-bold text-purple-950 mt-0.5">
-                                        PHP <span x-text="Number(promoResult.fifteen_percent_floor).toLocaleString(undefined, {minimumFractionDigits: 2})"></span>
-                                    </div>
-                                </div>
-                                <div class="text-right">
-                                    <span class="text-[10px] font-black text-purple-900 uppercase block">New Grade Minimum</span>
-                                    <div class="font-mono font-bold text-purple-950 mt-0.5">
-                                        PHP <span x-text="Number(promoResult.new_grade_min).toLocaleString(undefined, {minimumFractionDigits: 2})"></span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="p-3 bg-purple-950 text-white rounded-xl flex items-center justify-between">
-                                <span class="text-xs font-bold text-purple-200">Promoted Starting Salary:</span>
-                                <span class="text-xl font-black font-outfit text-purple-100"
-                                      x-text="'PHP ' + Number(promoResult.promoted_salary).toLocaleString(undefined, {minimumFractionDigits: 2})">
-                                </span>
-                            </div>
-
-                            <div class="p-2.5 bg-white rounded-xl border border-purple-100 font-mono text-[11px] text-gray-800"
-                                 x-text="promoResult.formula">
-                            </div>
-                        </div>
-                    </template>
-
-                    <div class="flex items-center justify-end pt-2">
-                        <button type="button" @click="promoModalOpen = false" class="bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold text-xs px-5 py-2.5 rounded-xl transition-all">
-                            Close Preview
-                        </button>
-                    </div>
-                </div>
             </div>
         </div>
 

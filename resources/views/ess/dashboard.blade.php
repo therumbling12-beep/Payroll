@@ -11,7 +11,7 @@
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
             <h1 class="text-xl font-extrabold font-outfit text-gray-900">Employee Self-Service (ESS) Portal</h1>
-            <p class="text-xs text-gray-500 mt-0.5">View your transparent compensation breakdown, digital HMO healthcare card, enrolled dependents, and benefit applications.</p>
+            <p class="text-xs text-gray-500 mt-0.5">View your transparent compensation breakdown, submit reimbursement claims, and track live approval status.</p>
         </div>
         
         <!-- Employee Selector Dropdown -->
@@ -27,27 +27,6 @@
         </form>
     </div>
 
-    <!-- Annual Open Enrollment Announcement Banner -->
-    @if(isset($isOpenEnrollmentActive) && $isOpenEnrollmentActive)
-        <div class="mb-6 p-5 bg-gradient-to-r from-blue-900 to-indigo-900 rounded-2xl text-white shadow-lg flex flex-col md:flex-row md:items-center justify-between gap-4 border border-blue-800">
-            <div class="space-y-1">
-                <div class="flex items-center gap-2">
-                    <span class="px-2.5 py-0.5 bg-blue-500/30 border border-blue-400/40 text-blue-200 text-[10px] font-black uppercase rounded-full tracking-wider">
-                        Annual Open Enrollment Active
-                    </span>
-                    <span class="text-xs text-blue-200 font-medium">
-                        Sign-up is open from {{ \Carbon\Carbon::parse($openEnrollmentWindow['start_date'] ?? date('Y-11-01'))->format('F j') }} to {{ \Carbon\Carbon::parse($openEnrollmentWindow['end_date'] ?? date('Y-11-30'))->format('F j, Y') }}
-                    </span>
-                </div>
-                <h3 class="text-base font-black font-outfit text-white">Healthcare Plan Elections & Family Dependent Registration</h3>
-                <p class="text-xs text-blue-200">Submit a healthcare tier change or register direct family dependents for the upcoming plan year.</p>
-            </div>
-            <button @click="showApplyModal = true" type="button" class="inline-flex items-center justify-center gap-2 bg-white hover:bg-gray-100 text-gray-900 font-black text-xs px-5 py-2.5 rounded-xl transition-all shadow-md flex-shrink-0">
-                <span>Apply or Add Family</span>
-            </button>
-        </div>
-    @endif
-
     @if(session('status'))
         <div class="mb-6 p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded-2xl font-bold flex items-center gap-2 shadow-2xs">
             <svg class="w-4 h-4 text-emerald-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -59,13 +38,7 @@
 
     @if($selectedEmployee)
     <div x-data="{
-        showApplyModal: false,
-        showCardModal: false,
         showClaimModal: false,
-        showLoaModal: false,
-        showApeModal: false,
-        showBeneficiaryModal: false,
-        patientType: 'employee',
         claimStep: 1,
         claimType: 'expense',
         claimCategoryId: '',
@@ -94,13 +67,6 @@
         },
         get currentMaternity() {
             return this.maternityCalculations[this.maternityType] || {};
-        },
-        dependents: [],
-        addDependent() {
-            this.dependents.push({ full_name: '', relationship: 'Child', birth_date: '', gender: 'Male' });
-        },
-        removeDependent(index) {
-            this.dependents.splice(index, 1);
         },
         get isFuelSelected() {
             const cat = this.claimCategories.find(c => c.id == this.claimCategoryId);
@@ -148,7 +114,7 @@
         }
     }" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-        <!-- Left Column: Profile, HMO Card, & Bank Setup -->
+        <!-- Left Column: Profile Summary & Bank Setup -->
         <div class="space-y-6">
 
             <!-- Profile Summary Card -->
@@ -169,174 +135,166 @@
                     </div>
                     <div class="flex justify-between">
                         <span class="text-gray-400">Department:</span>
-                        <span class="font-medium text-gray-800">{{ $selectedEmployee->department->name ?? 'General' }}</span>
+                        <span class="font-medium text-gray-800">{{ $selectedEmployee->department->name ?? 'General Fleet' }}</span>
                     </div>
                     <div class="flex justify-between">
                         <span class="text-gray-400">Email:</span>
                         <span class="font-medium text-gray-800">{{ $selectedEmployee->email }}</span>
                     </div>
                     <div class="flex justify-between">
-                        <span class="text-gray-400">Salary Grade:</span>
-                        <span class="font-bold text-gray-900 font-mono">PG-{{ $selectedEmployee->salary_grade ?? 1 }}</span>
+                        <span class="text-gray-400">Status:</span>
+                        <span class="font-bold text-emerald-700 uppercase text-[10px]">{{ $selectedEmployee->employment_status }}</span>
                     </div>
                 </div>
             </div>
 
-            <!-- Digital HMO Card / Benefits Section -->
-            @if($hmo)
-                <div class="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-950 rounded-2xl p-6 text-white shadow-xl relative overflow-hidden space-y-4">
-                    <div class="flex items-center justify-between">
-                        <span class="text-[10px] font-black uppercase tracking-wider text-emerald-400 bg-emerald-950/60 border border-emerald-800/50 px-2.5 py-1 rounded-full">
-                            {{ $hmo->hmo_provider }} Corporate E-Card
-                        </span>
-                        <span class="text-[10px] font-mono text-gray-400 uppercase font-bold">{{ $hmo->coverage_tier }}</span>
-                    </div>
-
-                    <div>
-                        <p class="text-[9px] text-gray-400 uppercase tracking-widest font-mono">HMO Member Card Number</p>
-                        <p class="text-lg font-black font-mono tracking-wider mt-0.5">{{ $hmo->hmo_card_number }}</p>
-                    </div>
-
-                    <div class="border-t border-white/10 pt-3 flex justify-between items-center text-xs">
-                        <div>
-                            <p class="text-[9px] text-gray-400 uppercase">Annual MBL Limit</p>
-                            <p class="font-black text-white font-outfit text-sm">PHP {{ number_format((float)($hmo->annual_limit ?: $hmo->mbl_amount), 2) }}</p>
-                        </div>
-                        <div class="text-right">
-                            <p class="text-[9px] text-gray-400 uppercase">Remaining MBL</p>
-                            <p class="font-black text-emerald-400 font-outfit text-sm">PHP {{ number_format($hmo->remainingBalance(), 2) }}</p>
-                        </div>
-                    </div>
-
-                    @if($hmo->isLowBalance())
-                        <div class="p-2.5 bg-rose-500/20 border border-rose-500/40 rounded-xl text-rose-300 text-[11px] font-bold flex items-center justify-between">
-                            <span>Notice: Remaining MBL is below 20%</span>
-                            <span class="font-mono text-rose-200">PHP {{ number_format($hmo->remainingBalance(), 2) }} left</span>
-                        </div>
-                    @endif
-
-                    @if($hmo->isExpiringSoon())
-                        <div class="p-2.5 bg-amber-500/20 border border-amber-500/40 rounded-xl text-amber-300 text-[11px] font-bold flex items-center justify-between">
-                            <span>Renewal due in {{ $hmo->daysUntilExpiry() }} days</span>
-                            <span class="text-[10px] uppercase underline">30-Day Cycle</span>
-                        </div>
-                    @endif
-
-                    <div class="grid grid-cols-2 gap-2">
-                        <button @click="showCardModal = true" type="button" class="w-full bg-white hover:bg-gray-100 text-gray-900 font-black text-xs py-2.5 rounded-xl transition-all shadow-sm cursor-pointer text-center">
-                            Digital E-Card
-                        </button>
-                        <button @click="showLoaModal = true" type="button" class="w-full bg-emerald-500 hover:bg-emerald-400 text-gray-950 font-black text-xs py-2.5 rounded-xl transition-all shadow-sm cursor-pointer text-center">
-                            Request LOA
-                        </button>
-                    </div>
+            <!-- Service Incentive Leave (SIL) Balance Card (DOLE Art. 95) -->
+            <div class="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="text-sm font-bold text-gray-900 font-outfit">Service Incentive Leave</h3>
+                    <span class="px-2 py-0.5 rounded text-[9px] font-bold uppercase bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        DOLE Art. 95
+                    </span>
                 </div>
 
-                <!-- Enrolled Dependents Widget -->
-                <div class="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm space-y-3">
-                    <div class="flex items-center justify-between">
-                        <h3 class="text-xs font-bold text-gray-900 font-outfit">Enrolled Family Dependents</h3>
-                        <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700">
-                            {{ $hmo->dependents->count() }} Registered
-                        </span>
+                @if($silRecord && $silRecord->entitled_days > 0)
+                    <div class="grid grid-cols-2 gap-3 mb-3">
+                        <div class="bg-emerald-50/70 border border-emerald-100 rounded-xl p-3">
+                            <span class="text-[10px] font-bold text-emerald-700 uppercase block">Available Balance</span>
+                            <span class="text-xl font-black font-outfit text-emerald-900">{{ $silRecord->remaining_days }} Days</span>
+                        </div>
+                        <div class="bg-gray-50 border border-gray-100 rounded-xl p-3">
+                            <span class="text-[10px] font-bold text-gray-400 uppercase block">Annual Entitlement</span>
+                            <span class="text-xl font-black font-outfit text-gray-800">{{ $silRecord->entitled_days }} Days</span>
+                        </div>
                     </div>
 
-                    <div class="space-y-2 text-xs">
-                        @forelse($hmo->dependents as $dep)
-                            <div class="p-3 bg-gray-50 rounded-xl border border-gray-200/60 flex items-center justify-between">
-                                <div>
-                                    <p class="font-bold text-gray-900">{{ $dep->full_name }}</p>
-                                    <p class="text-[10px] text-gray-400">{{ $dep->relationship }} • {{ $dep->birth_date?->format('M j, Y') ?? 'N/A' }}</p>
-                                </div>
-                                <span class="px-2 py-0.5 rounded text-[9px] font-black uppercase {{ $dep->status === 'verified' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800' }}">
-                                    {{ $dep->status }}
-                                </span>
+                    <div class="space-y-1.5 text-[11px] text-gray-500 border-t border-gray-50 pt-2.5">
+                        <div class="flex justify-between">
+                            <span>Leaves Taken This Year:</span>
+                            <span class="font-bold text-rose-600 font-mono">{{ $silRecord->used_days }} day(s)</span>
+                        </div>
+                        @if($silRecord->cash_converted_days > 0)
+                            <div class="flex justify-between">
+                                <span>Commuted to Cash:</span>
+                                <span class="font-bold text-indigo-600 font-mono">{{ $silRecord->cash_converted_days }} day(s) (₱{{ number_format($silRecord->cash_converted_amount, 2) }})</span>
                             </div>
-                        @empty
-                            <p class="text-[11px] text-gray-400 text-center py-2">No family dependents enrolled under this policy.</p>
-                        @endforelse
+                        @endif
+                        <div class="flex justify-between">
+                            <span>Cash Equivalent Value:</span>
+                            <span class="font-bold text-emerald-700 font-mono">PHP {{ number_format($silRecord->remaining_days * ($selectedEmployee->daily_rate ?: ($selectedEmployee->monthly_rate ? $selectedEmployee->monthly_rate / 26 : 0)), 2) }}</span>
+                        </div>
                     </div>
+                @else
+                    <div class="bg-gray-50 rounded-xl p-3.5 border border-gray-100 text-center">
+                        <p class="text-xs font-bold text-gray-700">Not Yet Qualified for SIL</p>
+                        <p class="text-[11px] text-gray-400 mt-0.5">SIL requires at least 1.0 full year of active service (Current: {{ $selectedEmployee->tenure_text }}).</p>
+                    </div>
+                @endif
+            </div>
+
+            <!-- Christmas Bonus (Year-End Gratuity) Projection Card -->
+            <div class="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="text-sm font-bold text-gray-900 font-outfit">Christmas Bonus</h3>
+                    <span class="px-2 py-0.5 rounded text-[9px] font-bold uppercase bg-rose-50 text-rose-700 border border-rose-200">
+                        Year-End {{ date('Y') }}
+                    </span>
                 </div>
 
-            @else
-                <!-- No HMO: Apply for Coverage CTA -->
-                <div class="bg-white rounded-2xl border border-dashed border-gray-300 p-6 text-center space-y-3 shadow-2xs">
-                    <div class="w-12 h-12 rounded-2xl bg-gray-100 text-gray-600 flex items-center justify-center mx-auto">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
-                        </svg>
+                @if($christmasBonusProjection && $christmasBonusProjection['is_qualified'])
+                    <div class="bg-rose-50/70 border border-rose-100 rounded-xl p-3 mb-3">
+                        <span class="text-[10px] font-bold text-rose-700 uppercase block">Projected Bonus Payout</span>
+                        <span class="text-xl font-black font-outfit text-rose-900">PHP {{ number_format($christmasBonusProjection['calculated_bonus_amount'], 2) }}</span>
+                        <span class="text-[10px] text-rose-700/80 mt-0.5 block">
+                            @if($christmasBonusProjection['is_prorated'])
+                                Pro-rated based on {{ $christmasBonusProjection['months_tenure'] }} months service
+                            @else
+                                Full annual qualification (&ge; 6 mos tenure)
+                            @endif
+                        </span>
                     </div>
-                    <div>
-                        <h3 class="text-sm font-black font-outfit text-gray-900">Apply for HMO Healthcare Policy</h3>
-                        <p class="text-[11px] text-gray-500 mt-1">Enroll yourself and your qualified dependents into TripWise corporate medical insurance.</p>
+
+                    <div class="space-y-1.5 text-[11px] text-gray-500 border-t border-gray-50 pt-2.5">
+                        <div class="flex justify-between">
+                            <span>Standard Full Bonus:</span>
+                            <span class="font-bold text-gray-700 font-mono">PHP {{ number_format($christmasBonusProjection['base_bonus_amount'], 2) }}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Service Tenure:</span>
+                            <span class="font-bold text-gray-800 font-mono">{{ $christmasBonusProjection['months_tenure'] }} month(s)</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Status:</span>
+                            <span class="font-bold text-emerald-700 uppercase text-[10px]">
+                                {{ $christmasBonusProjection['is_prorated'] ? 'Pro-Rated Qualified' : 'Fully Qualified' }}
+                            </span>
+                        </div>
                     </div>
-                    <button @click="showApplyModal = true" type="button" class="w-full bg-gray-900 hover:bg-black text-white text-xs font-black py-2.5 rounded-xl transition-all shadow-sm cursor-pointer">
-                        Start HMO Application
-                    </button>
+                @else
+                    <div class="bg-gray-50 rounded-xl p-3.5 border border-gray-100 text-center">
+                        <p class="text-xs font-bold text-gray-700">Probationary Bonus Status</p>
+                        <p class="text-[11px] text-gray-400 mt-0.5">Christmas bonus requires at least 1 month of service in the current year.</p>
+                    </div>
+                @endif
+            </div>
+
+            @if($driverPoolHistory)
+                <!-- Driver Accident Insurance Pool & Claims Card -->
+                <div class="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="text-sm font-bold text-gray-900 font-outfit">Driver Accident Insurance Pool</h3>
+                        <span class="px-2 py-0.5 rounded text-[9px] font-bold uppercase bg-amber-50 text-amber-700 border border-amber-200">
+                            Driver Pool Coverage
+                        </span>
+                    </div>
+
+                    <div class="bg-amber-50/70 border border-amber-100 rounded-xl p-3 mb-3">
+                        <span class="text-[10px] font-bold text-amber-700 uppercase block">Total Pool Credit (With Match)</span>
+                        <span class="text-xl font-black font-outfit text-amber-900">PHP {{ number_format($driverPoolHistory['total_pool_credit'], 2) }}</span>
+                        <span class="text-[10px] text-amber-700/80 mt-0.5 block">
+                            Includes PHP {{ number_format($driverPoolHistory['company_match_total'], 2) }} company matching
+                        </span>
+                    </div>
+
+                    <div class="space-y-1.5 text-[11px] text-gray-500 border-t border-gray-50 pt-2.5">
+                        <div class="flex justify-between">
+                            <span>Your Contributions:</span>
+                            <span class="font-bold text-gray-700 font-mono">PHP {{ number_format($driverPoolHistory['total_contributed'], 2) }}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Accident Claims Filed:</span>
+                            <span class="font-bold text-gray-800 font-mono">{{ $driverPoolHistory['claims_count'] }} claim(s)</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Total Claims Paid:</span>
+                            <span class="font-bold text-emerald-700 font-mono">PHP {{ number_format($driverPoolHistory['claims_disbursed_total'], 2) }}</span>
+                        </div>
+                    </div>
+
+                    @if($driverPoolHistory['claims']->isNotEmpty())
+                        <div class="mt-3 pt-3 border-t border-gray-100">
+                            <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-2">Active Claim Tracker</span>
+                            <div class="space-y-2">
+                                @foreach($driverPoolHistory['claims']->take(3) as $c)
+                                    <div class="bg-gray-50 rounded-xl p-2.5 flex items-center justify-between text-xs">
+                                        <div>
+                                            <div class="font-mono font-bold text-gray-800">{{ $c->incident_number }}</div>
+                                            <div class="text-[10px] text-gray-400">{{ $c->incident_date ? $c->incident_date->format('M j, Y') : 'N/A' }}</div>
+                                        </div>
+                                        <div class="text-right">
+                                            <span class="px-2 py-0.5 rounded text-[9px] font-black uppercase {{ $c->workflow_status === 'approved' ? 'bg-emerald-100 text-emerald-800' : ($c->workflow_status === 'returned' ? 'bg-rose-100 text-rose-800' : 'bg-amber-100 text-amber-800') }}">
+                                                {{ str_replace('_', ' ', $c->workflow_status) }}
+                                            </span>
+                                            <div class="font-mono font-bold text-gray-900 mt-0.5">₱{{ number_format((float) $c->bill_amount, 2) }}</div>
+                                        </div>
+                                    </div>
+                                @endforeach
+                            </div>
+                        </div>
+                    @endif
                 </div>
             @endif
-
-            <!-- Annual Physical Exam (APE) Widget -->
-            <div class="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm space-y-3">
-                <div class="flex items-center justify-between">
-                    <h3 class="text-xs font-black font-outfit text-gray-900 uppercase tracking-wider">Annual Physical Exam (APE)</h3>
-                    <span class="px-2 py-0.5 rounded-full text-[9px] font-black {{ $apeExam ? $apeExam->attendanceBadgeClasses() : 'bg-gray-100 text-gray-500' }}">
-                        {{ $apeExam ? ucfirst($apeExam->attendance_status) : 'Unscheduled' }}
-                    </span>
-                </div>
-
-                @if($apeExam)
-                    <div class="p-3 bg-gray-50 rounded-xl space-y-1.5 text-xs">
-                        <div class="flex justify-between">
-                            <span class="text-gray-500">Date & Slot:</span>
-                            <span class="font-bold text-gray-900">{{ $apeExam->schedule_date->format('M j, Y') }} ({{ $apeExam->time_slot }})</span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span class="text-gray-500">Facility:</span>
-                            <span class="font-semibold text-gray-800">{{ $apeExam->facility_name }}</span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span class="text-gray-500">Medical Clearance:</span>
-                            <span class="font-black text-emerald-700">{{ $apeExam->clearanceLabel() }}</span>
-                        </div>
-                    </div>
-                @else
-                    <p class="text-[11px] text-gray-500">Annual occupational wellness check. Batch appointments are designated during company campaigns.</p>
-                @endif
-
-                <button @click="showApeModal = true" type="button" class="w-full bg-gray-50 hover:bg-gray-100 text-gray-800 font-bold text-xs py-2 rounded-xl border border-gray-200 transition-all cursor-pointer">
-                    {{ $apeExam ? 'Reschedule APE Appointment' : 'Book APE Clinic Appointment' }}
-                </button>
-            </div>
-
-            <!-- Corporate Group Life & Disability Widget -->
-            <div class="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm space-y-3">
-                <div class="flex items-center justify-between">
-                    <h3 class="text-xs font-black font-outfit text-gray-900 uppercase tracking-wider">Group Life & Disability</h3>
-                    <span class="px-2 py-0.5 rounded-full text-[9px] font-black {{ $groupLife ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-gray-100 text-gray-500' }}">
-                        {{ $groupLife ? 'Active Insured' : 'Pending Enrollment' }}
-                    </span>
-                </div>
-
-                @if($groupLife)
-                    <div class="p-3 bg-purple-50/50 border border-purple-100 rounded-xl space-y-1.5 text-xs">
-                        <div class="flex justify-between items-center">
-                            <span class="text-gray-500">Sum Assured:</span>
-                            <span class="font-black font-outfit text-sm text-purple-700">PHP {{ number_format((float)$groupLife->sum_assured, 2) }}</span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span class="text-gray-500">Primary Beneficiary:</span>
-                            <span class="font-bold text-gray-900">{{ $groupLife->beneficiary_primary_name }} ({{ $groupLife->beneficiary_primary_relation }})</span>
-                        </div>
-                    </div>
-                @else
-                    <p class="text-[11px] text-gray-500">100% company-subsidized Group Term Life and Accidental Death & Dismemberment (AD&D) coverage.</p>
-                @endif
-
-                <button @click="showBeneficiaryModal = true" type="button" class="w-full bg-gray-50 hover:bg-gray-100 text-gray-800 font-bold text-xs py-2 rounded-xl border border-gray-200 transition-all cursor-pointer">
-                    Update Beneficiary Designation
-                </button>
-            </div>
 
             <!-- Bank Deposit Setup Card -->
             <div class="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
@@ -630,181 +588,6 @@
         </div>
 
         <!-- ========================================================================= -->
-        <!-- MODAL: ESS HMO ENROLLMENT APPLICATION -->
-        <!-- ========================================================================= -->
-        <div x-show="showApplyModal" x-cloak class="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-            <div @click.away="showApplyModal = false" class="bg-white rounded-2xl shadow-2xl w-full max-w-xl p-6 space-y-4 max-h-[90vh] overflow-y-auto">
-                <div class="flex items-center justify-between border-b border-gray-100 pb-3">
-                    <div>
-                        <h2 class="text-base font-black font-outfit text-gray-900">Apply for Corporate HMO Coverage</h2>
-                        <p class="text-xs text-gray-400 mt-0.5">Submit personal details and dependent documents for HR Team 4 verification</p>
-                    </div>
-                    <button @click="showApplyModal = false" type="button" class="text-gray-400 hover:text-gray-600 text-lg">&times;</button>
-                </div>
-
-                <form action="{{ route('ess.hmo.apply') }}" method="POST" enctype="multipart/form-data" class="space-y-4">
-                    @csrf
-                    <input type="hidden" name="employee_id" value="{{ $selectedEmployee->id }}">
-
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div>
-                            <label class="block text-xs font-bold text-gray-700 mb-1">Preferred HMO Plan Tier *</label>
-                            <select name="coverage_tier" required class="w-full text-xs bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2 text-gray-800 font-bold focus:outline-none focus:border-gray-900">
-                                @if(isset($availableHmoPlans) && $availableHmoPlans->isNotEmpty())
-                                    @foreach($availableHmoPlans as $plan)
-                                        <option value="{{ $plan->tier_name }}">{{ $plan->tier_name }} (PHP {{ number_format((float)$plan->mbl_amount, 2) }} MBL - {{ $plan->room_label }})</option>
-                                    @endforeach
-                                @else
-                                    <option value="Basic">Basic Plan (PHP 100,000.00 MBL)</option>
-                                    <option value="Plus">Plus Plan (PHP 150,000.00 MBL)</option>
-                                    <option value="Premium">Premium Plan (PHP 200,000.00 MBL)</option>
-                                @endif
-                                <option value="Driver Fleet Care">Driver Fleet Care</option>
-                            </select>
-                        </div>
-
-                        <div>
-                            <label class="block text-xs font-bold text-gray-700 mb-1">HMO Provider</label>
-                            <input type="text" name="hmo_provider" value="{{ $hmoConfig['hmo_provider_name'] }}" readonly class="w-full text-xs bg-gray-100 border border-gray-200 rounded-xl px-3.5 py-2 text-gray-600 font-bold">
-                        </div>
-                    </div>
-
-                    <!-- File Uploads: ID & Marriage Cert -->
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div>
-                            <label class="block text-xs font-bold text-gray-700 mb-1">Upload Valid ID Photo</label>
-                            <input type="file" name="id_photo" accept="image/*,.pdf" class="w-full text-xs bg-gray-50 border border-gray-200 rounded-xl px-3 py-1.5 text-gray-800">
-                        </div>
-
-                        <div>
-                            <label class="block text-xs font-bold text-gray-700 mb-1">Marriage Certificate (If Covering Spouse)</label>
-                            <input type="file" name="marriage_cert" accept="image/*,.pdf" class="w-full text-xs bg-gray-50 border border-gray-200 rounded-xl px-3 py-1.5 text-gray-800">
-                        </div>
-                    </div>
-
-                    <!-- Dynamic Dependents Builder -->
-                    <div class="border-t border-gray-100 pt-3 space-y-3">
-                        <div class="flex items-center justify-between">
-                            <span class="text-xs font-bold text-gray-800">Qualified Dependents to Cover</span>
-                            <button type="button" @click="addDependent()" class="text-xs font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1">
-                                + Add Dependent
-                            </button>
-                        </div>
-
-                        <template x-for="(dep, idx) in dependents" :key="idx">
-                            <div class="p-3 bg-gray-50 rounded-xl border border-gray-200 space-y-2 text-xs">
-                                <div class="flex items-center justify-between">
-                                    <span class="font-bold text-gray-700" x-text="'Dependent #' + (idx + 1)"></span>
-                                    <button type="button" @click="removeDependent(idx)" class="text-rose-600 font-bold">&times; Remove</button>
-                                </div>
-                                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                                    <input type="text" :name="'dependents['+idx+'][full_name]'" x-model="dep.full_name" placeholder="Full Legal Name" required class="bg-white border border-gray-200 rounded-lg px-2.5 py-1.5">
-                                    <select :name="'dependents['+idx+'][relationship]'" x-model="dep.relationship" class="bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 font-semibold">
-                                        <option value="Spouse">Spouse</option>
-                                        <option value="Child">Child</option>
-                                        <option value="Parent">Parent</option>
-                                    </select>
-                                    <input type="date" :name="'dependents['+idx+'][birth_date]'" x-model="dep.birth_date" class="bg-white border border-gray-200 rounded-lg px-2 py-1.5">
-                                </div>
-                                <div>
-                                    <label class="block text-[10px] text-gray-500 font-bold mb-0.5">PSA Birth Certificate</label>
-                                    <input type="file" :name="'dependents['+idx+'][birth_cert]'" accept="image/*,.pdf" class="w-full text-[11px]">
-                                </div>
-                            </div>
-                        </template>
-                    </div>
-
-                    <div>
-                        <label class="block text-xs font-bold text-gray-700 mb-1">Additional Notes</label>
-                        <textarea name="notes" rows="2" placeholder="e.g. Regularized employee medical application..." class="w-full text-xs bg-gray-50 border border-gray-200 rounded-xl p-2.5 text-gray-800 focus:outline-none focus:border-gray-900"></textarea>
-                    </div>
-
-                    <div class="flex items-center justify-end gap-3 pt-3 border-t border-gray-100">
-                        <button @click="showApplyModal = false" type="button" class="text-xs font-bold text-gray-500 px-4 py-2">Cancel</button>
-                        <button type="submit" class="bg-gray-900 hover:bg-black text-white font-black text-xs px-5 py-2.5 rounded-xl shadow-sm">Submit Application</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-
-        <!-- ========================================================================= -->
-        <!-- MODAL: FULL DIGITAL HMO CARD & ACCREDITED HOSPITALS -->
-        <!-- ========================================================================= -->
-        @if($digitalCardPayload)
-        <div x-show="showCardModal" x-cloak class="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-            <div @click.away="showCardModal = false" class="bg-white rounded-3xl shadow-2xl w-full max-w-lg p-6 space-y-5 border border-gray-100 max-h-[90vh] overflow-y-auto">
-                <div class="flex items-center justify-between border-b border-gray-100 pb-3">
-                    <div class="flex items-center gap-2">
-                        <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                        <h2 class="text-sm font-black font-outfit text-gray-900">Official Digital HMO Health Card</h2>
-                    </div>
-                    <button @click="showCardModal = false" type="button" class="text-gray-400 hover:text-gray-600 text-lg">&times;</button>
-                </div>
-
-                <!-- Digital Health Card Graphic -->
-                <div class="bg-gradient-to-br from-gray-950 via-gray-900 to-gray-800 text-white rounded-2xl p-6 shadow-2xl space-y-4 relative overflow-hidden">
-                    <div class="flex items-center justify-between">
-                        <span class="font-outfit font-black tracking-wider text-xs text-emerald-400">TRIPWISE FLEET HEALTHCARE</span>
-                        <span class="text-[10px] font-bold text-gray-300 font-mono">{{ $digitalCardPayload['provider_name'] }}</span>
-                    </div>
-
-                    <div>
-                        <p class="text-[9px] text-gray-400 uppercase tracking-widest font-mono">Member ID / Card No.</p>
-                        <p class="text-xl font-black font-mono tracking-wider mt-0.5">{{ $digitalCardPayload['card_number'] }}</p>
-                    </div>
-
-                    <div class="flex items-center justify-between pt-2 border-t border-white/10 text-xs">
-                        <div>
-                            <p class="text-[9px] text-gray-400 uppercase">Employee</p>
-                            <p class="font-bold text-white">{{ $digitalCardPayload['employee_name'] }}</p>
-                            <p class="text-[10px] text-gray-400 font-mono">{{ $digitalCardPayload['employee_code'] }}</p>
-                        </div>
-                        <div class="text-right">
-                            <p class="text-[9px] text-gray-400 uppercase">Plan Tier</p>
-                            <p class="font-bold text-emerald-400">{{ $digitalCardPayload['plan_tier'] }}</p>
-                            <p class="text-[10px] text-gray-400">Valid: {{ $digitalCardPayload['coverage_end'] }}</p>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- MBL Balance Breakdown -->
-                <div class="p-4 bg-gray-50 rounded-2xl border border-gray-200/60 space-y-2 text-xs">
-                    <div class="flex items-center justify-between">
-                        <span class="text-gray-500 font-semibold">Total Annual MBL Limit:</span>
-                        <span class="font-black text-gray-900 font-outfit text-sm">PHP {{ number_format($digitalCardPayload['mbl_limit'], 2) }}</span>
-                    </div>
-                    <div class="flex items-center justify-between">
-                        <span class="text-gray-500 font-semibold">Claims Utilized to Date:</span>
-                        <span class="font-bold text-rose-600 font-outfit">-PHP {{ number_format($digitalCardPayload['mbl_utilized'], 2) }}</span>
-                    </div>
-                    <div class="flex items-center justify-between pt-1 border-t border-gray-200">
-                        <span class="text-gray-700 font-bold">Remaining Available Limit:</span>
-                        <span class="font-black text-emerald-700 font-outfit text-base">PHP {{ number_format($digitalCardPayload['mbl_remaining'], 2) }}</span>
-                    </div>
-                </div>
-
-                <!-- Top Emergency Accredited Hospitals -->
-                <div class="space-y-2 text-xs">
-                    <h4 class="font-bold text-gray-900">24/7 Emergency Accredited Facilities</h4>
-                    <div class="space-y-1.5">
-                        @foreach($digitalCardPayload['emergency_facilities'] as $fac)
-                            <div class="p-2.5 bg-gray-50 rounded-xl border border-gray-100 flex items-center justify-between text-[11px]">
-                                <div>
-                                    <p class="font-bold text-gray-900">{{ $fac->name }}</p>
-                                    <p class="text-gray-400 text-[10px]">{{ $fac->region }}</p>
-                                </div>
-                                <span class="font-mono font-bold text-emerald-700">{{ $fac->contact_number ?: '24/7 ER' }}</span>
-                            </div>
-                        @endforeach
-                    </div>
-                </div>
-
-                <button @click="showCardModal = false" type="button" class="w-full bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold text-xs py-2.5 rounded-xl transition-all">Close Digital Card</button>
-            </div>
-        </div>
-        @endif
-
-        <!-- ========================================================================= -->
         <!-- MODAL: ESS FILE CLAIM & UPLOAD RECEIPT (3-STEP GUIDED WIZARD) -->
         <!-- ========================================================================= -->
         <div x-show="showClaimModal" x-cloak class="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
@@ -839,273 +622,155 @@
                     <input type="hidden" name="employee_id" value="{{ $selectedEmployee->id }}">
                     <input type="hidden" name="type" :value="claimType">
 
-                    <!-- STEP 1: Claim Type & Details -->
+                    <!-- STEP 1: CLAIM TYPE & CATEGORY DETAILS -->
                     <div x-show="claimStep === 1" class="space-y-4">
-                        <!-- Claim Type Selection Tabs -->
                         <div>
-                            <label class="block text-xs font-bold text-gray-700 mb-1.5">Select Claim Type</label>
-                            <div class="grid grid-cols-2 sm:grid-cols-4 gap-1.5 bg-gray-100 p-1 rounded-2xl">
-                                <button type="button" @click="claimType = 'expense'" 
-                                        :class="claimType === 'expense' ? 'bg-white text-gray-900 font-black shadow-sm' : 'text-gray-600 hover:text-gray-900 font-bold'"
-                                        class="py-2 px-2 text-[11px] rounded-xl transition-all text-center cursor-pointer">
-                                    Travel & Fuel
+                            <label class="block text-xs font-bold text-gray-700 mb-1.5">Claim Type *</label>
+                            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                                <button type="button" @click="claimType = 'expense'; claimCategoryId = ''" 
+                                        :class="claimType === 'expense' ? 'bg-gray-900 text-white font-black' : 'bg-gray-50 text-gray-700 hover:bg-gray-100 font-bold border border-gray-200'"
+                                        class="p-2.5 text-xs rounded-xl transition-all text-center cursor-pointer">
+                                    Fuel / Expense
                                 </button>
-                                <button type="button" @click="claimType = 'medical'" 
-                                        :class="claimType === 'medical' ? 'bg-white text-gray-900 font-black shadow-sm' : 'text-gray-600 hover:text-gray-900 font-bold'"
-                                        class="py-2 px-2 text-[11px] rounded-xl transition-all text-center cursor-pointer">
-                                    Medical Aid
+                                <button type="button" @click="claimType = 'medical'; claimCategoryId = ''" 
+                                        :class="claimType === 'medical' ? 'bg-gray-900 text-white font-black' : 'bg-gray-50 text-gray-700 hover:bg-gray-100 font-bold border border-gray-200'"
+                                        class="p-2.5 text-xs rounded-xl transition-all text-center cursor-pointer">
+                                    Medical Outpatient
                                 </button>
-                                <button type="button" @click="claimType = 'maternity'" 
-                                        :class="claimType === 'maternity' ? 'bg-white text-gray-900 font-black shadow-sm' : 'text-gray-600 hover:text-gray-900 font-bold'"
-                                        class="py-2 px-2 text-[11px] rounded-xl transition-all text-center cursor-pointer">
-                                    Maternity
+                                <button type="button" @click="claimType = 'accident'; claimCategoryId = ''" 
+                                        :class="claimType === 'accident' ? 'bg-gray-900 text-white font-black' : 'bg-gray-50 text-gray-700 hover:bg-gray-100 font-bold border border-gray-200'"
+                                        class="p-2.5 text-xs rounded-xl transition-all text-center cursor-pointer">
+                                    Driver Relief
                                 </button>
-                                <button type="button" @click="claimType = 'accident'" 
-                                        :class="claimType === 'accident' ? 'bg-white text-gray-900 font-black shadow-sm' : 'text-gray-600 hover:text-gray-900 font-bold'"
-                                        class="py-2 px-2 text-[11px] rounded-xl transition-all text-center cursor-pointer">
-                                    Accident Aid
+                                <button type="button" @click="claimType = 'maternity'; claimCategoryId = ''" 
+                                        :class="claimType === 'maternity' ? 'bg-gray-900 text-white font-black' : 'bg-gray-50 text-gray-700 hover:bg-gray-100 font-bold border border-gray-200'"
+                                        class="p-2.5 text-xs rounded-xl transition-all text-center cursor-pointer">
+                                    Maternity RA 11210
                                 </button>
                             </div>
                         </div>
 
-                        <!-- PANEL A: GENERAL EXPENSE / FUEL / TOLL -->
-                        <template x-if="claimType === 'expense'">
-                            <div class="space-y-4">
-                                <div>
-                                    <label class="block text-xs font-bold text-gray-700 mb-1">Expense Category *</label>
-                                    <select name="category_id" x-model="claimCategoryId" required class="w-full text-xs bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-gray-800 font-bold focus:outline-none focus:border-gray-900">
-                                        <option value="">Select Category...</option>
-                                        @foreach($categories as $cat)
-                                            <option value="{{ $cat->id }}">{{ $cat->name }} ({{ ucfirst($cat->type) }})</option>
-                                        @endforeach
-                                    </select>
-                                </div>
+                        <!-- Standard Category Dropdown -->
+                        <div x-show="claimType === 'expense'">
+                            <label class="block text-xs font-bold text-gray-700 mb-1">Expense Category *</label>
+                            <select name="category_id" x-model="claimCategoryId" class="w-full text-xs bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-gray-800 font-bold focus:outline-none focus:border-gray-900">
+                                <option value="">Select Expense Category...</option>
+                                @foreach($categories as $cat)
+                                    <option value="{{ $cat->id }}">{{ $cat->name }} ({{ strtoupper($cat->tax_classification) }})</option>
+                                @endforeach
+                            </select>
+                        </div>
 
-                                <!-- If Fuel Selected: Distance & Consumption Calculator -->
-                                <div x-show="isFuelSelected" class="p-4 bg-gray-50 rounded-2xl border border-gray-200 space-y-3">
-                                    <div class="flex items-center justify-between">
-                                        <span class="text-xs font-bold text-gray-900">Driver Trip Fuel Details</span>
-                                        <span class="text-[11px] text-gray-500 font-mono">Formula: (km ÷ km/L) × Price</span>
-                                    </div>
-
-                                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                                        <div>
-                                            <label class="block text-[11px] font-bold text-gray-700 mb-1">Distance (km)</label>
-                                            <input type="number" step="0.1" name="distance_traveled_km" x-model.number="claimDistance" placeholder="e.g. 250" class="w-full text-xs bg-white border border-gray-200 rounded-xl px-3 py-1.5 font-mono font-bold text-gray-900">
-                                        </div>
-                                        <div>
-                                            <label class="block text-[11px] font-bold text-gray-700 mb-1">Efficiency (km/L)</label>
-                                            <input type="number" step="0.1" name="vehicle_fuel_efficiency_kpl" x-model.number="claimFuelEfficiency" class="w-full text-xs bg-white border border-gray-200 rounded-xl px-3 py-1.5 font-mono font-bold text-gray-900">
-                                        </div>
-                                        <div>
-                                            <label class="block text-[11px] font-bold text-gray-700 mb-1">Pump Price (PHP/L)</label>
-                                            <input type="number" step="0.01" name="fuel_pump_price" x-model.number="claimFuelPrice" class="w-full text-xs bg-white border border-gray-200 rounded-xl px-3 py-1.5 font-mono font-bold text-gray-900">
-                                        </div>
-                                    </div>
-
-                                    <div class="p-3 bg-gray-900 text-white rounded-xl flex items-center justify-between text-xs font-mono">
-                                        <span class="text-gray-300">Expected Fuel Cost:</span>
-                                        <span class="font-black text-emerald-400" x-text="claimDistance > 0 ? 'PHP ' + expectedFuelCost : 'Enter distance...'"></span>
-                                    </div>
-                                </div>
+                        <!-- Amount & Date -->
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-bold text-gray-700 mb-1">Claim Amount (PHP) *</label>
+                                <input type="number" step="0.01" min="1" name="amount" x-model="claimAmount" placeholder="e.g. 1500.00" required class="w-full text-xs bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 font-mono font-bold text-gray-900 focus:outline-none focus:border-gray-900">
                             </div>
-                        </template>
-
-                        <!-- PANEL B: MEDICAL AID WITH DE MINIMIS ANNUAL LIMIT BAR -->
-                        <template x-if="claimType === 'medical'">
-                            <div class="space-y-4">
-                                <!-- De Minimis PHP 10k Annual Cap Tracker -->
-                                <div class="p-4 bg-gray-50 rounded-2xl border border-gray-200 space-y-2 text-xs">
-                                    <div class="flex items-center justify-between">
-                                        <span class="font-bold text-gray-800">Tax-Free Medical Allowance Progress</span>
-                                        <span class="font-mono font-bold text-gray-700">PHP {{ number_format($medicalUtilized, 2) }} / PHP {{ number_format($medicalCap, 2) }}</span>
-                                    </div>
-                                    <div class="w-full h-2.5 bg-gray-200 rounded-full overflow-hidden">
-                                        <div class="h-full bg-emerald-600 rounded-full transition-all" style="width: {{ min(100, round(($medicalUtilized / max(1, $medicalCap)) * 100)) }}%"></div>
-                                    </div>
-                                    <div class="flex items-center justify-between text-[11px] text-gray-500">
-                                        <span>Annual De Minimis Cap (100% Tax-Exempt)</span>
-                                        <span class="font-bold text-emerald-700">Remaining: PHP {{ number_format(max(0, $medicalCap - $medicalUtilized), 2) }}</span>
-                                    </div>
-                                </div>
-
-                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                    <div>
-                                        <label class="block text-xs font-bold text-gray-700 mb-1">Doctor / Clinic Name *</label>
-                                        <input type="text" name="merchant_name" placeholder="e.g. St. Luke's Medical Clinic" required class="w-full text-xs bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2 text-gray-800 focus:outline-none focus:border-gray-900">
-                                    </div>
-                                    <div>
-                                        <label class="block text-xs font-bold text-gray-700 mb-1">Physician PRC License No.</label>
-                                        <input type="text" name="physician_license_no" placeholder="e.g. PRC-0189234" class="w-full text-xs bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2 font-mono text-gray-800 focus:outline-none focus:border-gray-900">
-                                    </div>
-                                </div>
+                            <div>
+                                <label class="block text-xs font-bold text-gray-700 mb-1">Expense / Invoice Date *</label>
+                                <input type="date" name="expense_date" value="{{ now()->toDateString() }}" required class="w-full text-xs bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-gray-800 font-bold focus:outline-none focus:border-gray-900">
                             </div>
-                        </template>
+                        </div>
 
-                        <!-- PANEL C: RA 11210 MATERNITY BENEFIT ADVANCE -->
-                        <template x-if="claimType === 'maternity'">
-                            <div class="space-y-4">
-                                <div>
-                                    <label class="block text-xs font-bold text-gray-700 mb-1.5">Maternity Contingency Type *</label>
-                                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                                        <button type="button" @click="maternityType = 'normal_caesarean'"
-                                                :class="maternityType === 'normal_caesarean' ? 'border-gray-900 bg-gray-900 text-white shadow-sm' : 'border-gray-200 bg-gray-50 text-gray-700'"
-                                                class="border p-2.5 rounded-xl text-left transition-all cursor-pointer">
-                                            <p class="font-bold text-xs">105-Day Birth</p>
-                                            <p class="text-[10px] opacity-80 mt-0.5">Full Pay Childbirth</p>
-                                        </button>
-                                        <button type="button" @click="maternityType = 'solo_parent'"
-                                                :class="maternityType === 'solo_parent' ? 'border-gray-900 bg-gray-900 text-white shadow-sm' : 'border-gray-200 bg-gray-50 text-gray-700'"
-                                                class="border p-2.5 rounded-xl text-left transition-all cursor-pointer">
-                                            <p class="font-bold text-xs">120-Day Solo Parent</p>
-                                            <p class="text-[10px] opacity-80 mt-0.5">+15 Days RA 8972</p>
-                                        </button>
-                                        <button type="button" @click="maternityType = 'miscarriage_emergency'"
-                                                :class="maternityType === 'miscarriage_emergency' ? 'border-gray-900 bg-gray-900 text-white shadow-sm' : 'border-gray-200 bg-gray-50 text-gray-700'"
-                                                class="border p-2.5 rounded-xl text-left transition-all cursor-pointer">
-                                            <p class="font-bold text-xs">60-Day Emergency</p>
-                                            <p class="text-[10px] opacity-80 mt-0.5">Miscarriage Care</p>
-                                        </button>
-                                    </div>
-                                    <input type="hidden" name="maternity_type" :value="maternityType">
-                                </div>
-
-                                <!-- Live RA 11210 Advance Preview Card -->
-                                <div class="p-4 bg-gray-50 rounded-2xl border border-gray-200 space-y-2.5 text-xs">
-                                    <div class="flex items-center justify-between">
-                                        <span class="font-bold text-gray-900 font-outfit">RA 11210 Employer Advance Calculation</span>
-                                        <span class="px-2 py-0.5 bg-purple-100 text-purple-800 text-[10px] font-black rounded-full" x-text="(currentMaternity.leave_days || 105) + ' Days'"></span>
-                                    </div>
-                                    <div class="grid grid-cols-2 gap-2 pt-2 border-t border-gray-200">
-                                        <div>
-                                            <p class="text-gray-500 text-[10px]">SSS Advance Share:</p>
-                                            <p class="font-bold font-mono text-gray-900" x-text="'PHP ' + Number(currentMaternity.sss_maternity_share || 0).toLocaleString('en-US', {minimumFractionDigits: 2})"></p>
-                                        </div>
-                                        <div>
-                                            <p class="text-gray-500 text-[10px]">Company Top-Up:</p>
-                                            <p class="font-bold font-mono text-emerald-700" x-text="'PHP ' + Number(currentMaternity.company_salary_differential || 0).toLocaleString('en-US', {minimumFractionDigits: 2})"></p>
-                                        </div>
-                                    </div>
-                                    <div class="pt-2 border-t border-gray-200 flex justify-between items-center">
-                                        <span class="font-bold text-gray-800">Total 100% Wage Advance:</span>
-                                        <span class="font-black font-mono text-gray-900 text-sm" x-text="'PHP ' + Number(currentMaternity.full_pay_replacement || 0).toLocaleString('en-US', {minimumFractionDigits: 2})"></span>
-                                    </div>
-                                </div>
-
-                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                    <div>
-                                        <label class="block text-xs font-bold text-gray-700 mb-1">Attending OB-GYN Doctor</label>
-                                        <input type="text" name="merchant_name" placeholder="e.g. Dr. Maria Santos, MD" class="w-full text-xs bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2 text-gray-800 focus:outline-none focus:border-gray-900">
-                                    </div>
-                                    <div>
-                                        <label class="block text-xs font-bold text-gray-700 mb-1">Doctor PRC License No. *</label>
-                                        <input type="text" name="physician_license_no" placeholder="e.g. PRC-0094123" required class="w-full text-xs bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2 font-mono text-gray-800 focus:outline-none focus:border-gray-900 font-bold">
-                                    </div>
-                                </div>
-                            </div>
-                        </template>
-
-                        <!-- PANEL D: DRIVER ACCIDENT & ROAD INCIDENT RELIEF -->
-                        <template x-if="claimType === 'accident'">
-                            <div class="space-y-4">
-                                <div class="p-3 bg-amber-50 border border-amber-200 rounded-2xl text-[11px] text-amber-900 flex items-start gap-2">
-                                    <svg class="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                        <!-- Fuel Verification Auto-Checker -->
+                        <div x-show="isFuelSelected" class="p-3.5 bg-blue-50/70 border border-blue-200 rounded-2xl space-y-3">
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs font-black text-blue-950 flex items-center gap-1.5">
+                                    <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
                                     </svg>
-                                    <p>Emergency assistance from the <strong>Driver Insurance Pool</strong> for active on-duty road incidents and emergency medical bills.</p>
-                                </div>
+                                    Gas Cost Auto-Checker
+                                </span>
+                                <span class="text-[10px] font-mono text-blue-700">Tolerance: &plusmn;{{ $fuelSettings['tolerance_pct'] ?? 15 }}%</span>
+                            </div>
 
-                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                    <div>
-                                        <label class="block text-xs font-bold text-gray-700 mb-1">Incident Location</label>
-                                        <input type="text" name="incident_location" placeholder="e.g. C5 Southbound near Ortigas" class="w-full text-xs bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2 text-gray-800 focus:outline-none focus:border-gray-900">
-                                    </div>
-                                    <div>
-                                        <label class="block text-xs font-bold text-gray-700 mb-1">Hospital / Clinic Attended</label>
-                                        <input type="text" name="hospital_name" placeholder="e.g. Medical City Emergency Room" class="w-full text-xs bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2 text-gray-800 focus:outline-none focus:border-gray-900">
-                                    </div>
+                            <div class="grid grid-cols-3 gap-2 text-xs">
+                                <div>
+                                    <label class="block text-[10px] text-gray-500 font-bold">Distance (KM) *</label>
+                                    <input type="number" step="0.1" min="0" name="distance_traveled_km" x-model="claimDistance" placeholder="180" class="w-full bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 font-mono font-bold text-gray-800">
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] text-gray-500 font-bold">Pump Price (PHP)</label>
+                                    <input type="number" step="0.1" name="fuel_pump_price" x-model="claimFuelPrice" class="w-full bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 font-mono text-gray-800">
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] text-gray-500 font-bold">Efficiency (km/L)</label>
+                                    <input type="number" step="0.1" name="vehicle_fuel_efficiency_kpl" x-model="claimFuelEfficiency" class="w-full bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 font-mono text-gray-800">
                                 </div>
                             </div>
-                        </template>
 
-                        <!-- Common Date & Description Inputs -->
-                        <div>
-                            <label class="block text-xs font-bold text-gray-700 mb-1">Expense / Incident Date *</label>
-                            <input type="date" name="expense_date" value="{{ now()->toDateString() }}" required class="w-full text-xs bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2 text-gray-800 focus:outline-none focus:border-gray-900 font-bold">
+                            <div x-show="claimDistance > 0 && claimAmount > 0" class="p-2.5 rounded-xl border text-[11px]"
+                                 :class="isWithinTolerance ? 'bg-emerald-100 border-emerald-300 text-emerald-900' : 'bg-amber-100 border-amber-300 text-amber-900'">
+                                <div class="flex justify-between font-bold">
+                                    <span x-text="isWithinTolerance ? 'Reasonable Gas Cost (Auto-Approved)' : 'Gas Cost Exceeds Expected Benchmark'"></span>
+                                    <span x-text="'Variance: ' + variancePercentage + '%'"></span>
+                                </div>
+                                <div class="text-[10px] opacity-80 mt-0.5" x-text="'Expected fuel cost: PHP ' + expectedFuelCost + ' (' + estimatedFuelLiters + ' Liters)'"></div>
+                            </div>
                         </div>
 
-                        <div>
-                            <label class="block text-xs font-bold text-gray-700 mb-1">Description / Clinical Purpose</label>
-                            <textarea name="description" rows="2" placeholder="Provide any additional notes or clinical context..." class="w-full text-xs bg-gray-50 border border-gray-200 rounded-xl p-3 text-gray-800 focus:outline-none focus:border-gray-900"></textarea>
+                        <!-- Merchant & Official Receipt No -->
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-bold text-gray-700 mb-1">Official Receipt (OR) Number *</label>
+                                <input type="text" name="receipt_number" placeholder="e.g. OR-984210" required class="w-full text-xs bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 font-mono text-gray-900 focus:outline-none focus:border-gray-900">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-gray-700 mb-1">Merchant / Vendor Name</label>
+                                <input type="text" name="merchant_name" placeholder="e.g. Petron, Mercury Drug" class="w-full text-xs bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-gray-800 focus:outline-none focus:border-gray-900">
+                            </div>
                         </div>
 
-                        <div class="flex items-center justify-between pt-3 border-t border-gray-100">
-                            <button type="button" @click="showClaimModal = false" class="text-xs font-bold text-gray-500 px-4 py-2 hover:text-gray-700">Cancel</button>
-                            <button type="button" @click="if (claimType === 'maternity' && !claimAmount) { claimAmount = currentMaternity.full_pay_replacement || 0; } claimStep = 2" class="bg-gray-900 hover:bg-black text-white font-black text-xs px-5 py-2.5 rounded-xl transition-all shadow-sm flex items-center gap-1.5 cursor-pointer">
-                                Next: Proof & Receipt
-                                <svg class="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <div class="flex justify-end pt-3 border-t border-gray-100">
+                            <button type="button" @click="claimStep = 2" class="bg-gray-900 hover:bg-black text-white font-black text-xs px-6 py-2.5 rounded-xl transition-all shadow-sm flex items-center gap-1.5 cursor-pointer">
+                                Next: Upload Proof
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
                                 </svg>
                             </button>
                         </div>
                     </div>
 
-                    <!-- STEP 2: Receipt & File Dropzone -->
+                    <!-- STEP 2: PROOF & RECEIPT DROPZONE -->
                     <div x-show="claimStep === 2" class="space-y-4">
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <div>
-                                <label class="block text-xs font-bold text-gray-700 mb-1">Receipt / Reference No. *</label>
-                                <input type="text" name="receipt_number" required placeholder="e.g. OR-2026-9042 or MAT-1-REF" class="w-full text-xs bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2 font-mono text-gray-800 font-bold focus:outline-none focus:border-gray-900">
-                            </div>
-                            <div>
-                                <label class="block text-xs font-bold text-gray-700 mb-1">Claim Amount (PHP) *</label>
-                                <input type="number" step="0.01" min="0.01" name="amount" x-model.number="claimAmount" required placeholder="e.g. 1500.00" class="w-full text-xs bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2 font-mono font-black text-gray-900 text-sm focus:outline-none focus:border-gray-900">
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 mb-1.5">Upload Official Receipt or Medical Slip *</label>
+                            
+                            <!-- Drag & Drop Dropzone -->
+                            <div @dragover.prevent="" @drop.prevent="handleReceiptUpload($event)"
+                                 class="border-2 border-dashed border-gray-300 hover:border-gray-900 bg-gray-50/50 rounded-2xl p-6 text-center cursor-pointer transition-all relative">
+                                <input type="file" name="receipt_file" x-ref="receiptInput" @change="handleReceiptUpload($event)" accept="image/*,.pdf" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+                                
+                                <div x-show="!receiptFileName" class="space-y-2">
+                                    <div class="w-10 h-10 rounded-2xl bg-gray-200 text-gray-600 flex items-center justify-center mx-auto">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+                                        </svg>
+                                    </div>
+                                    <p class="text-xs font-black text-gray-800">Drag & Drop Receipt Here, or <span class="text-blue-600 underline">Browse</span></p>
+                                    <p class="text-[10px] text-gray-400">Supports JPG, PNG, PDF receipts up to 10MB</p>
+                                </div>
+
+                                <div x-show="receiptFileName" class="space-y-3">
+                                    <div class="flex items-center justify-center gap-2">
+                                        <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                                        </svg>
+                                        <span class="text-xs font-bold text-gray-900" x-text="receiptFileName"></span>
+                                        <span class="text-[10px] text-gray-400 font-mono" x-text="'(' + receiptFileSize + ')'"></span>
+                                        <button type="button" @click.stop="clearReceipt()" class="text-rose-600 hover:text-rose-800 font-bold text-xs ml-2 cursor-pointer">&times; Remove</button>
+                                    </div>
+                                    <template x-if="receiptPreview">
+                                        <img :src="receiptPreview" class="max-h-36 mx-auto rounded-xl border border-gray-200 shadow-sm">
+                                    </template>
+                                </div>
                             </div>
                         </div>
 
-                        <!-- Drag and Drop Receipt Box with Live Visual Thumbnail -->
                         <div>
-                            <label class="block text-xs font-bold text-gray-700 mb-1">
-                                <span x-show="claimType === 'maternity'">Attach SSS Mat-1 Notice / Doctor Medical Certificate *</span>
-                                <span x-show="claimType === 'accident'">Attach Police Blotter / Repair / Hospital Bill *</span>
-                                <span x-show="claimType !== 'maternity' && claimType !== 'accident'">Attach Official Receipt Photo or PDF *</span>
-                            </label>
-                            
-                            <div class="border-2 border-dashed border-gray-200 hover:border-gray-400 rounded-2xl p-4 text-center bg-gray-50 transition-all relative"
-                                 @dragover.prevent=""
-                                 @drop.prevent="handleReceiptUpload($event)">
-                                <input type="file" name="receipt_file" x-ref="receiptInput" @change="handleReceiptUpload($event)" accept="image/*,.pdf" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
-                                
-                                <template x-if="!receiptPreview && !receiptFileName">
-                                    <div class="space-y-1.5 py-3">
-                                        <div class="w-10 h-10 mx-auto rounded-full bg-gray-200 text-gray-600 flex items-center justify-center">
-                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-                                            </svg>
-                                        </div>
-                                        <p class="text-xs font-bold text-gray-800">Drag and drop your supporting document here, or browse</p>
-                                        <p class="text-[10px] text-gray-400">Supports JPG, PNG, and PDF (Max 10 MB)</p>
-                                    </div>
-                                </template>
-
-                                <!-- Visual Thumbnail Preview -->
-                                <template x-if="receiptPreview || receiptFileName">
-                                    <div class="flex items-center gap-3 text-left p-2 bg-white rounded-xl border border-gray-200">
-                                        <template x-if="receiptPreview">
-                                            <img :src="receiptPreview" alt="Receipt Preview" class="w-14 h-14 object-cover rounded-lg border border-gray-200 shadow-xs flex-shrink-0">
-                                        </template>
-                                        <template x-if="!receiptPreview">
-                                            <div class="w-14 h-14 bg-gray-900 text-white rounded-lg flex items-center justify-center font-mono font-bold text-xs flex-shrink-0">PDF</div>
-                                        </template>
-                                        <div class="flex-1 min-w-0">
-                                            <p class="text-xs font-bold text-gray-900 truncate" x-text="receiptFileName"></p>
-                                            <p class="text-[10px] text-gray-400" x-text="receiptFileSize"></p>
-                                            <span class="inline-block mt-0.5 px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[9px] font-black rounded-full">Ready for Upload</span>
-                                        </div>
-                                        <button type="button" @click.stop="clearReceipt()" class="text-xs font-bold text-rose-600 hover:text-rose-800 p-2 cursor-pointer">Remove</button>
-                                    </div>
-                                </template>
-                            </div>
+                            <label class="block text-xs font-bold text-gray-700 mb-1">Claim Justification / Remarks</label>
+                            <textarea name="description" rows="2" placeholder="Briefly describe the business purpose of this expense..." class="w-full text-xs bg-gray-50 border border-gray-200 rounded-xl p-3 text-gray-800 focus:outline-none focus:border-gray-900"></textarea>
                         </div>
 
                         <div class="flex items-center justify-between pt-3 border-t border-gray-100">
@@ -1115,75 +780,34 @@
                                 </svg>
                                 Back
                             </button>
-                            <button type="button" @click="claimStep = 3" class="bg-gray-900 hover:bg-black text-white font-black text-xs px-5 py-2.5 rounded-xl transition-all shadow-sm flex items-center gap-1.5 cursor-pointer">
+                            <button type="button" @click="claimStep = 3" class="bg-gray-900 hover:bg-black text-white font-black text-xs px-6 py-2.5 rounded-xl transition-all shadow-sm flex items-center gap-1.5 cursor-pointer">
                                 Next: Live Review
-                                <svg class="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
                                 </svg>
                             </button>
                         </div>
                     </div>
 
-                    <!-- STEP 3: Live Review & Submission -->
+                    <!-- STEP 3: LIVE REVIEW & FINAL SUBMISSION -->
                     <div x-show="claimStep === 3" class="space-y-4">
-                        <div class="p-4 bg-gray-50 rounded-2xl border border-gray-200 space-y-3 text-xs">
-                            <h4 class="font-black text-gray-900 border-b border-gray-200 pb-2">Claim Summary Breakdown</h4>
-
+                        <div class="p-4 bg-gray-50 rounded-2xl border border-gray-200 space-y-2 text-xs">
                             <div class="flex justify-between">
-                                <span class="text-gray-500">Employee:</span>
+                                <span class="text-gray-500">Claimant:</span>
                                 <span class="font-bold text-gray-900">{{ $selectedEmployee->first_name }} {{ $selectedEmployee->last_name }}</span>
                             </div>
-
                             <div class="flex justify-between">
-                                <span class="text-gray-500">Total Claimed Amount:</span>
-                                <span class="font-black text-base font-mono text-gray-900" x-text="claimAmount ? 'PHP ' + parseFloat(claimAmount).toLocaleString('en-US', { minimumFractionDigits: 2 }) : 'PHP 0.00'"></span>
+                                <span class="text-gray-500">Claim Type:</span>
+                                <span class="font-black uppercase text-indigo-700" x-text="claimType"></span>
                             </div>
-
-                            <!-- Live Medical Breakdown -->
-                            <template x-if="claimType === 'medical'">
-                                <div class="pt-2 border-t border-gray-200 space-y-2">
-                                    <div class="flex justify-between">
-                                        <span class="text-gray-500">Non-Taxable Portion:</span>
-                                        <span class="font-bold text-emerald-700 font-mono" x-text="'PHP ' + Number(medicalNonTaxable).toLocaleString('en-US', {minimumFractionDigits: 2})"></span>
-                                    </div>
-                                    <template x-if="parseFloat(medicalTaxable) > 0">
-                                        <div class="flex justify-between">
-                                            <span class="text-gray-500">Taxable Portion (Over Cap):</span>
-                                            <span class="font-bold text-indigo-700 font-mono" x-text="'PHP ' + Number(medicalTaxable).toLocaleString('en-US', {minimumFractionDigits: 2})"></span>
-                                        </div>
-                                    </template>
-                                </div>
-                            </template>
-
-                            <!-- Live Maternity Breakdown -->
-                            <template x-if="claimType === 'maternity'">
-                                <div class="pt-2 border-t border-gray-200 space-y-2">
-                                    <div class="flex justify-between">
-                                        <span class="text-gray-500">SSS Advance Share:</span>
-                                        <span class="font-bold text-gray-900 font-mono" x-text="'PHP ' + Number(currentMaternity.sss_maternity_share || 0).toLocaleString('en-US', {minimumFractionDigits: 2})"></span>
-                                    </div>
-                                    <div class="flex justify-between">
-                                        <span class="text-gray-500">Company Top-Up:</span>
-                                        <span class="font-bold text-emerald-700 font-mono" x-text="'PHP ' + Number(currentMaternity.company_salary_differential || 0).toLocaleString('en-US', {minimumFractionDigits: 2})"></span>
-                                    </div>
-                                </div>
-                            </template>
-
-                            <!-- Live Fuel Breakdown -->
-                            <template x-if="claimType === 'expense' && isFuelSelected">
-                                <div class="pt-2 border-t border-gray-200 space-y-2">
-                                    <div class="flex justify-between">
-                                        <span class="text-gray-500">Gas Cost Checker:</span>
-                                        <span class="font-bold font-mono" x-text="'Expected PHP ' + expectedFuelCost + ' (' + claimDistance + ' km)'"></span>
-                                    </div>
-                                    <div class="flex justify-between items-center">
-                                        <span class="text-gray-500">Variance Check:</span>
-                                        <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black"
-                                              :class="isWithinTolerance ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'"
-                                              x-text="isWithinTolerance ? 'Auto-Verified (Variance: ' + (variancePercentage >= 0 ? '+' : '') + variancePercentage + '%)' : 'Needs HR Review (Variance: +' + variancePercentage + '%)'"></span>
-                                    </div>
-                                </div>
-                            </template>
+                            <div class="flex justify-between">
+                                <span class="text-gray-500">Total Filing Amount:</span>
+                                <span class="font-black font-outfit text-sm text-gray-900" x-text="'PHP ' + (parseFloat(claimAmount || 0)).toLocaleString('en-US', {minimumFractionDigits: 2})"></span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-500">Attached Receipt:</span>
+                                <span class="font-mono text-emerald-700" x-text="receiptFileName || 'No file attached'"></span>
+                            </div>
                         </div>
 
                         <div class="p-3 bg-blue-50 border border-blue-200 rounded-xl text-[11px] text-blue-900 flex items-start gap-2">
@@ -1207,240 +831,6 @@
                                 Submit Claim to HR
                             </button>
                         </div>
-                    </div>
-                </form>
-            </div>
-        </div>
-
-        <!-- ========================================================================= -->
-        <!-- MODAL: EMERGENCY HOSPITAL LETTER OF AUTHORIZATION (LOA) REQUEST -->
-        <!-- ========================================================================= -->
-        <div x-show="showLoaModal" x-cloak class="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-            <div @click.away="showLoaModal = false" class="bg-white rounded-3xl shadow-2xl w-full max-w-xl p-6 space-y-4 max-h-[90vh] overflow-y-auto border border-gray-100">
-                <div class="flex items-center justify-between border-b border-gray-100 pb-3">
-                    <div class="flex items-center gap-2">
-                        <span class="w-3 h-3 rounded-full bg-rose-500 animate-ping"></span>
-                        <div>
-                            <h2 class="text-base font-black font-outfit text-gray-900">Request Emergency Hospital LOA</h2>
-                            <p class="text-xs text-gray-400 mt-0.5">Instant cashless hospitalization & emergency specialist authorization</p>
-                        </div>
-                    </div>
-                    <button @click="showLoaModal = false" type="button" class="text-gray-400 hover:text-gray-600 text-lg cursor-pointer">&times;</button>
-                </div>
-
-                <div class="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl text-xs text-rose-900 space-y-1">
-                    <p class="font-bold">Emergency 24/7 Hospital Admission Guide</p>
-                    <p class="text-[11px] opacity-90">Upon submission, an automated Letter of Authorization (LOA) is generated and transmitted to the accredited hospital's HMO billing department.</p>
-                </div>
-
-                <form action="{{ route('ess.loa.request') }}" method="POST" enctype="multipart/form-data" class="space-y-4">
-                    @csrf
-                    <input type="hidden" name="employee_id" value="{{ $selectedEmployee->id }}">
-
-                    <!-- Patient Selector: Self vs Dependent -->
-                    <div>
-                        <label class="block text-xs font-bold text-gray-700 mb-1.5">Who is the Patient? *</label>
-                        <div class="grid grid-cols-2 gap-2 bg-gray-100 p-1 rounded-2xl">
-                            <button type="button" @click="patientType = 'employee'"
-                                    :class="patientType === 'employee' ? 'bg-white text-gray-900 font-black shadow-sm' : 'text-gray-600 hover:text-gray-900 font-bold'"
-                                    class="py-2 text-xs rounded-xl transition-all text-center cursor-pointer">
-                                Myself (Employee)
-                            </button>
-                            <button type="button" @click="patientType = 'dependent'"
-                                    :class="patientType === 'dependent' ? 'bg-white text-gray-900 font-black shadow-sm' : 'text-gray-600 hover:text-gray-900 font-bold'"
-                                    class="py-2 text-xs rounded-xl transition-all text-center cursor-pointer">
-                                Enrolled Family Dependent
-                            </button>
-                        </div>
-                        <input type="hidden" name="patient_type" :value="patientType">
-                    </div>
-
-                    <!-- Dependent Selector if dependent chosen -->
-                    <div x-show="patientType === 'dependent'" class="p-3 bg-gray-50 rounded-2xl border border-gray-200">
-                        <label class="block text-xs font-bold text-gray-700 mb-1">Select Enrolled Dependent *</label>
-                        @if($hmo && $hmo->dependents->isNotEmpty())
-                            <select name="dependent_id" class="w-full text-xs bg-white border border-gray-200 rounded-xl px-3.5 py-2 font-bold text-gray-800 focus:outline-none focus:border-gray-900">
-                                @foreach($hmo->dependents as $dep)
-                                    <option value="{{ $dep->id }}">{{ $dep->full_name }} ({{ $dep->relationship }})</option>
-                                @endforeach
-                            </select>
-                        @else
-                            <p class="text-xs text-amber-700 font-bold">No verified dependents found under your policy. Please enroll your dependent first.</p>
-                        @endif
-                    </div>
-
-                    <!-- Hospital / Facility Selection -->
-                    <div>
-                        <label class="block text-xs font-bold text-gray-700 mb-1">Accredited Hospital / Medical Center *</label>
-                        <select name="hospital_name" required class="w-full text-xs bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2 text-gray-800 font-bold focus:outline-none focus:border-gray-900">
-                            <option value="">Select Accredited Hospital...</option>
-                            @foreach($accreditedFacilities as $facility)
-                                <option value="{{ $facility->name }}">{{ $facility->name }} ({{ $facility->region }})</option>
-                            @endforeach
-                            <option value="St. Luke's Medical Center - Global City">St. Luke's Medical Center - Global City</option>
-                            <option value="Makati Medical Center">Makati Medical Center</option>
-                            <option value="The Medical City - Ortigas">The Medical City - Ortigas</option>
-                            <option value="Cardinal Santos Medical Center">Cardinal Santos Medical Center</option>
-                        </select>
-                    </div>
-
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div>
-                            <label class="block text-xs font-bold text-gray-700 mb-1">Attending Physician / Specialist</label>
-                            <input type="text" name="attending_physician" placeholder="e.g. Dr. Roberto Tan, MD" class="w-full text-xs bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2 text-gray-800 focus:outline-none focus:border-gray-900">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-bold text-gray-700 mb-1">Estimated Hospital Cost (PHP)</label>
-                            <input type="number" step="0.01" name="estimated_amount" placeholder="e.g. 25000.00" class="w-full text-xs bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2 font-mono text-gray-800 focus:outline-none focus:border-gray-900">
-                        </div>
-                    </div>
-
-                    <div>
-                        <label class="block text-xs font-bold text-gray-700 mb-1">Chief Complaint / Admitting Diagnosis *</label>
-                        <textarea name="diagnosis" rows="2" required placeholder="Describe symptoms, reason for hospital ER admission, or doctor diagnosis..." class="w-full text-xs bg-gray-50 border border-gray-200 rounded-xl p-3 text-gray-800 focus:outline-none focus:border-gray-900"></textarea>
-                    </div>
-
-                    <div>
-                        <label class="block text-xs font-bold text-gray-700 mb-1">Attach Doctor Order / ER Admission Slip (Optional)</label>
-                        <input type="file" name="doctor_order_file" accept="image/*,.pdf" class="w-full text-xs bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2 text-gray-700">
-                    </div>
-
-                    <div class="flex items-center justify-between pt-3 border-t border-gray-100">
-                        <button @click="showLoaModal = false" type="button" class="text-xs font-bold text-gray-500 px-4 py-2 hover:text-gray-700">Cancel</button>
-                        <button type="submit" class="bg-rose-600 hover:bg-rose-700 text-white font-black text-xs px-6 py-2.5 rounded-xl transition-all shadow-sm cursor-pointer">
-                            Generate & Transmit Emergency LOA
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
-
-        <!-- ========================================================================= -->
-        <!-- MODAL: ANNUAL PHYSICAL EXAM (APE) CLINIC APPOINTMENT SCHEDULER -->
-        <!-- ========================================================================= -->
-        <div x-show="showApeModal" x-cloak class="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-            <div @click.away="showApeModal = false" class="bg-white rounded-3xl shadow-2xl w-full max-w-lg p-6 space-y-4 max-h-[90vh] overflow-y-auto border border-gray-100">
-                <div class="flex items-center justify-between border-b border-gray-100 pb-3">
-                    <div>
-                        <h2 class="text-base font-black font-outfit text-gray-900">Book Annual Physical Exam (APE)</h2>
-                        <p class="text-xs text-gray-400 mt-0.5">Select your preferred accredited diagnostic clinic and appointment schedule</p>
-                    </div>
-                    <button @click="showApeModal = false" type="button" class="text-gray-400 hover:text-gray-600 text-lg cursor-pointer">&times;</button>
-                </div>
-
-                <form action="{{ route('ess.ape.schedule') }}" method="POST" class="space-y-4">
-                    @csrf
-                    <input type="hidden" name="employee_id" value="{{ $selectedEmployee->id }}">
-
-                    <div>
-                        <label class="block text-xs font-bold text-gray-700 mb-1">Diagnostic Facility / Clinic *</label>
-                        <select name="facility_name" required class="w-full text-xs bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2 text-gray-800 font-bold focus:outline-none focus:border-gray-900">
-                            <option value="St. Luke's Medical Center - BGC">St. Luke's Medical Center - BGC (Global City)</option>
-                            <option value="Makati Medical Center HealthHub">Makati Medical Center HealthHub</option>
-                            <option value="The Medical City - Diagnostic Center Ortigas">The Medical City - Diagnostic Center Ortigas</option>
-                            <option value="Hi-Precision Diagnostics Plus - Megamall">Hi-Precision Diagnostics Plus - Megamall</option>
-                            <option value="MyHealth Clinic - BGC Branch">MyHealth Clinic - BGC Branch</option>
-                        </select>
-                    </div>
-
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div>
-                            <label class="block text-xs font-bold text-gray-700 mb-1">Appointment Date *</label>
-                            <input type="date" name="schedule_date" value="{{ now()->addDays(3)->toDateString() }}" required class="w-full text-xs bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2 text-gray-800 font-bold focus:outline-none focus:border-gray-900">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-bold text-gray-700 mb-1">Time Slot *</label>
-                            <select name="time_slot" required class="w-full text-xs bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2 text-gray-800 font-bold focus:outline-none focus:border-gray-900">
-                                <option value="07:00 AM - 09:00 AM">07:00 AM - 09:00 AM (Fasting)</option>
-                                <option value="09:00 AM - 11:00 AM">09:00 AM - 11:00 AM (Morning)</option>
-                                <option value="01:00 PM - 03:00 PM">01:00 PM - 03:00 PM (Afternoon)</option>
-                                <option value="03:00 PM - 05:00 PM">03:00 PM - 05:00 PM (Late Afternoon)</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div class="p-3 bg-blue-50 border border-blue-200 rounded-2xl text-[11px] text-blue-900 space-y-1">
-                        <p class="font-bold">Reminders for Examination Day:</p>
-                        <p>1. Fast for 8 to 10 hours prior to your scheduled blood extraction.</p>
-                        <p>2. Present your company ID and Digital HMO QR code upon arrival at the triage desk.</p>
-                    </div>
-
-                    <div class="flex items-center justify-between pt-3 border-t border-gray-100">
-                        <button @click="showApeModal = false" type="button" class="text-xs font-bold text-gray-500 px-4 py-2 hover:text-gray-700">Cancel</button>
-                        <button type="submit" class="bg-gray-900 hover:bg-black text-white font-black text-xs px-5 py-2.5 rounded-xl transition-all shadow-sm cursor-pointer">
-                            Confirm Appointment
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
-
-        <!-- ========================================================================= -->
-        <!-- MODAL: GROUP LIFE INSURANCE BENEFICIARY DESIGNATION -->
-        <!-- ========================================================================= -->
-        <div x-show="showBeneficiaryModal" x-cloak class="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-            <div @click.away="showBeneficiaryModal = false" class="bg-white rounded-3xl shadow-2xl w-full max-w-lg p-6 space-y-4 max-h-[90vh] overflow-y-auto border border-gray-100">
-                <div class="flex items-center justify-between border-b border-gray-100 pb-3">
-                    <div>
-                        <h2 class="text-base font-black font-outfit text-gray-900">Designate Life Insurance Beneficiaries</h2>
-                        <p class="text-xs text-gray-400 mt-0.5">Assign primary and secondary beneficiaries for corporate life coverage</p>
-                    </div>
-                    <button @click="showBeneficiaryModal = false" type="button" class="text-gray-400 hover:text-gray-600 text-lg cursor-pointer">&times;</button>
-                </div>
-
-                <div class="p-3 bg-purple-50 border border-purple-100 rounded-2xl text-xs space-y-1">
-                    <span class="font-bold text-purple-900">Active Sum Assured: PHP {{ number_format((float)($groupLife->sum_assured ?? 500000.00), 2) }}</span>
-                    <p class="text-[11px] text-purple-700">100% company-subsidized Group Term Life with Accidental Death & Dismemberment (AD&D) rider.</p>
-                </div>
-
-                <form action="{{ route('ess.life.beneficiaries') }}" method="POST" class="space-y-4">
-                    @csrf
-                    <input type="hidden" name="employee_id" value="{{ $selectedEmployee->id }}">
-
-                    <div class="space-y-3">
-                        <h4 class="text-xs font-black text-gray-900 uppercase tracking-wider">Primary Beneficiary (100% Allocation) *</h4>
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                            <div>
-                                <label class="block text-[11px] font-bold text-gray-700 mb-1">Full Legal Name *</label>
-                                <input type="text" name="beneficiary_primary_name" value="{{ $groupLife->beneficiary_primary_name ?? '' }}" required placeholder="e.g. Maria Montes" class="w-full text-xs bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2 text-gray-800 font-bold focus:outline-none focus:border-gray-900">
-                            </div>
-                            <div>
-                                <label class="block text-[11px] font-bold text-gray-700 mb-1">Relationship *</label>
-                                <select name="beneficiary_primary_relation" required class="w-full text-xs bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2 text-gray-800 font-bold focus:outline-none focus:border-gray-900">
-                                    <option value="Spouse" {{ ($groupLife->beneficiary_primary_relation ?? '') === 'Spouse' ? 'selected' : '' }}>Spouse</option>
-                                    <option value="Child" {{ ($groupLife->beneficiary_primary_relation ?? '') === 'Child' ? 'selected' : '' }}>Child</option>
-                                    <option value="Mother" {{ ($groupLife->beneficiary_primary_relation ?? '') === 'Mother' ? 'selected' : '' }}>Mother</option>
-                                    <option value="Father" {{ ($groupLife->beneficiary_primary_relation ?? '') === 'Father' ? 'selected' : '' }}>Father</option>
-                                    <option value="Sibling" {{ ($groupLife->beneficiary_primary_relation ?? '') === 'Sibling' ? 'selected' : '' }}>Sibling</option>
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="space-y-3 pt-2 border-t border-gray-100">
-                        <h4 class="text-xs font-black text-gray-900 uppercase tracking-wider">Secondary / Contingent Beneficiary (Optional)</h4>
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                            <div>
-                                <label class="block text-[11px] font-bold text-gray-700 mb-1">Full Legal Name</label>
-                                <input type="text" name="beneficiary_secondary_name" value="{{ $groupLife->beneficiary_secondary_name ?? '' }}" placeholder="e.g. Juan Montes Jr." class="w-full text-xs bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2 text-gray-800 font-bold focus:outline-none focus:border-gray-900">
-                            </div>
-                            <div>
-                                <label class="block text-[11px] font-bold text-gray-700 mb-1">Relationship</label>
-                                <select name="beneficiary_secondary_relation" class="w-full text-xs bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2 text-gray-800 font-bold focus:outline-none focus:border-gray-900">
-                                    <option value="">None</option>
-                                    <option value="Child" {{ ($groupLife->beneficiary_secondary_relation ?? '') === 'Child' ? 'selected' : '' }}>Child</option>
-                                    <option value="Spouse" {{ ($groupLife->beneficiary_secondary_relation ?? '') === 'Spouse' ? 'selected' : '' }}>Spouse</option>
-                                    <option value="Sibling" {{ ($groupLife->beneficiary_secondary_relation ?? '') === 'Sibling' ? 'selected' : '' }}>Sibling</option>
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="flex items-center justify-between pt-3 border-t border-gray-100">
-                        <button @click="showBeneficiaryModal = false" type="button" class="text-xs font-bold text-gray-500 px-4 py-2 hover:text-gray-700">Cancel</button>
-                        <button type="submit" class="bg-gray-900 hover:bg-black text-white font-black text-xs px-5 py-2.5 rounded-xl transition-all shadow-sm cursor-pointer">
-                            Save Beneficiaries
-                        </button>
                     </div>
                 </form>
             </div>

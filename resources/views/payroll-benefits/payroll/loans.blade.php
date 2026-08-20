@@ -90,6 +90,7 @@
                         <option value="hdmf_multi_purpose_loan" {{ $type === 'hdmf_multi_purpose_loan' ? 'selected' : '' }}>Pag-IBIG Multi-Purpose Loan</option>
                         <option value="hdmf_housing_loan" {{ $type === 'hdmf_housing_loan' ? 'selected' : '' }}>Pag-IBIG Housing Loan</option>
                         <option value="company_emergency_loan" {{ $type === 'company_emergency_loan' ? 'selected' : '' }}>Company Emergency Advance</option>
+                        <option value="cash_advance" {{ $type === 'cash_advance' ? 'selected' : '' }}>Cash Advance</option>
                     </select>
 
                     <select name="status" onchange="this.form.submit()" 
@@ -141,7 +142,8 @@
                                     <span class="px-2.5 py-1 rounded-lg text-xs font-bold
                                         {{ str_starts_with($loan->loan_type, 'sss') ? 'bg-blue-50 text-blue-800 border border-blue-200' : '' }}
                                         {{ str_starts_with($loan->loan_type, 'hdmf') ? 'bg-amber-50 text-amber-800 border border-amber-200' : '' }}
-                                        {{ $loan->loan_type === 'company_emergency_loan' ? 'bg-purple-50 text-purple-800 border border-purple-200' : '' }}">
+                                        {{ $loan->loan_type === 'company_emergency_loan' ? 'bg-purple-50 text-purple-800 border border-purple-200' : '' }}
+                                        {{ $loan->loan_type === 'cash_advance' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : '' }}">
                                         {{ $loan->loan_type_label }}
                                     </span>
                                 </td>
@@ -258,6 +260,7 @@
                                 <option value="hdmf_multi_purpose_loan">Pag-IBIG Multi-Purpose Loan (MPL)</option>
                                 <option value="hdmf_housing_loan">Pag-IBIG Housing Loan</option>
                                 <option value="company_emergency_loan">Company Emergency Cash Advance</option>
+                                <option value="cash_advance">Cash Advance (Emergency / Short-Term)</option>
                             </select>
                         </div>
                     </div>

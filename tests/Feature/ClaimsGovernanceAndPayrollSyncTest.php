@@ -61,21 +61,16 @@ test('ClaimGovernanceWorkflowService executes 4-tier sequential approval workflo
         'tax_classification' => 'non_taxable',
         'expense_date' => '2026-07-01',
         'cutoff_period' => '2026-07-01_15',
-        'approval_status' => 'pending',
+        'approval_status' => 'pending_hr',
         'status' => 'pending',
     ]);
 
-    // 1. Supervisor Review
-    $service->approveSupervisor($claim, null, 'Supervisor initial check ok.');
-    expect($claim->fresh()->approval_status)->toBe('pending_hr')
-        ->and($claim->fresh()->supervisor_approved_at)->not->toBeNull();
-
-    // 2. HR Validation
+    // 1. HR Validation
     $service->approveHR($claim, null, 'HR verified receipt.');
     expect($claim->fresh()->approval_status)->toBe('pending_admin')
         ->and($claim->fresh()->hr_approved_at)->not->toBeNull();
 
-    // 3. Admin Review & Authorization
+    // 2. Admin Review & Authorization
     $service->approveAdmin($claim, null, 'Executive authorized.');
     expect($claim->fresh()->approval_status)->toBe('pending_finance')
         ->and($claim->fresh()->admin_approved_at)->not->toBeNull();
@@ -238,7 +233,7 @@ test('ClaimsPayrollSyncService updates SalaryComputation with non-taxable reimbu
 
     $computation = SalaryComputation::where('employee_id', $this->employee->id)->where('cutoff_period', '2026-07-01_15')->first();
     expect((float) $computation->reimbursements)->toBe(4000.00)
-        ->and((float) $computation->net_pay)->toBe(24500.00); // 22,500 gross - 2,000 ded + 4,000 reimb
+        ->and((float) $computation->net_pay)->toBe(20500.00); // 22,500 gross - 2,000 ded (reimbursements 4,000 paid via cashier voucher)
 });
 
 test('Decommissioned document archive route /claims/archive returns 404', function () {

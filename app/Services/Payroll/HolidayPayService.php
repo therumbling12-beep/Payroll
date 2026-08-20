@@ -98,12 +98,18 @@ class HolidayPayService
     {
         if (str_contains($cutoffPeriod, '_')) {
             [$startPart, $endDay] = explode('_', $cutoffPeriod);
-            $yearMonth = substr($startPart, 0, 7);
-            $endDate = "{$yearMonth}-" . str_pad($endDay, 2, '0', STR_PAD_LEFT);
+            $startDate = Carbon::parse($startPart);
+            $startDayInt = (int) $startDate->format('d');
+            $endDayInt = (int) $endDay;
+
+            // If end day number is smaller than start day, cutoff spans across month boundary (e.g. Aug 27 to Sep 02)
+            $endDate = ($endDayInt < $startDayInt)
+                ? $startDate->copy()->addMonth()->format('Y-m') . '-' . str_pad($endDay, 2, '0', STR_PAD_LEFT)
+                : $startDate->format('Y-m') . '-' . str_pad($endDay, 2, '0', STR_PAD_LEFT);
 
             return ['start' => $startPart, 'end' => $endDate];
         }
 
-        return ['start' => '2026-07-01', 'end' => '2026-07-15'];
+        return ['start' => '2026-08-06', 'end' => '2026-08-12'];
     }
 }

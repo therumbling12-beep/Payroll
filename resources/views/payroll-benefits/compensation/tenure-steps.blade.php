@@ -256,7 +256,7 @@
                                             {{ $step->years_required }} Years Continuous Service
                                         </td>
                                         <td class="py-4 px-4 text-right font-black font-outfit text-gray-900 text-sm">
-                                            ₱{{ number_format((float)$step->salary_amount, 2) }}
+                                            ₱{{ number_format((float)$step->step_salary, 2) }}
                                         </td>
                                         <td class="py-4 px-4 text-right font-mono font-bold text-emerald-700 text-xs">
                                             +{{ number_format((float)$grade->annual_growth_rate, 1) }}% statutory step
@@ -315,11 +315,13 @@
             <div @click.away="applyModalOpen = false" class="bg-white rounded-2xl border border-gray-200 max-w-md w-full p-6 shadow-2xl space-y-4">
                 <div class="flex items-center justify-between border-b border-gray-100 pb-3">
                     <h3 class="text-base font-black font-outfit text-gray-900">Approve Tenure Step Increment</h3>
-                    <button type="button" @click="applyModalOpen = false" class="text-gray-400 hover:text-gray-600 text-sm font-bold">✕</button>
+                    <button type="button" @click="applyModalOpen = false" class="text-gray-400 hover:text-gray-600 transition-colors">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    </button>
                 </div>
 
                 <template x-if="activeCandidate">
-                    <form :action="'{{ url('/compensation/tenure-steps') }}/' + activeCandidate.employee.id + '/apply'" method="POST" class="space-y-4">
+                    <form :action="'{{ route('compensation.tenure-steps.apply', ['employee' => '__ID__']) }}'.replace('__ID__', activeCandidate.employee.id)" method="POST" class="space-y-4">
                         @csrf
                         <input type="hidden" name="target_step" :value="activeCandidate.target_step || activeCandidate.next_step || (activeCandidate.current_step + 1)">
                         <input type="hidden" name="new_rate" :value="activeCandidate.projected_salary">
@@ -360,11 +362,13 @@
             <div @click.away="holdModalOpen = false" class="bg-white rounded-2xl border border-gray-200 max-w-md w-full p-6 shadow-2xl space-y-4">
                 <div class="flex items-center justify-between border-b border-gray-100 pb-3">
                     <h3 class="text-base font-black font-outfit text-gray-900">Withhold Step Increment</h3>
-                    <button type="button" @click="holdModalOpen = false" class="text-gray-400 hover:text-gray-600 text-sm font-bold">✕</button>
+                    <button type="button" @click="holdModalOpen = false" class="text-gray-400 hover:text-gray-600 transition-colors">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    </button>
                 </div>
 
                 <template x-if="activeCandidate">
-                    <form :action="'{{ url('/compensation/tenure-steps') }}/' + activeCandidate.employee.id + '/hold'" method="POST" class="space-y-4">
+                    <form :action="'{{ route('compensation.tenure-steps.hold', ['employee' => '__ID__']) }}'.replace('__ID__', activeCandidate.employee.id)" method="POST" class="space-y-4">
                         @csrf
                         <div>
                             <label class="block text-xs font-bold text-gray-700 mb-1">Reason for Step Hold</label>

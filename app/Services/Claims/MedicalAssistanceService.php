@@ -14,9 +14,14 @@ use Illuminate\Support\Facades\DB;
 
 class MedicalAssistanceService
 {
+    protected DuplicateClaimDetectionService $duplicateService;
+
     public function __construct(
-        protected ClaimTaxabilityService $taxabilityService
-    ) {}
+        protected ClaimTaxabilityService $taxabilityService,
+        ?DuplicateClaimDetectionService $duplicateService = null
+    ) {
+        $this->duplicateService = $duplicateService ?? app(DuplicateClaimDetectionService::class);
+    }
 
     /**
      * File an internal employee medical assistance claim and apply the BIR TRAIN Law PHP 10,000 de minimis cap
@@ -31,21 +36,23 @@ class MedicalAssistanceService
             ? (int) Carbon::parse($data['expense_date'])->year
             : (int) Carbon::now()->year;
 
-        $category = ClaimCategory::where('code', 'CAT-MED')->first()
-            ?: ClaimCategory::firstOrCreate(
-                ['code' => 'CAT-MED'],
-                [
-                    'name' => 'Medical Assistance',
-                    'type' => 'reimbursement',
-                    'tax_classification' => 'de_minimis',
-                    'color_tag' => 'emerald',
-                    'max_amount' => 15000.00,
-                    'de_minimis_annual_cap' => 10000.00,
-                    'is_active' => true,
-                    'applicable_to' => 'all',
-                    'description' => 'Out-of-pocket medical, dental, and prescription expenses (PHP 10k/yr de minimis cap).',
-                ]
-            );
+        $category = ! empty($data['category_id'])
+            ? ClaimCategory::find($data['category_id'])
+            : (ClaimCategory::where('code', 'CAT-MED')->first()
+                ?: ClaimCategory::firstOrCreate(
+                    ['code' => 'CAT-MED'],
+                    [
+                        'name' => 'Medical Assistance',
+                        'type' => 'reimbursement',
+                        'tax_classification' => 'de_minimis',
+                        'color_tag' => 'emerald',
+                        'max_amount' => 15000.00,
+                        'de_minimis_annual_cap' => 10000.00,
+                        'is_active' => true,
+                        'applicable_to' => 'all',
+                        'description' => 'Out-of-pocket medical, dental, and prescription expenses (PHP 10k/yr de minimis cap).',
+                    ]
+                ));
 
         // Classify tax breakdown against PHP 10,000 annual ceiling
         $taxBreakdown = $this->taxabilityService->classifyClaim($category, $amount, $employee, $year);
@@ -75,7 +82,7 @@ class MedicalAssistanceService
                 'taxable_amount' => $taxBreakdown['taxable_amount'],
                 'tax_classification' => 'de_minimis',
                 'expense_date' => $data['expense_date'] ?? now()->toDateString(),
-                'cutoff_period' => $data['cutoff_period'] ?? '2026-07-01_15',
+                'cutoff_period' => $data['cutoff_period'] ?? '2026-08-13_19',
                 'description' => $data['description'] ?? sprintf(
                     'Medical assistance for %s. Non-Taxable: PHP %s, Taxable: PHP %s. %s',
                     $data['medical_condition'] ?? 'medical treatment',
@@ -92,7 +99,7 @@ class MedicalAssistanceService
             ]);
 
             PayrollAuditTrail::create([
-                'action' => 'MEDICAL_ASSISTANCE_CLAIM_FILED',
+                'action' => 'ESS_MEDICAL_CLAIM_SUBMITTED',
                 'model_type' => Claim::class,
                 'model_id' => $claim->id,
                 'user_name' => $employee->first_name . ' ' . $employee->last_name,
@@ -105,6 +112,8 @@ class MedicalAssistanceService
                     'exceeds_cap' => $taxBreakdown['exceeds_cap'],
                 ],
             ]);
+
+            $this->duplicateService->flagClaimIfDuplicate($claim);
 
             return $claim;
         });

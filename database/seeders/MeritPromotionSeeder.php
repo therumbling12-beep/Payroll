@@ -23,13 +23,13 @@ class MeritPromotionSeeder extends Seeder
 
         $scenarios = [
             'EMP-1001' => [
-                'old_rate' => 30000.00,
-                'new_rate' => 32000.00,
+                'old_rate' => 32000.00,
+                'new_rate' => 45000.00,
                 'bonus' => 0.00,
-                'status' => 'approved',
-                'effective_date' => '2026-05-01',
-                'reason' => 'Annual Performance Merit Increase — Exceeded Q2 KPIs and Operational Efficiency targets.',
-                'new_position' => 'HR Specialist',
+                'status' => 'approved_by_team_3',
+                'effective_date' => '2026-08-01',
+                'reason' => 'Official Team 3 Approved Promotion Order #TM-2026-08 — Promoted to Senior HR Specialist.',
+                'new_position' => 'Senior HR Specialist',
             ],
             'EMP-1002' => [
                 'old_rate' => 26000.00,

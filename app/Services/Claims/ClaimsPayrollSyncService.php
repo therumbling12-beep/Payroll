@@ -59,7 +59,7 @@ class ClaimsPayrollSyncService
                         $computation->performance_bonus = round(((float) $computation->performance_bonus) + $empTaxable, 2);
                         $computation->gross_pay = round(((float) $computation->gross_pay) + $empTaxable, 2);
                     }
-                    $computation->net_pay = round((((float) $computation->gross_pay) - ((float) $computation->total_deductions)) + $empNonTaxable, 2);
+                    $computation->net_pay = round(((float) $computation->gross_pay) - ((float) $computation->total_deductions), 2);
                     $computation->save();
                 }
 
@@ -95,29 +95,5 @@ class ClaimsPayrollSyncService
                 'total_taxable_additions' => round($totalTaxable, 2),
             ];
         });
-    }
-
-    /**
-     * Get summary of claims queued for a cutoff period
-     *
-     * @return array{
-     *     cutoff_period: string,
-     *     total_claims: int,
-     *     approved_pending_sync: int,
-     *     already_queued: int,
-     *     total_amount: float
-     * }
-     */
-    public function getSyncSummaryForCutoff(string $cutoffPeriod): array
-    {
-        $all = Claim::where('cutoff_period', $cutoffPeriod)->get();
-
-        return [
-            'cutoff_period' => $cutoffPeriod,
-            'total_claims' => $all->count(),
-            'approved_pending_sync' => $all->where('approval_status', 'approved')->count(),
-            'already_queued' => $all->whereIn('approval_status', ['payroll_queued', 'paid'])->count(),
-            'total_amount' => (float) $all->whereIn('approval_status', ['approved', 'payroll_queued', 'paid'])->sum('amount'),
-        ];
     }
 }

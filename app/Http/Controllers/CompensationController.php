@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\Integrations\Team3PromotionSyncRequest;
 use App\Models\CompanySetting;
 use App\Models\CompensationAdjustment;
 use App\Models\Department;
@@ -12,7 +13,7 @@ use App\Models\PayrollAuditTrail;
 use App\Models\SalaryGrade;
 use App\Models\SalaryStep;
 use App\Services\Compensation\AuditTrailExportService;
-use App\Services\Compensation\BonusPoolDistributionService;
+// BonusPoolDistributionService removed — Phase 4 (docs/no.md: bonuses N/A)
 use App\Services\Compensation\CompensationApprovalService;
 use App\Services\Compensation\CounterOfferService;
 use App\Services\Compensation\MeritIncreaseService;
@@ -20,7 +21,6 @@ use App\Services\Compensation\ProbationaryConversionService;
 use App\Services\Compensation\RetroactivePayCalculationService;
 use App\Services\Compensation\SalaryDeterminationService;
 use App\Services\Compensation\TenureProgressionService;
-use App\Services\CompensationService;
 use App\Services\FinancialService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -32,15 +32,13 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 class CompensationController extends Controller
 {
     public function __construct(
-        protected CompensationService $compensationService,
         protected FinancialService $financialService,
         protected CounterOfferService $counterOfferService,
         protected SalaryDeterminationService $salaryDeterminationService,
         protected MeritIncreaseService $meritIncreaseService,
         protected RetroactivePayCalculationService $retroactivePayCalculationService,
         protected TenureProgressionService $tenureProgressionService,
-        protected ProbationaryConversionService $probationaryConversionService,
-        protected BonusPoolDistributionService $bonusPoolDistributionService,
+        // ProbationaryConversionService decommissioned from controller (Phase 2)
         protected CompensationApprovalService $compensationApprovalService,
         protected AuditTrailExportService $auditTrailExportService
     ) {}
@@ -73,34 +71,117 @@ class CompensationController extends Controller
             ->take(15)
             ->get();
 
+        $localityMinimumWage = (float) CompanySetting::getValue('minimum_wage_daily', 755.00);
+        $localityMonthlyFloor = round($localityMinimumWage * 26.0, 2);
+
         return view('payroll-benefits.compensation.salary-bands', compact(
             'employees',
             'departments',
             'salaryGrades',
             'bandHistory',
             'search',
-            'deptId'
+            'deptId',
+            'localityMinimumWage',
+            'localityMonthlyFloor'
         ));
     }
 
     /**
-     * Determine Recommended Starting Salary based on 5-Factor Weighted Candidate Scoring (known.md §6.3)
+     * Determine Recommended Starting Salary based on 6-Factor Candidate Scoring (docs/no.md Lines 25–35)
      */
     public function determineSalary(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'salary_grade_id' => 'required|exists:salary_grades,id',
-            'education' => 'required|integer|min:1|max:6',
+            'salary_grade_id' => 'nullable|exists:salary_grades,id',
             'experience' => 'required|integer|min:1|max:6',
             'skills' => 'required|integer|min:1|max:6',
-            'market_benchmark' => 'required|integer|min:1|max:6',
-            'internal_equity' => 'required|integer|min:1|max:6',
+            'education' => 'required|integer|min:1|max:6',
+            'certifications' => 'nullable|integer|min:1|max:6',
+            'previous_salary' => 'nullable|integer|min:1|max:6',
+            'interview_performance' => 'nullable|integer|min:1|max:6',
+            'market_benchmark' => 'nullable|integer|min:1|max:6',
+            'internal_equity' => 'nullable|integer|min:1|max:6',
         ]);
 
-        $grade = SalaryGrade::findOrFail($validated['salary_grade_id']);
+        $grade = ! empty($validated['salary_grade_id'])
+            ? SalaryGrade::find($validated['salary_grade_id'])
+            : SalaryGrade::first();
+
         $result = $this->salaryDeterminationService->calculateRecommendedSalary($grade, $validated);
 
         return response()->json($result);
+    }
+
+    /**
+     * Direct Merit Increase without Formal Promotion (docs/no.md Line 51)
+     */
+    public function applyDirectMeritIncrease(Request $request, Employee $employee): RedirectResponse
+    {
+        $localityMinWageDaily = (float) CompanySetting::getValue('minimum_wage_daily', 755.00);
+        $localityMinWageMonthly = round($localityMinWageDaily * 26.0, 2); // 19,630.00
+
+        $validated = $request->validate([
+            'new_daily_rate' => ['nullable', 'numeric', "min:{$localityMinWageDaily}"],
+            'new_monthly_rate' => ['nullable', 'numeric', "min:{$localityMinWageMonthly}"],
+            'increase_percentage' => ['nullable', 'numeric', 'min:0.1', 'max:100.0'],
+            'effective_date' => ['nullable', 'date'],
+            'justification' => ['required', 'string', 'max:1000'],
+        ]);
+
+        $oldDaily = (float) $employee->daily_rate;
+        $oldMonthly = (float) $employee->monthly_rate;
+
+        $newDaily = isset($validated['new_daily_rate']) ? (float) $validated['new_daily_rate'] : null;
+        $newMonthly = isset($validated['new_monthly_rate']) ? (float) $validated['new_monthly_rate'] : null;
+
+        if (! $newDaily && ! $newMonthly && isset($validated['increase_percentage'])) {
+            $pct = (float) $validated['increase_percentage'];
+            $newDaily = round($oldDaily * (1 + ($pct / 100)), 2);
+            $newMonthly = round($oldMonthly * (1 + ($pct / 100)), 2);
+        } elseif ($newDaily && ! $newMonthly) {
+            $newMonthly = round($newDaily * 26.0, 2);
+        } elseif ($newMonthly && ! $newDaily) {
+            $newDaily = round($newMonthly / 26.0, 2);
+        }
+
+        $newDaily = max($localityMinWageDaily, (float) $newDaily);
+        $newMonthly = max($localityMinWageMonthly, (float) $newMonthly);
+
+        DB::transaction(function () use ($employee, $oldDaily, $oldMonthly, $newDaily, $newMonthly, $validated) {
+            $employee->daily_rate = $newDaily;
+            $employee->monthly_rate = $newMonthly;
+            $employee->save();
+
+            CompensationAdjustment::create([
+                'employee_id' => $employee->id,
+                'type' => 'merit_promotion',
+                'old_rate' => $oldMonthly ?: ($oldDaily * 26.0),
+                'new_rate' => $newMonthly,
+                'status' => 'approved',
+                'effective_date' => $validated['effective_date'] ?? now(),
+                'reason' => "Direct Merit Increase: {$validated['justification']}",
+            ]);
+
+            PayrollAuditTrail::create([
+                'user_name' => auth()->user()?->name ?? 'HR Compensation Manager',
+                'action' => 'MERIT_INCREASE_APPLIED',
+                'model_type' => Employee::class,
+                'model_id' => $employee->id,
+                'old_values' => [
+                    'daily_rate' => $oldDaily,
+                    'monthly_rate' => $oldMonthly,
+                ],
+                'new_values' => [
+                    'daily_rate' => $newDaily,
+                    'monthly_rate' => $newMonthly,
+                    'justification' => $validated['justification'],
+                    'effective_date' => $validated['effective_date'] ?? now()->toDateString(),
+                ],
+                'ip_address' => request()->ip() ?? '127.0.0.1',
+            ]);
+        });
+
+        return redirect()->back()->with('status', "Direct merit increase successfully applied for [{$employee->first_name} {$employee->last_name}] (New Rate: PHP " . number_format($newDaily, 2) . "/day • PHP " . number_format($newMonthly, 2) . "/mo).");
     }
 
     /**
@@ -115,7 +196,7 @@ class CompensationController extends Controller
             'effectivity_date' => 'nullable|date',
         ]);
 
-        $this->compensationService->updateSalaryBand(
+        $this->salaryDeterminationService->updateSalaryBand(
             $grade,
             (float) $validated['min_salary'],
             (float) $validated['max_salary'],
@@ -135,7 +216,7 @@ class CompensationController extends Controller
             'percentage' => 'required|numeric|min:0.1|max:50',
         ]);
 
-        $result = $this->compensationService->bulkAdjustBands((float) $validated['percentage']);
+        $result = $this->salaryDeterminationService->bulkAdjustBands((float) $validated['percentage']);
 
         return redirect()->back()->with('status', "Applied +{$result['percentage']}% Annual Market Adjustment across {$result['updated_grades_count']} job salary grades.");
     }
@@ -406,7 +487,8 @@ class CompensationController extends Controller
             'new_monthly_rate' => 'required|numeric|min:0',
             'effective_date' => 'required|date',
             'days_worked' => 'required|integer|min:1|max:60',
-            'inject_to_cutoff_id' => 'nullable|exists:payroll_cutoffs,id',
+            'inject_to_cutoff' => 'nullable|string',
+            'inject_to_cutoff_id' => 'nullable',
         ]);
 
         $employee = Employee::findOrFail($validated['employee_id']);
@@ -417,11 +499,13 @@ class CompensationController extends Controller
             (int) $validated['days_worked']
         );
 
-        if (! empty($validated['inject_to_cutoff_id'])) {
+        $cutoffPeriod = $validated['inject_to_cutoff'] ?? (is_string($request->input('inject_to_cutoff_id')) ? $request->input('inject_to_cutoff_id') : null);
+
+        if (! empty($cutoffPeriod)) {
             $injected = $this->retroactivePayCalculationService->injectRetroactivePayToPayroll(
                 $employee,
                 (float) $result['retroactive_pay'],
-                (int) $validated['inject_to_cutoff_id']
+                (string) $cutoffPeriod
             );
             $result['injected_to_payroll'] = $injected;
         }
@@ -457,15 +541,76 @@ class CompensationController extends Controller
         $employees = Employee::with('department')->orderBy('first_name')->get();
         $departments = Department::all();
         $salaryGrades = SalaryGrade::with('steps')->get();
+        $tenureProgressionService = $this->tenureProgressionService;
+
+        // Query pending Team 3 approved promotion orders (Handshake Integration)
+        $team3Promotions = CompensationAdjustment::where('type', 'merit_promotion')
+            ->whereIn('status', ['approved_by_team_3', 'pending_payroll_sync'])
+            ->get()
+            ->keyBy('employee_id');
 
         return view('payroll-benefits.compensation.merit-promotions', compact(
             'adjustments',
             'employees',
             'departments',
             'salaryGrades',
+            'tenureProgressionService',
+            'team3Promotions',
             'search',
             'deptId'
         ));
+    }
+
+    /**
+     * Inbound Webhook / Integration Ingress: Team 3 (Talent Management Approved Promotion Order)
+     */
+    public function syncTeam3Promotion(Team3PromotionSyncRequest $request): JsonResponse
+    {
+        $validated = $request->validated();
+        $employee = Employee::where('employee_code', $validated['employee_code'])->firstOrFail();
+        $isDriver = str_contains(strtolower($employee->position ?? ''), 'driver');
+        $currentSalary = (float)($isDriver ? ($employee->daily_rate * 26) : ($employee->monthly_rate ?: 25000.00));
+
+        $targetGrade = isset($validated['target_grade_code'])
+            ? SalaryGrade::where('grade_code', $validated['target_grade_code'])->first()
+            : null;
+
+        $minGradeFloor = $targetGrade ? (float)$targetGrade->min_salary : ($currentSalary * 1.15);
+        $fifteenPctFloor = round($currentSalary * 1.15, 2);
+        $promotedSalary = max($minGradeFloor, $fifteenPctFloor);
+        $incrementalMonthlySalary = max(0.0, $promotedSalary - $currentSalary);
+        $incrementalMonthlyCtc = round($incrementalMonthlySalary * 1.135, 2);
+
+        $adjustment = CompensationAdjustment::updateOrCreate(
+            [
+                'employee_id' => $employee->id,
+                'type' => 'merit_promotion',
+            ],
+            [
+                'subject_type' => 'employee',
+                'status' => 'approved_by_team_3',
+                'old_position' => $employee->position,
+                'new_position' => $validated['promoted_position'],
+                'old_rate' => $currentSalary,
+                'new_rate' => $promotedSalary,
+                'effective_date' => $validated['effective_date'],
+                'reason' => 'Team 3 Promotion Order #' . $validated['promotion_order_number'] . ($request->filled('reason') ? ' — ' . $validated['reason'] : ''),
+            ]
+        );
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Team 3 promotion order successfully received and queued for payroll calibration',
+            'employee_code' => $employee->employee_code,
+            'employee_name' => $employee->first_name . ' ' . $employee->last_name,
+            'current_position' => $employee->position,
+            'promoted_position' => $validated['promoted_position'],
+            'target_grade_code' => $targetGrade?->grade_code ?? 'N/A',
+            'current_salary' => $currentSalary,
+            'staged_promoted_salary' => $promotedSalary,
+            'monthly_incremental_ctc' => $incrementalMonthlyCtc,
+            'adjustment_id' => $adjustment->id,
+        ], 200);
     }
 
     /**
@@ -505,17 +650,26 @@ class CompensationController extends Controller
                     $workingDays = (float) CompanySetting::getValue('standard_working_days_per_month', 26.0);
                     $staffDefault = (float) CompanySetting::getValue('staff_default_baseline_salary', 25000.00);
                     $oldSalary = (float) ($emp->monthly_rate ?: ($emp->daily_rate ? $emp->daily_rate * $workingDays : $staffDefault));
-                    $raisePct = (float) ($plan['raise_pct'] ?? 0.0);
+                    $meritPct = (float) ($plan['merit_pct'] ?? $plan['raise_pct'] ?? 0.0);
+                    $tenurePct = (float) ($plan['tenure_pct'] ?? 0.0);
+                    $raisePct = (float) ($plan['raise_pct'] ?? ($meritPct + $tenurePct));
                     $rating = (string) ($plan['rating'] ?? $emp->performance_rating ?? 'Satisfactory');
+                    $currentStep = (int) ($plan['current_step'] ?? $emp->current_step ?? 1);
+                    $nextStep = (int) ($plan['next_step'] ?? min(7, $currentStep + 1));
                     $newSalary = isset($plan['new_salary']) && (float) $plan['new_salary'] > 0
                         ? (float) $plan['new_salary']
                         : round($oldSalary * (1 + ($raisePct / 100)), 2);
 
-                    if ($newSalary <= 0 || ($newSalary <= $oldSalary && $raisePct <= 0)) {
+                    $newPosition = $plan['new_position'] ?? ($plan['promoted_position'] ?? null);
+                    $isPromotion = ! empty($plan['is_promoted']) || ($newPosition && $newPosition !== $emp->position);
+                    $effectiveDate = isset($plan['effective_date']) ? \Carbon\Carbon::parse($plan['effective_date']) : now();
+
+                    if ($newSalary <= 0 || ($newSalary <= $oldSalary && $raisePct <= 0 && ! $isPromotion)) {
                         continue;
                     }
 
-                    $isDriver = str_contains(strtolower($emp->position ?? ''), 'driver');
+                    $oldPosition = $emp->position;
+                    $isDriver = str_contains(strtolower($newPosition ?: ($oldPosition ?? '')), 'driver');
                     $dailyRate = round($newSalary / $workingDays, 2);
 
                     $empUpdates = [
@@ -526,39 +680,134 @@ class CompensationController extends Controller
                         $empUpdates['daily_rate'] = $dailyRate;
                     }
 
+                    if ($isPromotion) {
+                        $empUpdates['position'] = $newPosition;
+                        $empUpdates['current_step'] = 1;
+                    } elseif ($tenurePct > 0 && $currentStep < 7) {
+                        $empUpdates['current_step'] = $nextStep;
+                    }
+
                     $emp->update($empUpdates);
 
                     $monthlyCtc = (float) ($plan['monthly_ctc'] ?? round($newSalary * 1.135, 2));
                     $annualCtc = (float) ($plan['annual_ctc'] ?? round($monthlyCtc * 12, 2));
 
-                    CompensationAdjustment::create([
-                        'employee_id' => $emp->id,
-                        'subject_type' => 'employee',
-                        'type' => 'merit_increase',
-                        'mode' => 'mode_a',
-                        'old_rate' => $oldSalary,
-                        'new_rate' => $newSalary,
-                        'monthly_ctc' => $monthlyCtc,
-                        'annual_ctc' => $annualCtc,
-                        'thirteenth_month_liability' => round($newSalary / 12, 2),
-                        'employer_statutory_total' => round($monthlyCtc - $newSalary, 2),
-                        'old_position' => $emp->position,
-                        'new_position' => $emp->position,
-                        'status' => 'approved',
-                        'budget_impact_status' => 'BUDGET_APPROVED',
-                        'admin_approval_status' => 'ADMIN_APPROVED',
-                        'reason' => "5-Tier Merit Increase of {$raisePct}% based on Team 3 rating: {$rating}",
-                        'effective_date' => now(),
-                    ]);
+                    if ($isPromotion) {
+                        $existingPromo = CompensationAdjustment::where('employee_id', $emp->id)
+                            ->where('type', 'merit_promotion')
+                            ->whereIn('status', ['approved_by_team_3', 'pending_payroll_sync', 'pending'])
+                            ->latest()
+                            ->first();
+
+                        if ($existingPromo) {
+                            $existingPromo->update([
+                                'status' => 'synced_to_payroll',
+                                'old_rate' => $oldSalary,
+                                'new_rate' => $newSalary,
+                                'monthly_ctc' => $monthlyCtc,
+                                'annual_ctc' => $annualCtc,
+                                'thirteenth_month_liability' => round($newSalary / 12, 2),
+                                'employer_statutory_total' => round($monthlyCtc - $newSalary, 2),
+                                'old_position' => $oldPosition,
+                                'new_position' => $newPosition,
+                                'budget_impact_status' => 'BUDGET_APPROVED',
+                                'admin_approval_status' => 'ADMIN_APPROVED',
+                                'effective_date' => $effectiveDate,
+                            ]);
+                        } else {
+                            CompensationAdjustment::create([
+                                'employee_id' => $emp->id,
+                                'subject_type' => 'employee',
+                                'type' => 'promotion',
+                                'mode' => 'mode_a',
+                                'old_rate' => $oldSalary,
+                                'new_rate' => $newSalary,
+                                'monthly_ctc' => $monthlyCtc,
+                                'annual_ctc' => $annualCtc,
+                                'thirteenth_month_liability' => round($newSalary / 12, 2),
+                                'employer_statutory_total' => round($monthlyCtc - $newSalary, 2),
+                                'old_position' => $oldPosition,
+                                'new_position' => $newPosition,
+                                'status' => 'approved',
+                                'budget_impact_status' => 'BUDGET_APPROVED',
+                                'admin_approval_status' => 'ADMIN_APPROVED',
+                                'reason' => "Promotion to {$newPosition} with {$raisePct}% compensation advancement",
+                                'effective_date' => $effectiveDate,
+                            ]);
+                        }
+                    } else {
+                        if ($tenurePct > 0) {
+                            CompensationAdjustment::create([
+                                'employee_id' => $emp->id,
+                                'subject_type' => 'employee',
+                                'type' => 'step_increment',
+                                'mode' => 'mode_a',
+                                'old_rate' => $oldSalary,
+                                'new_rate' => $newSalary,
+                                'monthly_ctc' => $monthlyCtc,
+                                'annual_ctc' => $annualCtc,
+                                'status' => 'approved',
+                                'budget_impact_status' => 'BUDGET_APPROVED',
+                                'admin_approval_status' => 'ADMIN_APPROVED',
+                                'reason' => "Tenure longevity step advance to Step {$nextStep} (+{$tenurePct}%) via Unified Progression Desk",
+                                'effective_date' => $effectiveDate,
+                            ]);
+                        }
+
+                        CompensationAdjustment::create([
+                            'employee_id' => $emp->id,
+                            'subject_type' => 'employee',
+                            'type' => 'merit_increase',
+                            'mode' => 'mode_a',
+                            'old_rate' => $oldSalary,
+                            'new_rate' => $newSalary,
+                            'monthly_ctc' => $monthlyCtc,
+                            'annual_ctc' => $annualCtc,
+                            'thirteenth_month_liability' => round($newSalary / 12, 2),
+                            'employer_statutory_total' => round($monthlyCtc - $newSalary, 2),
+                            'old_position' => $emp->position,
+                            'new_position' => $emp->position,
+                            'status' => 'approved',
+                            'budget_impact_status' => 'BUDGET_APPROVED',
+                            'admin_approval_status' => 'ADMIN_APPROVED',
+                            'reason' => "5-Tier Merit Increase of {$meritPct}% based on Team 3 rating: {$rating}" . ($tenurePct > 0 ? " (Combined with Tenure Step {$nextStep} +{$tenurePct}%)" : ''),
+                            'effective_date' => $effectiveDate,
+                        ]);
+                    }
+
+                    // Check and execute retroactive pay injection if effective date precedes today
+                    if ($effectiveDate->isPast() && $effectiveDate->diffInDays(now()) >= 1) {
+                        $daysWorked = (int) $effectiveDate->diffInDays(now());
+                        $retroDiff = $this->retroactivePayCalculationService->calculateRetroactiveDifferential(
+                            $emp,
+                            $newSalary,
+                            $effectiveDate->format('Y-m-d'),
+                            $daysWorked
+                        );
+
+                        $cutoffPeriod = SalaryComputation::where('employee_id', $emp->id)->latest('cutoff_period')->value('cutoff_period') ?? '2026-08-13_19';
+                        $this->retroactivePayCalculationService->injectRetroactivePayToPayroll(
+                            $emp,
+                            (float) $retroDiff['retroactive_pay'],
+                            $cutoffPeriod
+                        );
+                    }
 
                     PayrollAuditTrail::create([
-                        'action' => 'MERIT_PROMOTION_BATCH_COMMITTED',
+                        'action' => $isPromotion ? 'PROMOTION_BATCH_COMMITTED' : 'MERIT_PROMOTION_BATCH_COMMITTED',
                         'model_type' => Employee::class,
                         'model_id' => $emp->id,
                         'user_name' => 'HR Manager',
                         'ip_address' => request()->ip() ?? '127.0.0.1',
-                        'old_values' => ['monthly_rate' => $oldSalary],
-                        'new_values' => ['monthly_rate' => $newSalary, 'raise_pct' => $raisePct],
+                        'old_values' => ['monthly_rate' => $oldSalary, 'current_step' => $currentStep, 'position' => $oldPosition],
+                        'new_values' => [
+                            'monthly_rate' => $newSalary,
+                            'merit_pct' => $meritPct,
+                            'tenure_pct' => $tenurePct,
+                            'raise_pct' => $raisePct,
+                            'current_step' => $isPromotion ? 1 : (($tenurePct > 0 && $currentStep < 7) ? $nextStep : $currentStep),
+                            'position' => $isPromotion ? $newPosition : $emp->position,
+                        ],
                     ]);
 
                     $updatedCount++;
@@ -577,32 +826,8 @@ class CompensationController extends Controller
             $adjustments = $query->get();
 
             foreach ($adjustments as $adjustment) {
-                $adjustment->update([
-                    'status' => 'approved',
-                    'budget_impact_status' => 'BUDGET_APPROVED',
-                    'admin_approval_status' => 'ADMIN_APPROVED',
-                ]);
-
-                if ($adjustment->employee && $adjustment->new_rate > 0) {
-                    $isDriver = str_contains(strtolower($adjustment->employee->position ?? ''), 'driver');
-                    $empUpdates = [
-                        'monthly_rate' => $adjustment->new_rate,
-                    ];
-                    if ($isDriver) {
-                        $empUpdates['daily_rate'] = round($adjustment->new_rate / 26, 2);
-                    }
-                    $adjustment->employee->update($empUpdates);
-
-                    PayrollAuditTrail::create([
-                        'action' => 'MERIT_PROMOTION_APPROVED',
-                        'model_type' => Employee::class,
-                        'model_id' => $adjustment->employee->id,
-                        'user_name' => 'HR Manager',
-                        'ip_address' => request()->ip() ?? '127.0.0.1',
-                        'old_values' => ['monthly_rate' => $adjustment->old_rate],
-                        'new_values' => ['monthly_rate' => $adjustment->new_rate],
-                    ]);
-
+                $synced = $this->compensationApprovalService->finalizeAndSyncToPayroll($adjustment);
+                if ($synced) {
                     $updatedCount++;
                 }
             }
@@ -626,96 +851,14 @@ class CompensationController extends Controller
         return response()->json($result);
     }
 
-    /**
-     * Calculate 6-Month Probationary Status & Regularization Proposal API (known.md §6.8)
-     */
-    public function calculateProbationaryConversion(Request $request): JsonResponse
-    {
-        $validated = $request->validate([
-            'employee_id' => 'required|exists:employees,id',
-        ]);
-
-        $employee = Employee::with('department')->findOrFail($validated['employee_id']);
-        $result = $this->probationaryConversionService->evaluateProbationaryStatus($employee);
-
-        return response()->json($result);
-    }
-
-    /**
-     * Calculate Weighted Bonus Pool Proportional Distribution API (known.md §6.10 & Section 2.11)
-     */
-    public function calculateBonusDistribution(Request $request): JsonResponse
-    {
-        $validated = $request->validate([
-            'pool_amount' => 'required|numeric|min:1',
-            'department_id' => 'nullable|integer',
-            'bonus_type' => 'required|string|in:performance,mid_year,fourteenth_month,tenure_milestone',
-        ]);
-
-        $deptId = ! empty($validated['department_id']) && $validated['department_id'] > 0 ? (int) $validated['department_id'] : null;
-
-        $result = $this->bonusPoolDistributionService->calculateDistribution(
-            (float) $validated['pool_amount'],
-            $deptId,
-            $validated['bonus_type']
-        );
-
-        return response()->json($result);
-    }
-
-    /**
-     * Bonus Allocation Sub-Module (Section 2.11 & Prof Note #4)
-     */
-    public function bonusAllocation(Request $request): View
-    {
-        $deptId = $request->query('department');
-
-        $query = Employee::with('department')->where('employment_status', '!=', 'resigned');
-
-        if ($deptId && $deptId !== 'all') {
-            $query->where('department_id', $deptId);
-        }
-
-        $employees = $query->orderBy('first_name')->get();
-        $departments = Department::all();
-
-        return view('payroll-benefits.compensation.bonus-allocation', compact(
-            'employees',
-            'departments',
-            'deptId'
-        ));
-    }
-
-    /**
-     * Distribute and Store Bonus Pool to Employees (Section 2.11)
-     */
-    public function storeBonusAllocation(Request $request): RedirectResponse
-    {
-        $validated = $request->validate([
-            'bonus_type' => 'required|string|max:100',
-            'pool_amount' => 'required|numeric|min:1',
-            'department_id' => 'nullable|integer',
-            'allocations' => 'nullable|array',
-        ]);
-
-        $deptId = ! empty($validated['department_id']) && $validated['department_id'] > 0 ? (int) $validated['department_id'] : null;
-
-        $this->bonusPoolDistributionService->commitBonusAllocation(
-            (float) $validated['pool_amount'],
-            $deptId,
-            $validated['bonus_type'],
-            $validated['allocations'] ?? []
-        );
-
-        return redirect()->back()->with('status', "Successfully distributed PHP ".number_format((float)$validated['pool_amount'], 2)." ({$validated['bonus_type']}) across eligible personnel. Synced to Payroll pick-up.");
-    }
+    // calculateBonusDistribution(), bonusAllocation(), storeBonusAllocation() removed — Phase 4 (docs/no.md: bonuses N/A)
 
     /**
      * Tenure Step Grid & Management (Section 2.12 & Prof Note #6)
      */
     public function tenureSteps(Request $request): View
     {
-        $data = $this->compensationService->getTenureStepOverview();
+        $data = $this->tenureProgressionService->getTenureStepOverview();
         $salaryGrades = $data['salary_grades'];
         $candidates = $data['candidates'];
 
@@ -786,69 +929,6 @@ class CompensationController extends Controller
     }
 
     /**
-     * Probationary to Regular Conversion Review Sub-Module (Section 2.8 & Prof Note #9)
-     */
-    public function probationary(Request $request): View
-    {
-        $overview = $this->compensationService->getProbationaryOverview();
-        $probationaryEmployees = $overview['employees'] ?? [];
-
-        return view('payroll-benefits.compensation.probationary', compact('overview', 'probationaryEmployees'));
-    }
-
-    /**
-     * Regularize an Employee from Probationary Status
-     */
-    public function regularize(Employee $employee, Request $request): RedirectResponse
-    {
-        $decision = $request->input('decision', 'regularize');
-
-        if ($decision === 'extend') {
-            $validated = $request->validate([
-                'extension_months' => 'required|integer|min:1|max:6',
-                'reason' => 'required|string|max:500',
-            ]);
-
-            $this->probationaryConversionService->extendProbation($employee, (int) $validated['extension_months'], $validated['reason']);
-
-            return redirect()->back()->with('status', "Probationary period for {$employee->first_name} {$employee->last_name} extended by {$validated['extension_months']} months.");
-        }
-
-        if ($decision === 'terminate') {
-            $validated = $request->validate([
-                'termination_reason' => 'required|string|max:500',
-            ]);
-
-            $employee->update(['employment_status' => 'resigned']);
-
-            PayrollAuditTrail::create([
-                'user_name' => 'HR Operations',
-                'action' => 'PROBATION_TERMINATED',
-                'model_type' => Employee::class,
-                'model_id' => $employee->id,
-                'new_values' => ['reason' => $validated['termination_reason']],
-                'ip_address' => request()->ip() ?? '127.0.0.1',
-            ]);
-
-            return redirect()->back()->with('status', "Probation concluded. Separation and offboarding workflow triggered for {$employee->first_name} {$employee->last_name}.");
-        }
-
-        // Default: Regularize
-        $validated = $request->validate([
-            'new_rate' => 'required|numeric|min:0',
-            'reason' => 'nullable|string|max:255',
-        ]);
-
-        $this->probationaryConversionService->regularizeEmployee(
-            $employee,
-            (float) $validated['new_rate'],
-            $validated['reason'] ?? null
-        );
-
-        return redirect()->back()->with('status', "Employee {$employee->first_name} {$employee->last_name} has been officially REGULARIZED with updated compensation!");
-    }
-
-    /**
      * Audit Trail & Compliance Log Sub-Module (Section 2.16 & Prof Notes #8, #9)
      */
     public function auditTrail(Request $request): View
@@ -899,45 +979,6 @@ class CompensationController extends Controller
     public function exportAuditTrail(Request $request): StreamedResponse
     {
         return $this->auditTrailExportService->streamAuditTrailCsv($request->all());
-    }
-
-    /**
-     * Ajax API: Simulate Compensation & Budget Check for UI Modal On-the-fly
-     */
-    public function simulateCompensation(Request $request): JsonResponse
-    {
-        $validated = $request->validate([
-            'position' => 'required|string',
-            'years_experience' => 'nullable|integer|min:0',
-            'certifications_count' => 'nullable|integer|min:0',
-            'education_level' => 'nullable|string',
-            'performance_rating' => 'nullable|string',
-            'proposed_salary' => 'nullable|numeric|min:0',
-            'competitor_offer' => 'nullable|numeric|min:0',
-            'current_salary' => 'nullable|numeric|min:0',
-        ]);
-
-        $result = $this->compensationService->computeCounterOffer(
-            $validated['position'],
-            (int) ($validated['years_experience'] ?? 0),
-            (int) ($validated['certifications_count'] ?? 0),
-            (float) ($validated['competitor_offer'] ?? 0.0),
-            (float) ($validated['current_salary'] ?? 0.0),
-            $validated['education_level'] ?? 'College Graduate',
-            $validated['performance_rating'] ?? 'Satisfactory'
-        );
-
-        if (! empty($validated['proposed_salary']) && (float) $validated['proposed_salary'] > 0) {
-            $salary = (float) $validated['proposed_salary'];
-            $budgetCheck = $this->financialService->checkBudgetAvailability($salary, 'Human Resources');
-            $result['computed_counter_offer'] = $salary;
-            $result['financial_budget_check'] = $budgetCheck;
-        }
-
-        return response()->json([
-            'success' => true,
-            'data' => $result,
-        ]);
     }
 
     /**

@@ -6,7 +6,7 @@ use App\Models\Employee;
 use App\Models\PayrollAuditTrail;
 use App\Models\SalaryGrade;
 use App\Models\SalaryStep;
-use App\Services\CompensationService;
+use App\Services\Compensation\CounterOfferService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
@@ -63,27 +63,29 @@ test('bulk market adjustment applies percentage increase across all salary grade
 });
 
 test('counter offer calculation factors in education and competitor offer', function () {
-    SalaryGrade::create([
+    $grade = SalaryGrade::create([
         'position_name' => 'Dispatch & Routing Specialist',
         'min_salary' => 20000.00,
         'max_salary' => 32000.00,
         'annual_growth_rate' => 6.50,
     ]);
 
-    $service = app(CompensationService::class);
-    $result = $service->computeCounterOffer(
-        'Dispatch & Routing Specialist',
-        3, // 3 years exp
-        1, // 1 cert
-        28000.00, // competitor offer
-        22000.00, // current salary
-        'College Graduate',
-        'Outstanding'
+    $service = app(CounterOfferService::class);
+    $result = $service->computeModeA(
+        $grade,
+        28000.00,
+        [
+            'education' => 4,
+            'experience' => 3,
+            'skills' => 4,
+            'market_benchmark' => 3,
+            'internal_equity' => 3,
+        ]
     );
 
-    expect($result['computed_counter_offer'])->toBeGreaterThanOrEqual(28000.00)
-        ->and($result['computed_counter_offer'])->toBeLessThanOrEqual(32000.00)
-        ->and($result['total_package'])->toBeGreaterThan($result['computed_counter_offer']);
+    expect($result['proposed_base_salary'])->toBeGreaterThanOrEqual(28000.00)
+        ->and($result['proposed_base_salary'])->toBeLessThanOrEqual(32000.00)
+        ->and($result['ctc']['annual_ctc'])->toBeGreaterThan($result['proposed_base_salary']);
 });
 
 test('employee response to counter offer can be updated', function () {
@@ -117,53 +119,7 @@ test('employee response to counter offer can be updated', function () {
     expect($adjustment->employee_response)->toBe('accepted');
 });
 
-test('bonus pool distribution calculates and stores performance bonuses', function () {
-    $department = Department::create(['name' => 'Operations']);
-    $emp1 = Employee::create([
-        'department_id' => $department->id,
-        'employee_code' => 'EMP-BONUS-01',
-        'first_name' => 'Elena',
-        'last_name' => 'Gomez',
-        'email' => 'elena.gomez@test.com',
-        'position' => 'Operations Dispatcher',
-        'performance_rating' => 'Outstanding',
-        'hire_date' => now()->subYears(3),
-        'monthly_rate' => 25000.00,
-    ]);
-
-    $emp2 = Employee::create([
-        'department_id' => $department->id,
-        'employee_code' => 'EMP-BONUS-02',
-        'first_name' => 'Marco',
-        'last_name' => 'Diaz',
-        'email' => 'marco.diaz@test.com',
-        'position' => 'Operations Dispatcher',
-        'performance_rating' => 'Satisfactory',
-        'hire_date' => now()->subMonths(8),
-        'monthly_rate' => 25000.00,
-    ]);
-
-    $response = $this->post(route('compensation.bonus-allocation.store'), [
-        'bonus_type' => 'Performance Bonus',
-        'pool_amount' => 50000.00,
-        'department_id' => $department->id,
-        'allocations' => [
-            ['employee_id' => $emp1->id, 'bonus_amount' => 30000.00],
-            ['employee_id' => $emp2->id, 'bonus_amount' => 20000.00],
-        ],
-    ]);
-
-    $response->assertRedirect();
-
-    $this->assertDatabaseHas('performance_bonuses', [
-        'employee_id' => $emp1->id,
-        'bonus_amount' => 30000.00,
-    ]);
-
-    $this->assertDatabaseHas('payroll_audit_trails', [
-        'action' => 'BONUS_POOL_ALLOCATION',
-    ]);
-});
+// bonus pool distribution test removed — bonus-allocation route removed (Phase 2, docs/no.md: bonuses N/A)
 
 test('applying tenure step increment updates employee and logs compensation adjustment', function () {
     $department = Department::create(['name' => 'Logistics']);
@@ -197,7 +153,11 @@ test('applying tenure step increment updates employee and logs compensation adju
     ]);
 });
 
-test('probationary employee can be regularized or extended', function () {
+test('probationary standalone routes are decommissioned while conversion service remains operational', function () {
+    expect(\Illuminate\Support\Facades\Route::has('compensation.probationary'))->toBeFalse()
+        ->and(\Illuminate\Support\Facades\Route::has('compensation.probationary.regularize'))->toBeFalse()
+        ->and(\Illuminate\Support\Facades\Route::has('compensation.probationary.calculate'))->toBeFalse();
+
     $department = Department::create(['name' => 'Operations']);
     $employee = Employee::create([
         'department_id' => $department->id,
@@ -211,13 +171,9 @@ test('probationary employee can be regularized or extended', function () {
         'monthly_rate' => 22000.00,
     ]);
 
-    $response = $this->post(route('compensation.probationary.regularize', $employee), [
-        'decision' => 'regularize',
-        'new_rate' => 25000.00,
-        'reason' => 'Completed 6 months probation with high merit',
-    ]);
+    $service = app(\App\Services\Compensation\ProbationaryConversionService::class);
+    $service->regularizeEmployee($employee, 25000.00, 'Completed 6 months probation with high merit');
 
-    $response->assertRedirect();
     $employee->refresh();
 
     expect($employee->employment_status)->toBe('regular')
@@ -289,8 +245,8 @@ test('all compensation subpage view routes render successfully without error', f
     $this->get(route('compensation.salary-bands'))->assertOk();
     $this->get(route('compensation.counter-offers'))->assertOk();
     $this->get(route('compensation.merit-promotions'))->assertOk();
-    $this->get(route('compensation.bonus-allocation'))->assertOk();
+    // bonus-allocation route removed (Phase 2)
     $this->get(route('compensation.tenure-steps'))->assertOk();
-    $this->get(route('compensation.probationary'))->assertOk();
+    // probationary route decommissioned (Phase 2)
     $this->get(route('compensation.audit-trail'))->assertOk();
 });

@@ -13,16 +13,17 @@ class WithholdingTaxService
      * Compute BIR Withholding Tax based on TRAIN Law (RA 10963) graduated tax tables.
      *
      * @param float $taxableIncome Taxable income for the period (Gross minus EE statutory deductions)
-     * @param bool $isSemiMonthly Whether the period is semi-monthly (x24 annual factor) or monthly (x12)
+     * @param bool $isSemiMonthly Whether the period is semi-monthly (x24 annual factor)
+     * @param bool $isWeekly Whether the period is weekly (x52 annual factor)
      */
-    public function compute(float $taxableIncome, bool $isSemiMonthly = true): float
+    public function compute(float $taxableIncome, bool $isSemiMonthly = false, bool $isWeekly = false): float
     {
         if ($taxableIncome <= 0) {
             return 0.00;
         }
 
         // Annualize taxable compensation
-        $multiplier = $isSemiMonthly ? 24 : 12;
+        $multiplier = $isWeekly ? 52 : ($isSemiMonthly ? 24 : 12);
         $annualTaxable = $taxableIncome * $multiplier;
         $taxExemptThreshold = (float) CompanySetting::getValue('bir_train_tax_exempt_threshold', 250000.00);
 

@@ -12,7 +12,7 @@
         showRunModal: false, 
         showTransparencyModal: false,
         searchQuery: '',
-        selectedPeriod: '2026-07-01_15',
+        selectedPeriod: '2026-08-06_12',
         matchesSearch(periodCode, periodLabel) {
             if (!this.searchQuery) return true;
             const q = this.searchQuery.toLowerCase();
@@ -24,7 +24,7 @@
         <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
                 <h1 class="text-xl font-extrabold font-outfit text-gray-900">Payroll Cut-offs & Period Runs</h1>
-                <p class="text-xs text-gray-500 mt-0.5">Manage semi-monthly salary cutoff periods, trigger automated batch calculations, and track financial release workflows.</p>
+                <p class="text-xs text-gray-500 mt-0.5">Manage weekly Thursday-to-Wednesday salary cutoff periods, trigger automated batch calculations, and track financial release workflows.</p>
             </div>
             
             <div class="flex flex-wrap items-center gap-3">
@@ -105,10 +105,20 @@
                     @php
                         $parts = explode('_', $cutoff->cutoff_period);
                         if (count($parts) === 2) {
-                            $startDate = \Carbon\Carbon::parse($parts[0]);
-                            $endDay = $parts[1];
-                            $formattedPeriod = $startDate->format('F 1') . ' – ' . $startDate->format('F ') . $endDay . ', ' . $startDate->format('Y');
-                            $cutoffTag = ($endDay == '15' ? '1st Cutoff' : '2nd Cutoff');
+                            try {
+                                $startDate = \Carbon\Carbon::parse($parts[0]);
+                                $endDay = (int) $parts[1];
+                                if ($endDay < $startDate->day) {
+                                    $endDate = $startDate->copy()->addMonth()->day($endDay);
+                                } else {
+                                    $endDate = $startDate->copy()->day($endDay);
+                                }
+                                $formattedPeriod = $startDate->format('M j') . ' – ' . $endDate->format('M j, Y');
+                                $cutoffTag = $startDate->format('D') . '–' . $endDate->format('D') . ' Cycle';
+                            } catch (\Throwable $e) {
+                                $formattedPeriod = $cutoff->cutoff_period;
+                                $cutoffTag = 'Weekly Run';
+                            }
                         } else {
                             $formattedPeriod = $cutoff->cutoff_period;
                             $cutoffTag = 'Payroll Run';
@@ -173,50 +183,82 @@
             <div class="bg-white/80 backdrop-blur-sm rounded-2xl border border-gray-100 p-6 shadow-sm space-y-4">
                 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gray-100 pb-4">
                     <div>
-                        <h2 class="text-base font-black font-outfit text-gray-900">2026 Statutory Semi-Monthly Cutoff Calendar</h2>
-                        <p class="text-xs text-gray-500 mt-0.5">Preset cutoff cycles per Labor Code of the Philippines (1st: 1st–15th, 2nd: 16th–End of Month).</p>
+                        <h2 class="text-base font-black font-outfit text-gray-900">2026 Weekly Payroll Cutoff Calendar (Thursday – Wednesday Cycles)</h2>
+                        <p class="text-xs text-gray-500 mt-0.5">Weekly Thursday-to-Wednesday cutoff cycles per company payroll policy (Payout scheduled every Friday).</p>
                     </div>
                     <span class="px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full text-xs font-black">
-                        Semi-Monthly Standard Active
+                        Weekly Standard Active
                     </span>
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     @php
-                        $months = [
-                            ['name' => 'January 2026', 'c1' => '2026-01-01_15', 'c2' => '2026-01-16_31', 'p1' => 'Jan 1–15', 'p2' => 'Jan 16–31', 'd1' => 'Jan 20', 'd2' => 'Feb 5'],
-                            ['name' => 'February 2026', 'c1' => '2026-02-01_15', 'c2' => '2026-02-16_28', 'p1' => 'Feb 1–15', 'p2' => 'Feb 16–28', 'd1' => 'Feb 20', 'd2' => 'Mar 5'],
-                            ['name' => 'March 2026', 'c1' => '2026-03-01_15', 'c2' => '2026-03-16_31', 'p1' => 'Mar 1–15', 'p2' => 'Mar 16–31', 'd1' => 'Mar 20', 'd2' => 'Apr 5'],
-                            ['name' => 'April 2026', 'c1' => '2026-04-01_15', 'c2' => '2026-04-16_30', 'p1' => 'Apr 1–15', 'p2' => 'Apr 16–30', 'd1' => 'Apr 20', 'd2' => 'May 5'],
-                            ['name' => 'May 2026', 'c1' => '2026-05-01_15', 'c2' => '2026-05-16_31', 'p1' => 'May 1–15', 'p2' => 'May 16–31', 'd1' => 'May 20', 'd2' => 'Jun 5'],
-                            ['name' => 'June 2026', 'c1' => '2026-06-01_15', 'c2' => '2026-06-16_30', 'p1' => 'Jun 1–15', 'p2' => 'Jun 16–30', 'd1' => 'Jun 20', 'd2' => 'Jul 5'],
-                            ['name' => 'July 2026', 'c1' => '2026-07-01_15', 'c2' => '2026-07-16_31', 'p1' => 'Jul 1–15', 'p2' => 'Jul 16–31', 'd1' => 'Jul 20', 'd2' => 'Aug 5'],
-                            ['name' => 'August 2026', 'c1' => '2026-08-01_15', 'c2' => '2026-08-16_31', 'p1' => 'Aug 1–15', 'p2' => 'Aug 16–31', 'd1' => 'Aug 20', 'd2' => 'Sep 5'],
-                            ['name' => 'September 2026', 'c1' => '2026-09-01_15', 'c2' => '2026-09-16_30', 'p1' => 'Sep 1–15', 'p2' => 'Sep 16–30', 'd1' => 'Sep 20', 'd2' => 'Oct 5'],
-                            ['name' => 'October 2026', 'c1' => '2026-10-01_15', 'c2' => '2026-10-16_31', 'p1' => 'Oct 1–15', 'p2' => 'Oct 16–31', 'd1' => 'Oct 20', 'd2' => 'Nov 5'],
-                            ['name' => 'November 2026', 'c1' => '2026-11-01_15', 'c2' => '2026-11-16_30', 'p1' => 'Nov 1–15', 'p2' => 'Nov 16–30', 'd1' => 'Nov 20', 'd2' => 'Dec 5'],
-                            ['name' => 'December 2026', 'c1' => '2026-12-01_15', 'c2' => '2026-12-16_31', 'p1' => 'Dec 1–15', 'p2' => 'Dec 16–31', 'd1' => 'Dec 20', 'd2' => 'Jan 5'],
+                        $weeklyMonths = [
+                            [
+                                'name' => 'August 2026',
+                                'weeks' => [
+                                    ['code' => '2026-08-06_12', 'label' => 'Week 1: Aug 6 – Aug 12 (Thu–Wed)', 'payout' => 'Aug 14 (Fri)'],
+                                    ['code' => '2026-08-13_19', 'label' => 'Week 2: Aug 13 – Aug 19 (Thu–Wed)', 'payout' => 'Aug 21 (Fri)'],
+                                    ['code' => '2026-08-20_26', 'label' => 'Week 3: Aug 20 – Aug 26 (Thu–Wed)', 'payout' => 'Aug 28 (Fri)'],
+                                    ['code' => '2026-08-27_02', 'label' => 'Week 4: Aug 27 – Sep 2 (Thu–Wed)', 'payout' => 'Sep 4 (Fri)'],
+                                ],
+                            ],
+                            [
+                                'name' => 'September 2026',
+                                'weeks' => [
+                                    ['code' => '2026-09-03_09', 'label' => 'Week 1: Sep 3 – Sep 9 (Thu–Wed)', 'payout' => 'Sep 11 (Fri)'],
+                                    ['code' => '2026-09-10_16', 'label' => 'Week 2: Sep 10 – Sep 16 (Thu–Wed)', 'payout' => 'Sep 18 (Fri)'],
+                                    ['code' => '2026-09-17_23', 'label' => 'Week 3: Sep 17 – Sep 23 (Thu–Wed)', 'payout' => 'Sep 25 (Fri)'],
+                                    ['code' => '2026-09-24_30', 'label' => 'Week 4: Sep 24 – Sep 30 (Thu–Wed)', 'payout' => 'Oct 2 (Fri)'],
+                                ],
+                            ],
+                            [
+                                'name' => 'October 2026',
+                                'weeks' => [
+                                    ['code' => '2026-10-01_07', 'label' => 'Week 1: Oct 1 – Oct 7 (Thu–Wed)', 'payout' => 'Oct 9 (Fri)'],
+                                    ['code' => '2026-10-08_14', 'label' => 'Week 2: Oct 8 – Oct 14 (Thu–Wed)', 'payout' => 'Oct 16 (Fri)'],
+                                    ['code' => '2026-10-15_21', 'label' => 'Week 3: Oct 15 – Oct 21 (Thu–Wed)', 'payout' => 'Oct 23 (Fri)'],
+                                    ['code' => '2026-10-22_28', 'label' => 'Week 4: Oct 22 – Oct 28 (Thu–Wed)', 'payout' => 'Oct 30 (Fri)'],
+                                    ['code' => '2026-10-29_04', 'label' => 'Week 5: Oct 29 – Nov 4 (Thu–Wed)', 'payout' => 'Nov 6 (Fri)'],
+                                ],
+                            ],
                         ];
                     @endphp
 
-                    @foreach($months as $m)
+                    @foreach($weeklyMonths as $m)
                         <div class="p-4 bg-gray-50/80 rounded-2xl border border-gray-200 space-y-3">
                             <div class="font-extrabold text-sm text-gray-900 font-outfit">{{ $m['name'] }}</div>
                             <div class="space-y-2 text-xs">
-                                <a href="{{ route('payroll.salary-computation.show', $m['c1']) }}" 
-                                   class="block p-2.5 bg-white rounded-xl border border-gray-100 hover:border-[#F44336] transition-all">
-                                    <div class="flex items-center justify-between">
-                                        <span class="font-black text-gray-800">1st Cutoff: {{ $m['p1'] }}</span>
-                                        <span class="text-[11px] font-bold text-gray-500">Payout: {{ $m['d1'] }}</span>
-                                    </div>
-                                </a>
-                                <a href="{{ route('payroll.salary-computation.show', $m['c2']) }}" 
-                                   class="block p-2.5 bg-white rounded-xl border border-gray-100 hover:border-[#F44336] transition-all">
-                                    <div class="flex items-center justify-between">
-                                        <span class="font-black text-gray-800">2nd Cutoff: {{ $m['p2'] }}</span>
-                                        <span class="text-[11px] font-bold text-gray-500">Payout: {{ $m['d2'] }}</span>
-                                    </div>
-                                </a>
+                                @foreach($m['weeks'] as $w)
+                                    @php
+                                        $isRan = $cutoffs->contains('cutoff_period', $w['code']);
+                                    @endphp
+                                    <a href="{{ route('payroll.salary-computation.show', $w['code']) }}" 
+                                       class="block p-3 rounded-xl border transition-all duration-150 {{ $isRan ? 'bg-emerald-50/50 border-emerald-300 hover:border-emerald-500 shadow-2xs' : 'bg-white border-rose-200 hover:border-rose-400' }}">
+                                        <div class="flex items-center justify-between gap-2">
+                                            <div class="space-y-1">
+                                                <div class="flex items-center gap-2">
+                                                    <span class="w-2 h-2 rounded-full {{ $isRan ? 'bg-emerald-500' : 'bg-rose-500' }}"></span>
+                                                    <span class="font-black text-gray-900 text-xs">{{ $w['label'] }}</span>
+                                                </div>
+                                                <div class="text-[11px] text-gray-500 pl-4">
+                                                    Payout: <span class="font-bold text-gray-700">{{ $w['payout'] }}</span>
+                                                </div>
+                                            </div>
+                                            <div>
+                                                @if($isRan)
+                                                    <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                                        Ran
+                                                    </span>
+                                                @else
+                                                    <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-black bg-rose-50 text-rose-700 border border-rose-200">
+                                                        Not Ran
+                                                    </span>
+                                                @endif
+                                            </div>
+                                        </div>
+                                    </a>
+                                @endforeach
                             </div>
                         </div>
                     @endforeach
@@ -336,12 +378,25 @@
                     <div>
                         <label class="block text-xs font-bold text-gray-700 mb-1">Target Cutoff Period *</label>
                         <select name="period" x-model="selectedPeriod" required class="w-full text-xs bg-gray-50 border border-gray-200 rounded-xl p-3 font-semibold text-gray-800 focus:outline-none focus:border-[#F44336]">
-                            <option value="2026-07-01_15">July 1 – July 15, 2026 (1st Cutoff)</option>
-                            <option value="2026-07-16_31">July 16 – July 31, 2026 (2nd Cutoff)</option>
-                            <option value="2026-08-01_15">August 1 – August 15, 2026 (1st Cutoff)</option>
-                            <option value="2026-08-16_31">August 16 – August 31, 2026 (2nd Cutoff)</option>
-                            <option value="2026-09-01_15">September 1 – September 15, 2026 (1st Cutoff)</option>
-                            <option value="2026-09-16_30">September 16 – September 30, 2026 (2nd Cutoff)</option>
+                            <optgroup label="August 2026 (Weekly Thu–Wed)">
+                                <option value="2026-08-06_12">Aug 6 – Aug 12, 2026 (Week 1)</option>
+                                <option value="2026-08-13_19">Aug 13 – Aug 19, 2026 (Week 2)</option>
+                                <option value="2026-08-20_26">Aug 20 – Aug 26, 2026 (Week 3)</option>
+                                <option value="2026-08-27_02">Aug 27 – Sep 2, 2026 (Week 4)</option>
+                            </optgroup>
+                            <optgroup label="September 2026 (Weekly Thu–Wed)">
+                                <option value="2026-09-03_09">Sep 3 – Sep 9, 2026 (Week 1)</option>
+                                <option value="2026-09-10_16">Sep 10 – Sep 16, 2026 (Week 2)</option>
+                                <option value="2026-09-17_23">Sep 17 – Sep 23, 2026 (Week 3)</option>
+                                <option value="2026-09-24_30">Sep 24 – Sep 30, 2026 (Week 4)</option>
+                            </optgroup>
+                            <optgroup label="October 2026 (Weekly Thu–Wed)">
+                                <option value="2026-10-01_07">Oct 1 – Oct 7, 2026 (Week 1)</option>
+                                <option value="2026-10-08_14">Oct 8 – Oct 14, 2026 (Week 2)</option>
+                                <option value="2026-10-15_21">Oct 15 – Oct 21, 2026 (Week 3)</option>
+                                <option value="2026-10-22_28">Oct 22 – Oct 28, 2026 (Week 4)</option>
+                                <option value="2026-10-29_04">Oct 29 – Nov 4, 2026 (Week 5)</option>
+                            </optgroup>
                             <option value="custom">Custom Date Range...</option>
                         </select>
                     </div>
@@ -424,17 +479,17 @@
                         </div>
                     </div>
 
-                    <!-- Formula 2: TNVS Driver Partner Model -->
+                    <!-- Formula 2: TNVS Driver Model -->
                     <div class="bg-purple-50/40 border border-purple-200 rounded-2xl p-4 space-y-2">
                         <div class="flex items-center justify-between">
-                            <span class="font-black text-purple-900 text-xs">2. TNVS Driver Partner Model</span>
-                            <span class="px-2 py-0.5 bg-purple-100 text-purple-800 text-[10px] font-black rounded-md border border-purple-200">Independent Contractor (0% Tax)</span>
+                            <span class="font-black text-purple-900 text-xs">2. TNVS Driver Earnings Model</span>
+                            <span class="px-2 py-0.5 bg-purple-100 text-purple-800 text-[10px] font-black rounded-md border border-purple-200">Fleet Operations</span>
                         </div>
-                        <p class="text-gray-700 text-xs">Operating under the Philippine transport commission model. Zero mandatory employee statutory deductions. Fares are subject to a 20% platform service fee; ride incentives and claims are credited 100%.</p>
+                        <p class="text-gray-700 text-xs">Operating under the standard Philippine transport model. Driver compensation is composed of base pay, trip earnings, and verified expense reimbursements.</p>
                         <div class="bg-white border border-purple-100 rounded-xl p-3 font-mono text-purple-900 font-bold text-xs space-y-1">
-                            <div>Gross = Gross Trip Fares + Ride Count Incentives + Fuel/Toll Claims</div>
-                            <div class="text-rose-700">Deductions = Platform Commission (20% of Trip Fares only; SSS/PhilHealth/Tax = ₱0.00)</div>
-                            <div class="text-purple-900 font-black">Net Pay = (Trip Fares × 80%) + Incentives + Claims</div>
+                            <div>Gross = Base Pay + Net Trip Fares + Holiday/OT + Reimbursements</div>
+                            <div class="text-rose-700">Deductions = Standard Statutory (SSS, PhilHealth, Pag-IBIG) + Loans</div>
+                            <div class="text-purple-900 font-black">Net Pay = Gross Pay - Total Deductions + Reimbursements</div>
                         </div>
                     </div>
                 </div>

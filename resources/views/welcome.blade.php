@@ -369,7 +369,7 @@
                                 <span class="text-[9px] font-black text-emerald-700 bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded-full">Active Self-Service</span>
                             </div>
                             <h4 class="text-sm font-bold text-gray-900 font-outfit mt-1 group-hover:text-brand transition-colors">Payroll & Benefits Self-Service (ESS)</h4>
-                            <p class="text-[11px] text-gray-600 mt-0.5 leading-relaxed">Access your personal digital HMO card, interactive payslips, APE schedule, Group Life coverage, and benefit claims.</p>
+                            <p class="text-[11px] text-gray-600 mt-0.5 leading-relaxed">Access your interactive payslips, APE schedule, Group Life coverage, and benefit claims.</p>
                         </div>
                     </a>
 
@@ -719,13 +719,13 @@
                         <span class="text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">Team 4</span>
                         <h3 class="text-base font-bold font-outfit text-gray-900 mb-1.5">Payroll & Benefits</h3>
                         <p class="text-xs text-gray-500 mb-4 leading-relaxed">
-                            Automated payroll calculations, benefits administration, HMO compliance records, claims logs, and employee compensation files.
+                            Automated payroll calculations, statutory benefits administration, compliance records, claims logs, and employee compensation files.
                         </p>
                         <div class="mt-auto space-y-2.5 pt-3 border-t border-gray-200/50">
                             <ul class="flex flex-wrap gap-1">
                                 <li class="text-[9px] font-medium text-forest bg-forest/5 px-2 py-0.5 rounded">Payroll Calculation</li>
                                 <li class="text-[9px] font-medium text-forest bg-forest/5 px-2 py-0.5 rounded">Claims Tracking</li>
-                                <li class="text-[9px] font-medium text-forest bg-forest/5 px-2 py-0.5 rounded">HMO & Benefits</li>
+                                <li class="text-[9px] font-medium text-forest bg-forest/5 px-2 py-0.5 rounded">Statutory Benefits</li>
                             </ul>
                             <div class="pt-1">
                                 <a href="{{ route('ess.dashboard') }}" class="block w-full text-center py-2 px-3 bg-brand hover:bg-brand-dark text-white font-bold text-[11px] rounded-lg transition-all shadow-xs">

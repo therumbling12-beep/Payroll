@@ -68,7 +68,7 @@ class BirAlphalistService
 
             $thirteenthAmount = $thirteenth ? (float) $thirteenth->amount : (float) ($employee->monthly_rate ?: $staffDefault);
             
-            // TRAIN Law statutory ceiling for 13th month & other benefits is PHP 90,000.00
+            $totalAnnualGross = round($grossCompensation + $thirteenthAmount, 2);
             $exempt13th = min($taxExemptCeiling, $thirteenthAmount);
             $taxable13thExcess = max(0.00, $thirteenthAmount - $taxExemptCeiling);
 
@@ -81,7 +81,7 @@ class BirAlphalistService
                 $annualTaxDue = 0.00;
                 $taxWithheld = 0.00;
             } else {
-                $taxableCompensation = max(0.00, round($grossCompensation - $nonTaxableStatutory - $exempt13th + $taxable13thExcess, 2));
+                $taxableCompensation = max(0.00, round($totalAnnualGross - $nonTaxableStatutory - $exempt13th, 2));
                 $annualTaxDue = $this->calculateAnnualTrainTax($taxableCompensation);
                 $taxWithheld = (float) $computations->sum('withholding_tax');
             }
@@ -97,7 +97,7 @@ class BirAlphalistService
                 $totalUnderWithheld += abs($adjustment);
             }
 
-            $totalGross += $grossCompensation;
+            $totalGross += $totalAnnualGross;
             $totalNonTaxableStatutory += $nonTaxableStatutory;
             $totalExempt13th += $exempt13th;
             $totalTaxable += $taxableCompensation;
@@ -112,7 +112,7 @@ class BirAlphalistService
                 'position' => $employee->position,
                 'department' => $employee->department?->name ?? 'General',
                 'is_driver' => $isDriver,
-                'gross_compensation' => $grossCompensation,
+                'gross_compensation' => $totalAnnualGross,
                 'non_taxable_statutory' => $nonTaxableStatutory,
                 'exempt_thirteenth_month' => $exempt13th,
                 'taxable_compensation' => $taxableCompensation,

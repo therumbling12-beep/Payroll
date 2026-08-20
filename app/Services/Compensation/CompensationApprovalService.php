@@ -7,6 +7,8 @@ namespace App\Services\Compensation;
 use App\Models\CompensationAdjustment;
 use App\Models\Employee;
 use App\Models\PayrollAuditTrail;
+use App\Models\PerformanceBonus;
+use App\Models\SalaryComputation;
 use App\Services\FinancialService;
 use Illuminate\Support\Facades\DB;
 
@@ -142,6 +144,19 @@ class CompensationApprovalService
 
                 $emp->update($empUpdates);
 
+                // Sync One-Time Bonus to PerformanceBonus table for immediate payroll pickup if present
+                if ($adjustment->bonus_amount && (float) $adjustment->bonus_amount > 0) {
+                    $currentCutoff = SalaryComputation::where('employee_id', $emp->id)->latest('cutoff_period')->value('cutoff_period') ?? '2026-08-13_19';
+
+                    PerformanceBonus::firstOrCreate([
+                        'employee_id' => $emp->id,
+                        'cutoff_period' => $currentCutoff,
+                        'bonus_amount' => (float) $adjustment->bonus_amount,
+                    ], [
+                        'reason' => 'Compensation Bonus: ' . ($adjustment->reason ?? 'Approved Compensation Adjustment'),
+                    ]);
+                }
+
                 // Check retroactive pay if effective date precedes today
                 $effectiveDate = $adjustment->effective_date ? \Carbon\Carbon::parse($adjustment->effective_date) : now();
                 if ($effectiveDate->isPast() && $effectiveDate->diffInDays(now()) >= 1) {
@@ -153,7 +168,7 @@ class CompensationApprovalService
                         $daysWorked
                     );
 
-                    $cutoffPeriod = now()->format('Y-m-01 to Y-m-15');
+                    $cutoffPeriod = SalaryComputation::where('employee_id', $emp->id)->latest('cutoff_period')->value('cutoff_period') ?? '2026-08-13_19';
                     $this->retroactivePayService->injectRetroactivePayToPayroll(
                         $emp,
                         (float) $retroDiff['retroactive_pay'],

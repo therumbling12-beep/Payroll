@@ -82,7 +82,7 @@
                 
                 <div class="p-3 bg-gray-50 rounded-xl space-y-1">
                     <div class="text-xs font-bold text-gray-900">Juan Dela Cruz (Senior Driver)</div>
-                    <div class="text-[10px] text-emerald-600 font-bold">₱18,450.00 Trip Income • 4.9 ★ Rating</div>
+                    <div class="text-[10px] text-emerald-600 font-bold">PHP 18,450.00 Trip Income • 4.9 Driver Rating</div>
                 </div>
 
                 <div class="p-3 bg-gray-50 rounded-xl space-y-1">

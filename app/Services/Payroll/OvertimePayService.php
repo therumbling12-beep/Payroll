@@ -20,7 +20,7 @@ class OvertimePayService
         $workingDays = (float) CompanySetting::getValue('standard_working_days_per_month', 26.0);
         $workingHours = (float) CompanySetting::getValue('standard_working_hours_per_day', 8.0);
         $regularOtRate = (float) CompanySetting::getValue('overtime_regular_multiplier', 1.25);
-        $restDayOtRate = (float) CompanySetting::getValue('overtime_rest_day_multiplier', 1.69);
+        $restDayOtRate = (float) CompanySetting::getValue('overtime_rest_day_multiplier', 1.30);
         $nsdRate = (float) CompanySetting::getValue('night_shift_differential_rate', 0.10);
 
         $dailyRate = (float) ($employee->daily_rate ?: ($employee->monthly_rate ? round($employee->monthly_rate / $workingDays, 2) : 0.00));

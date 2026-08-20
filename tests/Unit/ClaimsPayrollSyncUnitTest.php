@@ -101,8 +101,8 @@ test('claims payroll sync accurately updates performance_bonus, gross_pay, reimb
     // Verify reimbursements column was updated with non-taxable total
     expect((float) $computation->reimbursements)->toBe(1500.00);
 
-    // Verify net_pay is (gross_pay - total_deductions) + reimbursements = (23500 - 2000) + 1500 = 23000.00
-    expect((float) $computation->net_pay)->toBe(23000.00);
+    // Verify net_pay is gross_pay - total_deductions = 23500 - 2000 = 21500.00 (reimbursements 1500.00 tracked separately for cash voucher)
+    expect((float) $computation->net_pay)->toBe(21500.00);
 
     // Verify claims were queued to payroll
     expect($nonTaxableClaim->fresh()->approval_status)->toBe('payroll_queued')

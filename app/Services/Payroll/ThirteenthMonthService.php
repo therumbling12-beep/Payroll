@@ -43,7 +43,7 @@ class ThirteenthMonthService
             $isDriver = str_contains(strtolower($employee->position ?? ''), 'driver');
             $monthlySalary = (float) ($employee->monthly_rate ?: ($employee->daily_rate ? $employee->daily_rate * $workingDays : ($isDriver ? $driverDefault : $staffDefault)));
 
-            // 1. Calculate historical basic pay earned across all cutoffs in the year
+            // 1. Calculate historical basic pay earned strictly across all recorded weekly cutoffs in the year
             $computations = SalaryComputation::where('employee_id', $employee->id)
                 ->where('cutoff_period', 'like', "{$year}-%")
                 ->get();
@@ -60,12 +60,9 @@ class ThirteenthMonthService
                 $monthsWorked = 0;
             }
 
-            if ($computations->isNotEmpty() && $computations->sum('base_pay') > 0) {
-                $totalBasePayEarned = (float) $computations->sum('base_pay');
-                $amount = round($totalBasePayEarned / 12, 2);
-            } else {
-                $amount = round(($monthlySalary * $monthsWorked) / 12, 2);
-            }
+            // Strictly compute 1/12 of actual basic wages earned across recorded weekly cutoffs (PD 851)
+            $totalBasePayEarned = (float) $computations->sum('base_pay');
+            $amount = round($totalBasePayEarned / 12, 2);
 
             // TRAIN Law statutory ceiling for 13th month & other benefits is PHP 90,000.00
             $nonTaxableExempt = min($taxExemptCeiling, $amount);
@@ -81,6 +78,7 @@ class ThirteenthMonthService
                 'department' => $employee->department?->name ?? 'General',
                 'monthly_salary' => $monthlySalary,
                 'months_worked' => $monthsWorked,
+                'weeks_worked' => $computations->count(),
                 'amount' => $amount,
                 'non_taxable_exempt' => $nonTaxableExempt,
                 'taxable_excess' => $taxableExcess,
@@ -144,58 +142,58 @@ class ThirteenthMonthService
 
         foreach ($monthNames as $mNum => $mName) {
             $mStr = str_pad((string) $mNum, 2, '0', STR_PAD_LEFT);
-            $c1Key = "{$year}-{$mStr}-01_15";
 
-            $lastDay = Carbon::create($year, $mNum, 1)->endOfMonth()->format('d');
-            $c2Key = "{$year}-{$mStr}-16_{$lastDay}";
+            // Match all weekly cutoffs beginning with YYYY-MM
+            $monthComputations = $computations->filter(function ($c) use ($year, $mStr) {
+                return str_starts_with($c->cutoff_period, "{$year}-{$mStr}");
+            })->values();
 
-            $c1 = $computations->get($c1Key);
-            $c2 = $computations->get($c2Key) ?? $computations->filter(fn($c) => str_starts_with($c->cutoff_period, "{$year}-{$mStr}-16"))->first();
-
-            $c1Base = $c1 ? (float) $c1->base_pay : 0.00;
-            $c2Base = $c2 ? (float) $c2->base_pay : 0.00;
-            $monthTotal = $c1Base + $c2Base;
-
-            if ($c1) {
-                $totalCutoffsCount++;
-            }
-            if ($c2) {
-                $totalCutoffsCount++;
-            }
-
+            $monthTotal = (float) $monthComputations->sum('base_pay');
+            $totalCutoffsCount += $monthComputations->count();
             $totalEarnedFromCutoffs += $monthTotal;
 
             $isMonthEligible = ($hireYear < $year) || ($hireYear === $year && $mNum >= $hireMonth);
+
+            // Build 5 weekly slots per month (Weeks 1 to 5)
+            $weeks = [];
+            for ($w = 1; $w <= 5; $w++) {
+                $compItem = $monthComputations->get($w - 1);
+                $weeks[] = [
+                    'week_number' => $w,
+                    'week_label' => "Week {$w}",
+                    'period' => $compItem?->cutoff_period ?? "{$year}-{$mStr} W{$w}",
+                    'base_pay' => $compItem ? (float) $compItem->base_pay : 0.00,
+                    'is_recorded' => (bool) $compItem,
+                ];
+            }
+
+            $firstCutoff = $monthComputations->first();
+            $lastCutoff = $monthComputations->count() > 1 ? $monthComputations->get(1) : null;
 
             $monthsData[] = [
                 'month_number' => $mNum,
                 'month_name' => $mName,
                 'is_eligible' => $isMonthEligible,
+                'weeks' => $weeks,
+                // Backward compatibility aliases
                 'cutoff_1' => [
-                    'period' => $c1Key,
-                    'base_pay' => $c1Base,
-                    'is_recorded' => (bool) $c1,
+                    'period' => $weeks[0]['period'],
+                    'base_pay' => $weeks[0]['base_pay'],
+                    'is_recorded' => $weeks[0]['is_recorded'],
                 ],
                 'cutoff_2' => [
-                    'period' => $c2Key,
-                    'base_pay' => $c2Base,
-                    'is_recorded' => (bool) $c2,
+                    'period' => $weeks[1]['period'],
+                    'base_pay' => $weeks[1]['base_pay'],
+                    'is_recorded' => $weeks[1]['is_recorded'],
                 ],
                 'month_total' => $monthTotal,
             ];
         }
 
-        if ($totalCutoffsCount > 0 && $totalEarnedFromCutoffs > 0) {
-            $annualBasePayBasis = $totalEarnedFromCutoffs;
-            $amount = round($totalEarnedFromCutoffs / 12, 2);
-            $computationMode = "Actual Cutoff Earnings ({$totalCutoffsCount} Cutoffs Aggregated)";
-            $formula = "PHP " . number_format($totalEarnedFromCutoffs, 2) . " (Total Basic Pay Received) / 12 Months = PHP " . number_format($amount, 2);
-        } else {
-            $annualBasePayBasis = round($monthlySalary * $monthsWorked, 2);
-            $amount = round(($monthlySalary * $monthsWorked) / 12, 2);
-            $computationMode = "Standard Monthly Pro-ration ({$monthsWorked} Months Rendered)";
-            $formula = "(PHP " . number_format($monthlySalary, 2) . " Monthly Base x {$monthsWorked} Months) / 12 = PHP " . number_format($amount, 2);
-        }
+        $annualBasePayBasis = $totalEarnedFromCutoffs;
+        $amount = round($totalEarnedFromCutoffs / 12, 2);
+        $computationMode = "Strict Weekly Cutoff Earnings ({$totalCutoffsCount} Weekly Payouts Aggregated)";
+        $formula = "PHP " . number_format($totalEarnedFromCutoffs, 2) . " (Total Basic Pay from {$totalCutoffsCount} Weekly Payouts) / 12 Months = PHP " . number_format($amount, 2);
 
         $nonTaxableExempt = min($taxExemptCeiling, $amount);
         $taxableExcess = max(0.00, $amount - $taxExemptCeiling);

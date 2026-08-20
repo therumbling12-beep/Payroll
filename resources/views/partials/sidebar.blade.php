@@ -54,11 +54,9 @@
             <div id="payroll-group" class="{{ (isset($currentPage) && str_starts_with($currentPage, 'payroll')) ? '' : 'hidden' }} ml-4 mt-1 space-y-0.5 border-l border-white/10 pl-3">
                 <a href="{{ route('payroll.salary-computation') }}" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors {{ (isset($currentPage) && $currentPage === 'payroll.salary-computation') ? 'text-white font-bold' : '' }}">Salary Computation</a>
                 <a href="{{ route('payroll.loans') }}" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors {{ (isset($currentPage) && $currentPage === 'payroll.loans') ? 'text-white font-bold' : '' }}">Loan Amortizations</a>
-                <a href="{{ route('payroll.payslips') }}" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors {{ (isset($currentPage) && $currentPage === 'payroll.payslips') ? 'text-white font-bold' : '' }}">Payslip Generation</a>
                 <a href="{{ route('payroll.thirteenth-month') }}" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors {{ (isset($currentPage) && $currentPage === 'payroll.thirteenth-month') ? 'text-white font-bold' : '' }}">13th Month Pay</a>
                 <a href="{{ route('payroll.off-cycle') }}" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors {{ (isset($currentPage) && $currentPage === 'payroll.off-cycle') ? 'text-white font-bold' : '' }}">Off-Cycle & Final Pay</a>
                 <a href="{{ route('payroll.payment-modes') }}" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors {{ (isset($currentPage) && $currentPage === 'payroll.payment-modes') ? 'text-white font-bold' : '' }}">Payment Modes Config</a>
-                <a href="{{ route('payroll.reports') }}" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors {{ (isset($currentPage) && $currentPage === 'payroll.reports') ? 'text-white font-bold' : '' }}">Payroll Reports</a>
                 <a href="{{ route('payroll.audit-trail') }}" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors {{ (isset($currentPage) && $currentPage === 'payroll.audit-trail') ? 'text-white font-bold' : '' }}">
                     <span class="flex items-center gap-1.5">
                         <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
@@ -81,12 +79,9 @@
                 </svg>
             </button>
             <div id="compensation-group" class="{{ (isset($currentPage) && str_starts_with($currentPage, 'compensation')) ? '' : 'hidden' }} ml-4 mt-1 space-y-0.5 border-l border-white/10 pl-3">
-                <a href="{{ route('compensation.salary-bands') }}" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors {{ (isset($currentPage) && $currentPage === 'compensation.salary-bands') ? 'text-white font-bold' : '' }}">Salary Band Management</a>
+                <a href="{{ route('compensation.salary-bands') }}" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors {{ (isset($currentPage) && $currentPage === 'compensation.salary-bands') ? 'text-white font-bold' : '' }}">Pay Scale Benchmarks</a>
                 <a href="{{ route('compensation.counter-offers') }}" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors {{ (isset($currentPage) && $currentPage === 'compensation.counter-offers') ? 'text-white font-bold' : '' }}">Counter Offers & Packages</a>
-                <a href="{{ route('compensation.merit-promotions') }}" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors {{ (isset($currentPage) && $currentPage === 'compensation.merit-promotions') ? 'text-white font-bold' : '' }}">Merit & Promotions</a>
-                <a href="{{ route('compensation.bonus-allocation') }}" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors {{ (isset($currentPage) && $currentPage === 'compensation.bonus-allocation') ? 'text-white font-bold' : '' }}">Bonus Allocation</a>
-                <a href="{{ route('compensation.tenure-steps') }}" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors {{ (isset($currentPage) && $currentPage === 'compensation.tenure-steps') ? 'text-white font-bold' : '' }}">Tenure Steps</a>
-                <a href="{{ route('compensation.probationary') }}" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors {{ (isset($currentPage) && $currentPage === 'compensation.probationary') ? 'text-white font-bold' : '' }}">Probationary Reviews</a>
+                <a href="{{ route('compensation.merit-promotions') }}" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors {{ (isset($currentPage) && $currentPage === 'compensation.merit-promotions') ? 'text-white font-bold' : '' }}">Salary Progression & Merit</a>
                 <a href="{{ route('compensation.audit-trail') }}" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors {{ (isset($currentPage) && $currentPage === 'compensation.audit-trail') ? 'text-white font-bold' : '' }}">Audit Trail</a>
             </div>
         </div>
@@ -105,31 +100,29 @@
             </button>
             <div id="claims-group" class="{{ (isset($currentPage) && str_starts_with($currentPage, 'claims')) ? '' : 'hidden' }} ml-4 mt-1 space-y-0.5 border-l border-white/10 pl-3">
                 <a href="{{ route('claims.expenses') }}" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors {{ (isset($currentPage) && $currentPage === 'claims.expenses') ? 'text-white font-bold' : '' }}">Driver Work Expenses</a>
-                <a href="{{ route('claims.incentives') }}" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors {{ (isset($currentPage) && $currentPage === 'claims.incentives') ? 'text-white font-bold' : '' }}">Driver Ride Incentives</a>
                 <a href="{{ route('claims.maternity-leave') }}" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors {{ (isset($currentPage) && $currentPage === 'claims.maternity-leave') ? 'text-white font-bold' : '' }}">Maternity Leave Request</a>
                 <a href="{{ route('claims.reports') }}" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors {{ (isset($currentPage) && $currentPage === 'claims.reports') ? 'text-white font-bold' : '' }}">Summary & Audit Reports</a>
                 <a href="{{ route('claims.categories') }}" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors {{ (isset($currentPage) && $currentPage === 'claims.categories') ? 'text-white font-bold' : '' }}">Claim Categories & Limits</a>
             </div>
         </div>
 
-        <!-- 4. HMO & Benefits Administration -->
+        <!-- 4. Benefits Administration -->
         <div class="sidebar-group">
-            <button onclick="toggleGroup('hmo-group')"
-                class="sidebar-link w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 text-white/80 hover:bg-white/10 hover:text-white {{ (isset($currentPage) && str_starts_with($currentPage, 'hmo')) ? 'bg-white/10 text-white' : '' }}">
+            <button onclick="toggleGroup('benefits-group')"
+                class="sidebar-link w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 text-white/80 hover:bg-white/10 hover:text-white {{ (isset($currentPage) && (str_starts_with($currentPage, 'benefits') || str_starts_with($currentPage, 'driver-insurance'))) ? 'bg-white/10 text-white' : '' }}">
                 <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/>
                 </svg>
-                <span class="sidebar-text flex-1 text-left truncate">HMO & Benefits Admin</span>
-                <svg class="sidebar-text w-3 h-3 flex-shrink-0 transition-transform duration-200 {{ (isset($currentPage) && str_starts_with($currentPage, 'hmo')) ? 'rotate-180' : '' }}" id="hmo-group-arrow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <span class="sidebar-text flex-1 text-left truncate">Benefits Admin</span>
+                <svg class="sidebar-text w-3 h-3 flex-shrink-0 transition-transform duration-200 {{ (isset($currentPage) && (str_starts_with($currentPage, 'benefits') || str_starts_with($currentPage, 'driver-insurance'))) ? 'rotate-180' : '' }}" id="benefits-group-arrow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
                 </svg>
             </button>
-            <div id="hmo-group" class="{{ (isset($currentPage) && str_starts_with($currentPage, 'hmo')) ? '' : 'hidden' }} ml-4 mt-1 space-y-0.5 border-l border-white/10 pl-3">
-                <a href="{{ route('hmo.plans') }}" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors {{ (isset($currentPage) && $currentPage === 'hmo.plans') ? 'text-white font-bold' : '' }}">HMO Plans & Directory</a>
-                <a href="{{ route('hmo.enrollments') }}" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors {{ (isset($currentPage) && $currentPage === 'hmo.enrollments') ? 'text-white font-bold' : '' }}">Employee Enrollments & Roster</a>
-                <a href="{{ route('hmo.driver-insurance') }}" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors {{ (isset($currentPage) && $currentPage === 'hmo.driver-insurance') ? 'text-white font-bold' : '' }}">Driver Insurance Pool</a>
-                <a href="{{ route('hmo.corporate-wellness') }}" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors {{ (isset($currentPage) && $currentPage === 'hmo.corporate-wellness') ? 'text-white font-bold' : '' }}">Wellness & Life Coverage</a>
-                <a href="{{ route('hmo.cost-tracking') }}" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors {{ (isset($currentPage) && $currentPage === 'hmo.cost-tracking') ? 'text-white font-bold' : '' }}">Benefits Cost & Budget Hub</a>
+            <div id="benefits-group" class="{{ (isset($currentPage) && (str_starts_with($currentPage, 'benefits') || str_starts_with($currentPage, 'driver-insurance'))) ? '' : 'hidden' }} ml-4 mt-1 space-y-0.5 border-l border-white/10 pl-3">
+                <a href="{{ route('benefits.sil') }}" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors {{ (isset($currentPage) && ($currentPage === 'benefits.sil' || $currentPage === 'benefits.index')) ? 'text-white font-bold' : '' }}">Service Incentive Leave (SIL)</a>
+                <a href="{{ route('benefits.meal-allowance') }}" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors {{ (isset($currentPage) && $currentPage === 'benefits.meal-allowance') ? 'text-white font-bold' : '' }}">Meal Allowance Subsidy</a>
+                <a href="{{ route('benefits.christmas-bonus') }}" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors {{ (isset($currentPage) && $currentPage === 'benefits.christmas-bonus') ? 'text-white font-bold' : '' }}">Christmas Bonus Policy</a>
+                <a href="{{ route('driver-insurance.index') }}" class="block text-xs text-white/60 hover:text-white py-1.5 transition-colors {{ (isset($currentPage) && str_starts_with($currentPage, 'driver-insurance')) ? 'text-white font-bold' : '' }}">Driver Insurance Pool</a>
             </div>
         </div>
 
@@ -164,11 +157,14 @@
                 <p class="text-xs font-bold text-white truncate">Admin User</p>
                 <p class="text-[10px] text-white/40 truncate">admin@tripwise.app</p>
             </div>
-            <a href="#" class="sidebar-text text-white/40 hover:text-white transition-colors flex-shrink-0" title="Sign out">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
-                </svg>
-            </a>
+            <form action="{{ route('logout') }}" method="POST" class="inline flex-shrink-0">
+                @csrf
+                <button type="submit" class="sidebar-text text-white/40 hover:text-white transition-colors cursor-pointer" title="Sign out">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+                    </svg>
+                </button>
+            </form>
         </div>
     </div>
 

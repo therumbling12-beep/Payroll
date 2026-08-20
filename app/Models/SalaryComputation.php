@@ -38,7 +38,6 @@ class SalaryComputation extends Model
         'pagibig_deduction',
         'pagibig_employer',
         'ec_contribution',
-        'hmo_insurance_deduction',
         'platform_fee_deduction',
         'loan_deduction',
         'withholding_tax',
@@ -68,7 +67,6 @@ class SalaryComputation extends Model
             'pagibig_deduction' => 'decimal:2',
             'pagibig_employer' => 'decimal:2',
             'ec_contribution' => 'decimal:2',
-            'hmo_insurance_deduction' => 'decimal:2',
             'platform_fee_deduction' => 'decimal:2',
             'loan_deduction' => 'decimal:2',
             'withholding_tax' => 'decimal:2',
@@ -102,8 +100,8 @@ class SalaryComputation extends Model
         return Attribute::make(
             get: fn () => [
                 'formula_str' => "Base Pay (PHP {$this->base_pay}) + Trips (PHP {$this->trip_earnings}) + Incentives (PHP {$this->driver_trip_incentive}) + Holiday (PHP {$this->holiday_pay}) + OT (PHP {$this->overtime_pay}) + NSD (PHP {$this->night_diff_pay}) + Bonus (PHP {$this->performance_bonus}) = PHP {$this->gross_pay} Gross",
-                'deduction_str' => "SSS (PHP {$this->sss_deduction}) + PhilHealth (PHP {$this->philhealth_deduction}) + PagIBIG (PHP {$this->pagibig_deduction}) + Loans (PHP {$this->loan_deduction}) + Late/Undertime (PHP " . number_format((float)$this->tardiness_deduction + (float)$this->undertime_deduction, 2) . ") + HMO (PHP {$this->hmo_insurance_deduction}) + BIR Tax (PHP {$this->withholding_tax}) = PHP {$this->total_deductions} Deductions",
-                'net_str' => "Gross (PHP {$this->gross_pay}) - Deductions (PHP {$this->total_deductions}) + Reimbursements (PHP {$this->reimbursements}) = PHP {$this->net_pay} Net",
+                'deduction_str' => "SSS (PHP {$this->sss_deduction}) + PhilHealth (PHP {$this->philhealth_deduction}) + PagIBIG (PHP {$this->pagibig_deduction}) + Loans (PHP {$this->loan_deduction}) + Late/Undertime (PHP " . number_format((float)$this->tardiness_deduction + (float)$this->undertime_deduction, 2) . ") + BIR Tax (PHP {$this->withholding_tax}) = PHP {$this->total_deductions} Deductions",
+                'net_str' => "Gross (PHP {$this->gross_pay}) - Deductions (PHP {$this->total_deductions}) = PHP {$this->net_pay} Net",
             ]
         );
     }

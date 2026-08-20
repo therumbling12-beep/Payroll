@@ -70,6 +70,7 @@ class EmployeeLoan extends Model
             'sss_calamity_loan' => 'SSS Calamity Loan',
             'hdmf_multi_purpose_loan' => 'Pag-IBIG Multi-Purpose Loan',
             'hdmf_housing_loan' => 'Pag-IBIG Housing Loan',
+            'cash_advance' => 'Cash Advance (Emergency / Short-Term)',
             'company_emergency_loan' => 'Company Emergency Cash Advance',
             default => ucwords(str_replace('_', ' ', $this->loan_type)),
         };

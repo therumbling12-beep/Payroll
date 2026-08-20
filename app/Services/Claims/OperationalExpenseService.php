@@ -13,6 +13,12 @@ use Illuminate\Support\Facades\DB;
 
 class OperationalExpenseService
 {
+    protected DuplicateClaimDetectionService $duplicateService;
+
+    public function __construct(?DuplicateClaimDetectionService $duplicateService = null)
+    {
+        $this->duplicateService = $duplicateService ?? app(DuplicateClaimDetectionService::class);
+    }
     /**
      * File and store an operational expense claim (Toll, Maintenance, Parking, Meal, etc.)
      *
@@ -53,7 +59,7 @@ class OperationalExpenseService
                 'taxable_amount' => 0.00,
                 'tax_classification' => 'non_taxable',
                 'expense_date' => $data['expense_date'] ?? now()->toDateString(),
-                'cutoff_period' => $data['cutoff_period'] ?? '2026-07-01_15',
+                'cutoff_period' => $data['cutoff_period'] ?? '2026-08-13_19',
                 'description' => $data['description'] ?? sprintf(
                     '%s reimbursement from %s (%s).',
                     $category->name,
@@ -82,6 +88,8 @@ class OperationalExpenseService
                     'receipt_number' => $data['receipt_number'] ?? null,
                 ],
             ]);
+
+            $this->duplicateService->flagClaimIfDuplicate($claim);
 
             return $claim;
         });

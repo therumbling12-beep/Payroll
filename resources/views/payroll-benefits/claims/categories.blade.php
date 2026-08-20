@@ -96,17 +96,7 @@
                     <span class="px-2 py-0.5 text-[10px] font-black rounded-full bg-gray-200 text-gray-800">{{ $categories->count() }}</span>
                 </button>
 
-                <!-- Tab 2: Limits Guide -->
-                <button type="button" @click="activeTab = 'limits'" 
-                        :class="activeTab === 'limits' ? 'bg-white text-gray-900 font-black shadow-sm' : 'text-gray-500 hover:text-gray-900 font-bold'" 
-                        class="px-4 py-2 text-xs rounded-xl transition-all flex items-center gap-2 cursor-pointer">
-                    <svg class="w-4 h-4" :class="activeTab === 'limits' ? 'text-[#F44336]' : 'text-gray-400'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                    </svg>
-                    Statutory Governance Guide
-                </button>
-
-                <!-- Tab 4: Policy & Rates Setup -->
+                <!-- Tab 2: Policy & Rates Setup -->
                 <button type="button" @click="activeTab = 'settings'" 
                         :class="activeTab === 'settings' ? 'bg-white text-gray-900 font-black shadow-sm' : 'text-gray-500 hover:text-gray-900 font-bold'" 
                         class="px-4 py-2 text-xs rounded-xl transition-all flex items-center gap-2 cursor-pointer">
@@ -287,51 +277,7 @@
         </div>
 
         <!-- ========================================================================= -->
-        <!-- TAB 2: STATUTORY GOVERNANCE GUIDE -->
-        <!-- ========================================================================= -->
-        <div x-show="activeTab === 'limits'" x-transition class="space-y-6">
-            <div class="bg-white/80 backdrop-blur-sm rounded-2xl border border-gray-100 p-6 shadow-sm space-y-6">
-                <div class="flex items-center gap-2 border-b border-gray-100 pb-3">
-                    <span class="w-2.5 h-2.5 rounded-full bg-gray-900"></span>
-                    <h3 class="text-base font-extrabold font-outfit text-gray-900">Category Ceilings & Tax Governance Guide</h3>
-                </div>
-
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div class="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-2">
-                        <div class="flex items-center gap-2 text-xs font-bold text-gray-900">
-                            <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
-                            Non-Taxable Business Expenses
-                        </div>
-                        <p class="text-xs text-gray-600 leading-relaxed">
-                            Official fuel, toll fees, vehicle repair, and work travel expenses supported by valid receipts are 100% non-taxable reimbursements per BIR rules.
-                        </p>
-                    </div>
-
-                    <div class="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-2">
-                        <div class="flex items-center gap-2 text-xs font-bold text-gray-900">
-                            <span class="w-2 h-2 rounded-full bg-cyan-500"></span>
-                            De Minimis Medical Exemption
-                        </div>
-                        <p class="text-xs text-gray-600 leading-relaxed">
-                            Actual medical assistance and medicine receipts are tax-exempt up to PHP 10,000.00 / year per employee. Any excess is automatically taxed.
-                        </p>
-                    </div>
-
-                    <div class="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-2">
-                        <div class="flex items-center gap-2 text-xs font-bold text-gray-900">
-                            <span class="w-2 h-2 rounded-full bg-purple-500"></span>
-                            Role Scoping & Fraud Guard
-                        </div>
-                        <p class="text-xs text-gray-600 leading-relaxed">
-                            Categories restricted to TNVS Drivers (Fuel/Toll) cannot be filed by Office Staff, ensuring proper cost allocation and audit compliance.
-                        </p>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- ========================================================================= -->
-        <!-- TAB 4: POLICY & RATES SETUP -->
+        <!-- TAB 2: POLICY & RATES SETUP -->
         <!-- ========================================================================= -->
         <div x-show="activeTab === 'settings'" x-transition class="space-y-6">
             <form action="{{ route('claims.settings.update') }}" method="POST" class="space-y-6">
@@ -366,63 +312,7 @@
                     </div>
                 </div>
 
-                <!-- Section 2: Driver Ride Milestone Incentives -->
-                <div class="bg-white/80 backdrop-blur-sm rounded-2xl border border-gray-100 p-6 shadow-sm space-y-4">
-                    <div class="flex items-center justify-between border-b border-gray-100 pb-3">
-                        <div class="flex items-center gap-2">
-                            <span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span>
-                            <h3 class="text-base font-extrabold font-outfit text-gray-900">Driver Ride Milestone Tier Structure</h3>
-                        </div>
-                        <span class="text-xs text-gray-400 font-mono">TNVS Fleet Quota Targets</span>
-                    </div>
-
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-left border-collapse">
-                            <thead>
-                                <tr class="border-b border-gray-100 text-[11px] font-bold text-gray-400 uppercase tracking-wider">
-                                    <th class="py-2.5 px-3">Tier</th>
-                                    <th class="py-2.5 px-3">Tier Label</th>
-                                    <th class="py-2.5 px-3">Min Completed Rides</th>
-                                    <th class="py-2.5 px-3">Payout Amount (PHP)</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-gray-100 text-xs font-mono">
-                                @foreach($policySettings['milestone_tiers'] as $tierNum => $tier)
-                                    <tr>
-                                        <td class="py-3 px-3 font-bold text-gray-900">
-                                            Tier {{ $tier['tier'] }}
-                                            <input type="hidden" name="milestone_tiers[{{ $tier['tier'] }}][tier]" value="{{ $tier['tier'] }}">
-                                        </td>
-                                        <td class="py-3 px-3">
-                                            <input type="text" name="milestone_tiers[{{ $tier['tier'] }}][label]" value="{{ old("milestone_tiers.{$tier['tier']}.label", $tier['label']) }}" class="w-full text-xs bg-gray-50 border border-gray-200 rounded-xl px-3 py-1.5 font-sans font-bold text-gray-800 focus:outline-none focus:border-gray-900">
-                                        </td>
-                                        <td class="py-3 px-3">
-                                            <input type="number" min="1" name="milestone_tiers[{{ $tier['tier'] }}][min_rides]" value="{{ old("milestone_tiers.{$tier['tier']}.min_rides", $tier['min_rides']) }}" required class="w-28 text-xs bg-gray-50 border border-gray-200 rounded-xl px-3 py-1.5 font-bold text-gray-900 focus:outline-none focus:border-gray-900">
-                                        </td>
-                                        <td class="py-3 px-3">
-                                            <input type="number" step="10" min="1" name="milestone_tiers[{{ $tier['tier'] }}][amount]" value="{{ old("milestone_tiers.{$tier['tier']}.amount", $tier['amount']) }}" required class="w-36 text-xs bg-gray-50 border border-gray-200 rounded-xl px-3 py-1.5 font-bold text-emerald-600 focus:outline-none focus:border-gray-900">
-                                        </td>
-                                    </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
-                    </div>
-
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-gray-100">
-                        <div>
-                            <label class="block text-xs font-bold text-gray-700 mb-1">Monthly Consistency Bonus (PHP)</label>
-                            <input type="number" step="50" min="0" name="driver_consistency_bonus" value="{{ old('driver_consistency_bonus', $policySettings['driver_consistency_bonus']) }}" required class="w-full text-xs bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2 font-mono font-bold text-gray-900 focus:outline-none focus:border-gray-900">
-                            <p class="text-[11px] text-gray-500 mt-1">Paid to drivers meeting quota in consecutive cutoffs</p>
-                        </div>
-                        <div>
-                            <label class="block text-xs font-bold text-gray-700 mb-1">Perfect Attendance Bonus (PHP)</label>
-                            <input type="number" step="50" min="0" name="driver_attendance_bonus" value="{{ old('driver_attendance_bonus', $policySettings['driver_attendance_bonus']) }}" required class="w-full text-xs bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2 font-mono font-bold text-gray-900 focus:outline-none focus:border-gray-900">
-                            <p class="text-[11px] text-gray-500 mt-1">Paid to drivers with 100% scheduled attendance</p>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Section 3: Performance Appraisal & Statutory Ceilings -->
+                <!-- Section 2: Performance Appraisal & Statutory Ceilings -->
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div class="bg-white/80 backdrop-blur-sm rounded-2xl border border-gray-100 p-6 shadow-sm space-y-4">
                         <div class="flex items-center gap-2 border-b border-gray-100 pb-3">
@@ -533,7 +423,6 @@
                             <label class="block text-xs font-bold text-gray-700 mb-1">Claim Type</label>
                             <select name="type" required class="w-full text-xs font-bold bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2 text-gray-800 focus:outline-none focus:border-gray-900">
                                 <option value="reimbursement">Reimbursement (Expense)</option>
-                                <option value="incentive">Incentive (Bonus)</option>
                                 <option value="maternity">Maternity Benefit</option>
                             </select>
                         </div>

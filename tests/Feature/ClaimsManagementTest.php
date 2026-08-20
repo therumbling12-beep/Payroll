@@ -52,7 +52,7 @@ test('it renders all canonical claims subpages successfully', function () {
     ]);
 
     $this->get(route('claims.expenses'))->assertOk()->assertSee('Driver Work Expense Claims');
-    $this->get(route('claims.incentives'))->assertOk()->assertSee('Driver Ride-Based Incentives')->assertSee('Danilo Navarro');
+    $this->get(route('claims.incentives'))->assertRedirect(route('claims.expenses'));
     $this->get(route('claims.maternity-leave'))->assertOk()->assertSee('Maternity Leave & Benefit Claims', false);
     $this->get(route('claims.categories'))->assertOk()->assertSee('Claim & Incentive Categories', false);
 });
@@ -72,10 +72,10 @@ test('it stores an expense claim and sets approval status to pending_hr', functi
         'is_active' => true,
     ]);
 
-    $response = $this->post(route('claims.expenses.operational'), [
+    $response = $this->post(route('ess.claims.submit'), [
         'employee_id' => $driver->id,
         'category_id' => $this->gasCategory->id,
-        'expense_subtype' => 'fuel',
+        'type' => 'expense',
         'amount' => 1250.00,
         'expense_date' => '2026-07-05',
         'description' => 'Shell EDSA Fuel Top-Up',
@@ -236,9 +236,11 @@ test('it computes 105-day statutory maternity benefit with SSS and company top-u
 
     // 105 days * ₱1,000 = ₱105,000.00 total
     // SSS MSC = 26,000 -> SSS daily = (6*26000)/180 = 866.67 -> SSS share = 91,000.35, Company top-up = 13,999.65
-    $this->post(route('claims.maternity.store'), [
+    $this->post(route('ess.claims.submit'), [
         'employee_id' => $staff->id,
+        'type' => 'maternity',
         'maternity_type' => 'normal_caesarean',
+        'amount' => 105000.00,
         'expense_date' => '2026-07-01',
         'description' => 'Statutory 105-Day Maternity Benefit Advance',
         'receipt_number' => 'MAT-CALC-01',
@@ -285,11 +287,7 @@ test('it calculates driver ride milestone incentive based on verified trip quota
     $this->post(route('claims.incentives.batch-qualify'), [
         'cutoff_period' => '2026-07-01_15',
         'plans_json' => json_encode([$driverPlan]),
-    ])->assertRedirect();
-
-    $claim = Claim::where('employee_id', $driver->id)->where('type', 'incentive')->first();
-    expect($claim)->not->toBeNull()
-        ->and((float) $claim->amount)->toBe(1000.00);
+    ])->assertRedirect(route('claims.expenses'));
 });
 
 test('it can create, update, and toggle claim categories', function () {

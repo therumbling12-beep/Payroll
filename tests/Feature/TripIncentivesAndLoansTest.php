@@ -194,11 +194,10 @@ test('payroll engine calculates driver trip quota incentives and loan deductions
     $engine = app(PayrollEngineService::class);
     $comp = $engine->computeForEmployee($this->driver, $cutoff);
 
-    // Trip earnings: 35000, Incentive: 3000 -> Gross: 38000
-    // Platform fee (20% of 35000): 7000, HMO (3% of 38000): 1140, Loan: 416.67
+    // Trip earnings: 35000, Incentive: 0.00 (docs/no.md: no incentives in payroll) -> Gross: 35000.00
     expect((float) $comp->trip_earnings)->toBe(35000.00)
-        ->and((float) $comp->driver_trip_incentive)->toBe(3000.00)
-        ->and((float) $comp->gross_pay)->toBe(38000.00)
+        ->and((float) $comp->driver_trip_incentive)->toBe(0.00)
+        ->and((float) $comp->gross_pay)->toBe(35000.00)
         ->and((float) $comp->loan_deduction)->toBe(416.67)
         ->and((float) $comp->net_pay)->toBeGreaterThan(0.00);
 });

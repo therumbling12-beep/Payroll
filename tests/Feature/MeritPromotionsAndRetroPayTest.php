@@ -222,3 +222,29 @@ test('POST /compensation/merit-promotions/complete commits plans_json directly f
     ]);
 });
 
+// bonus allocation view test removed — bonus-allocation route removed (Phase 2, docs/no.md: bonuses N/A)
+
+test('merit promotions calculation api returns promoted rate and target grade for modal action', function () {
+    $higherGrade = SalaryGrade::where('min_salary', '>', 25000.00)->first();
+
+    $response = $this->postJson(route('compensation.merit-promotions.calculate'), [
+        'employee_id' => $this->employee->id,
+        'type' => 'promotion',
+        'new_grade_id' => $higherGrade->id,
+    ]);
+
+    $response->assertOk()
+        ->assertJsonPath('type', 'promotion')
+        ->assertJsonStructure([
+            'employee_id',
+            'employee_name',
+            'current_salary',
+            'promoted_salary',
+            'increase_amount',
+            'formula',
+        ]);
+
+    expect((float) $response->json('promoted_salary'))->toBeGreaterThanOrEqual(28750.00); // 25,000 * 1.15
+});
+
+

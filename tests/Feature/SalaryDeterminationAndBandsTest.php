@@ -101,9 +101,9 @@ test('POST /compensation/api/salary-determination returns valid JSON payload', f
         ]);
 });
 
-test('GET /compensation/salary-bands page loads with PG-1 to PG-9 hierarchy and zero emojis', function () {
+test('GET /compensation/salary-bands page loads with flexible compensation scales and zero emojis', function () {
     $response = $this->get('/compensation/salary-bands');
     $response->assertOk();
-    $response->assertSee('Salary Band Management');
-    $response->assertSee('PG-1 to PG-9 Hierarchy');
+    $response->assertSee('Flexible Compensation');
+    $response->assertSee('Market Benchmark Reference Scales');
 });

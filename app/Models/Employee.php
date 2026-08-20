@@ -27,6 +27,7 @@ class Employee extends Model
         'performance_rating',
         'daily_rate',
         'monthly_rate',
+        'pagibig_voluntary_contribution',
         'current_step',
         'step_status',
         'step_hold_reason',
@@ -42,6 +43,7 @@ class Employee extends Model
         'regularization_date' => 'date',
         'daily_rate' => 'float',
         'monthly_rate' => 'float',
+        'pagibig_voluntary_contribution' => 'decimal:2',
         'current_step' => 'integer',
     ];
 
@@ -134,19 +136,9 @@ class Employee extends Model
         return $this->hasMany(PerformanceBonus::class);
     }
 
-    public function hmoEnrollments(): HasMany
-    {
-        return $this->hasMany(HmoEnrollment::class);
-    }
-
     public function accidentClaims(): HasMany
     {
         return $this->hasMany(AccidentClaim::class);
-    }
-
-    public function hmoUtilizationLogs(): HasMany
-    {
-        return $this->hasMany(HmoUtilizationLog::class);
     }
 
     public function loans(): HasMany
@@ -154,14 +146,19 @@ class Employee extends Model
         return $this->hasMany(EmployeeLoan::class);
     }
 
-    public function annualPhysicalExams(): HasMany
+    public function serviceIncentiveLeaves(): HasMany
     {
-        return $this->hasMany(AnnualPhysicalExam::class);
+        return $this->hasMany(ServiceIncentiveLeave::class);
     }
 
-    public function groupLifePolicies(): HasMany
+    public function mealAllowanceDisbursements(): HasMany
     {
-        return $this->hasMany(GroupLifePolicy::class);
+        return $this->hasMany(MealAllowanceDisbursement::class);
+    }
+
+    public function christmasBonusDisbursements(): HasMany
+    {
+        return $this->hasMany(ChristmasBonusDisbursement::class);
     }
 
     public function scopeSearch(Builder $query, ?string $term): void

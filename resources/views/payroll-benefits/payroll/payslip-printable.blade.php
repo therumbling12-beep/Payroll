@@ -43,7 +43,7 @@
                     <p class="text-xs text-gray-500">TripWise TNVS Payroll & Benefits System • DOLE Advisory No. 06-20</p>
                 </div>
                 <div class="text-left sm:text-right">
-                    <span class="text-xs font-black uppercase text-gray-900 tracking-wide block">OFFICIAL EMPLOYEE PAYSLIP</span>
+                    <span class="text-xs font-black uppercase text-gray-900 tracking-wide block">OFFICIAL EMPLOYEE PAYSLIP (WEEKLY)</span>
                     <span class="text-xs text-gray-500 font-mono font-bold">Pay Period: {{ $payslip['cutoff_period'] }}</span>
                 </div>
             </div>
@@ -83,7 +83,7 @@
                         <tbody class="divide-y divide-gray-100">
                             @if($payslip['earnings']['base_pay'] > 0)
                                 <tr>
-                                    <td class="py-1.5 px-3 text-gray-700">Basic Salary (Semi-Monthly)</td>
+                                    <td class="py-1.5 px-3 text-gray-700">Basic Salary (Weekly)</td>
                                     <td class="py-1.5 px-3 text-right font-mono font-bold text-gray-900">PHP {{ number_format($payslip['earnings']['base_pay'], 2) }}</td>
                                 </tr>
                             @endif
@@ -91,12 +91,6 @@
                                 <tr>
                                     <td class="py-1.5 px-3 text-gray-700">TNVS Trip Fares & Passenger Bookings</td>
                                     <td class="py-1.5 px-3 text-right font-mono font-bold text-blue-700">PHP {{ number_format($payslip['earnings']['trip_earnings'], 2) }}</td>
-                                </tr>
-                            @endif
-                            @if($payslip['earnings']['driver_trip_incentive'] > 0)
-                                <tr>
-                                    <td class="py-1.5 px-3 text-gray-700">Driver Trip Quota Incentive Tier</td>
-                                    <td class="py-1.5 px-3 text-right font-mono font-bold text-emerald-700">PHP {{ number_format($payslip['earnings']['driver_trip_incentive'], 2) }}</td>
                                 </tr>
                             @endif
                             @if($payslip['earnings']['holiday_pay'] > 0)
@@ -107,7 +101,7 @@
                             @endif
                             @if($payslip['earnings']['overtime_pay'] > 0)
                                 <tr>
-                                    <td class="py-1.5 px-3 text-gray-700">Overtime Premium (125% / 169%)</td>
+                                    <td class="py-1.5 px-3 text-gray-700">Overtime & Rest Day Premium (125% / 130%)</td>
                                     <td class="py-1.5 px-3 text-right font-mono font-bold text-blue-800">PHP {{ number_format($payslip['earnings']['overtime_pay'], 2) }}</td>
                                 </tr>
                             @endif
@@ -121,12 +115,6 @@
                                 <tr>
                                     <td class="py-1.5 px-3 text-gray-700">Performance Bonus / Allowances</td>
                                     <td class="py-1.5 px-3 text-right font-mono font-bold text-amber-700">PHP {{ number_format($payslip['earnings']['performance_bonus'], 2) }}</td>
-                                </tr>
-                            @endif
-                            @if($payslip['earnings']['reimbursements'] > 0)
-                                <tr>
-                                    <td class="py-1.5 px-3 text-gray-700">Non-Taxable Expense Reimbursements</td>
-                                    <td class="py-1.5 px-3 text-right font-mono font-bold text-emerald-800">PHP {{ number_format($payslip['earnings']['reimbursements'], 2) }}</td>
                                 </tr>
                             @endif
                         </tbody>
@@ -171,12 +159,6 @@
                                     <td class="py-1.5 px-3 text-right font-mono font-bold text-rose-600">-PHP {{ number_format($payslip['deductions']['withholding_tax'], 2) }}</td>
                                 </tr>
                             @endif
-                            @if($payslip['deductions']['hmo_insurance_deduction'] > 0)
-                                <tr>
-                                    <td class="py-1.5 px-3 text-gray-700">Driver Group HMO Insurance (3%)</td>
-                                    <td class="py-1.5 px-3 text-right font-mono font-bold text-rose-600">-PHP {{ number_format($payslip['deductions']['hmo_insurance_deduction'], 2) }}</td>
-                                </tr>
-                            @endif
                             @if($payslip['deductions']['platform_fee_deduction'] > 0)
                                 <tr>
                                     <td class="py-1.5 px-3 text-gray-700">TNC Platform Commission Fee (20%)</td>
@@ -216,13 +198,29 @@
             <!-- Net Take-Home Payout Highlight -->
             <div class="border-2 border-gray-900 p-4 rounded-2xl flex items-center justify-between bg-gray-50/80">
                 <div>
-                    <span class="text-xs font-bold text-gray-500 uppercase block">Net Take-Home Pay:</span>
-                    <span class="text-[11px] text-gray-400 font-medium">Credited to beneficiary account / released via cashier</span>
+                    <span class="text-xs font-bold text-gray-500 uppercase block">Net Take-Home Pay (Bank Settlement):</span>
+                    <span class="text-[11px] text-gray-400 font-medium">Direct credit to employee payroll account / bank transfer</span>
                 </div>
                 <div class="text-2xl font-black font-outfit text-emerald-700">
                     PHP {{ number_format($payslip['net_pay'], 2) }}
                 </div>
             </div>
+
+            <!-- Over-the-Counter Cash Reimbursement Voucher (If applicable) -->
+            @if(($payslip['earnings']['reimbursements'] ?? 0) > 0)
+                <div class="p-3.5 bg-amber-50/70 border border-amber-200 rounded-2xl flex items-center justify-between text-xs">
+                    <div>
+                        <span class="font-black text-amber-950 uppercase tracking-wider block text-[11px]">Over-the-Counter Cash Reimbursement Voucher</span>
+                        <span class="text-gray-600 text-[11px]">Approved work expense refund — Claim in Physical Cash via Cashier Counter</span>
+                    </div>
+                    <div class="text-right">
+                        <span class="font-black font-outfit text-amber-900 text-sm">
+                            PHP {{ number_format($payslip['earnings']['reimbursements'], 2) }}
+                        </span>
+                        <span class="text-[10px] font-bold text-amber-700 block uppercase">Cash Settlement</span>
+                    </div>
+                </div>
+            @endif
 
             <!-- Itemized Active Loans Reference (if any) -->
             @if(count($payslip['itemized_loans']) > 0)
@@ -240,27 +238,30 @@
                 </div>
             @endif
 
-            <!-- MANDATORY DOLE EMPLOYER CONTRIBUTIONS TRANSPARENCY -->
-            <div class="border border-gray-200 rounded-xl p-3.5 bg-blue-50/30 text-xs space-y-2">
-                <div class="flex justify-between items-center border-b border-blue-100 pb-1.5">
-                    <span class="font-black text-blue-900 uppercase tracking-wider text-[11px]">Employer Contributions Transparency (TripWise Company Shoulder)</span>
-                    <span class="font-mono font-black text-blue-900">Total: PHP {{ number_format($payslip['employer_contributions']['total_employer_burden'], 2) }}</span>
+            <!-- Employer Statutory Contributions (Company Gov't Burden) -->
+            <div class="border border-blue-200 rounded-2xl p-4 bg-blue-50/40 text-xs space-y-2.5">
+                <div class="flex justify-between items-center border-b border-blue-200 pb-2">
+                    <span class="font-black text-blue-950 uppercase tracking-wider text-[11px]">Employer Statutory Contributions (Company Gov't Burden)</span>
+                    <div class="flex items-center gap-2">
+                        <span class="text-[11px] font-bold text-blue-800">Total Employer Burden: PHP {{ number_format($payslip['employer_contributions']['total_employer_burden'], 2) }}</span>
+                        <span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-100 text-blue-900">Total CTC: PHP {{ number_format($payslip['earnings']['gross_pay'] + $payslip['employer_contributions']['total_employer_burden'], 2) }}</span>
+                    </div>
                 </div>
-                <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-gray-700">
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-gray-700">
                     <div>
-                        <span class="text-gray-400 block text-[10px]">SSS Employer (9.5%):</span>
+                        <span class="text-gray-500 block text-[10px]">SSS Employer:</span>
                         <span class="font-mono font-bold text-gray-900">PHP {{ number_format($payslip['employer_contributions']['sss_employer'], 2) }}</span>
                     </div>
                     <div>
-                        <span class="text-gray-400 block text-[10px]">PhilHealth Employer (2.5%):</span>
+                        <span class="text-gray-500 block text-[10px]">PhilHealth Employer:</span>
                         <span class="font-mono font-bold text-gray-900">PHP {{ number_format($payslip['employer_contributions']['philhealth_employer'], 2) }}</span>
                     </div>
                     <div>
-                        <span class="text-gray-400 block text-[10px]">Pag-IBIG Employer:</span>
+                        <span class="text-gray-500 block text-[10px]">Pag-IBIG Employer:</span>
                         <span class="font-mono font-bold text-gray-900">PHP {{ number_format($payslip['employer_contributions']['pagibig_employer'], 2) }}</span>
                     </div>
                     <div>
-                        <span class="text-gray-400 block text-[10px]">EC Contribution:</span>
+                        <span class="text-gray-500 block text-[10px]">EC Contribution:</span>
                         <span class="font-mono font-bold text-gray-900">PHP {{ number_format($payslip['employer_contributions']['ec_contribution'], 2) }}</span>
                     </div>
                 </div>

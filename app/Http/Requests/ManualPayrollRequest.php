@@ -33,7 +33,6 @@ class ManualPayrollRequest extends FormRequest
             'sss_deduction' => ['required', 'numeric', 'min:0'],
             'philhealth_deduction' => ['required', 'numeric', 'min:0'],
             'pagibig_deduction' => ['required', 'numeric', 'min:0'],
-            'hmo_insurance_deduction' => ['nullable', 'numeric', 'min:0'],
             'withholding_tax' => ['required', 'numeric', 'min:0'],
             'status' => ['nullable', 'string', 'in:pending_approval,approved_legal,released_financial,rejected'],
         ];

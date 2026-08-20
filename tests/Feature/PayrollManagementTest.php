@@ -99,11 +99,9 @@ test('payroll salary computation show page renders successfully', function () {
     $response->assertSee('Juan Dela Cruz');
 });
 
-test('payslips generation page renders successfully', function () {
+test('payslips generation route safely redirects to salary computation desk', function () {
     $response = $this->get(route('payroll.payslips'));
-    $response->assertOk();
-    $response->assertSee('Personnel Payslip Generation');
-    $response->assertSee('Juan Dela Cruz');
+    $response->assertRedirect(route('payroll.salary-computation'));
 });
 
 test('13th month pay page renders successfully', function () {
@@ -198,21 +196,23 @@ test('regular driver payroll computation correctly computes base pay, trips, and
         'bonus_amount' => 1500.00,
     ]);
 
+    \App\Models\CompanySetting::setValue('payroll_include_discretionary_bonuses', true);
+
     $service = app(\App\Services\PayrollEngineService::class);
     $comp = $service->computeForEmployee($driver, '2026-07-01_15');
 
-    // Base Pay is 30,000 / 2 = 15,000; Trip earnings: 6,000; Tier 1 trip incentive (30 trips): 500; Bonus: 1,500
+    // Base Pay is 30,000 / 2 = 15,000; Trip earnings: 6,000; Incentive: 0.00; Bonus: 1,500
     expect((float) $comp->base_pay)->toBe(15000.00)
         ->and((float) $comp->trip_earnings)->toBe(6000.00)
-        ->and((float) $comp->driver_trip_incentive)->toBe(500.00)
+        ->and((float) $comp->driver_trip_incentive)->toBe(0.00)
         ->and((float) $comp->performance_bonus)->toBe(1500.00)
-        ->and((float) $comp->gross_pay)->toBe(23000.00)
+        ->and((float) $comp->gross_pay)->toBe(22500.00)
         ->and((float) $comp->sss_deduction)->toBeGreaterThan(0.00)
         ->and((float) $comp->sss_employer)->toBeGreaterThan(0.00)
         ->and((float) $comp->philhealth_deduction)->toBeGreaterThan(0.00)
         ->and((float) $comp->philhealth_employer)->toBeGreaterThan(0.00)
-        ->and((float) $comp->pagibig_deduction)->toBe(100.00)
-        ->and((float) $comp->pagibig_employer)->toBe(100.00)
+        ->and((float) $comp->pagibig_deduction)->toBe(46.15)
+        ->and((float) $comp->pagibig_employer)->toBe(46.15)
         ->and((float) $comp->platform_fee_deduction)->toBe(1200.00) // 20% of 6000.00
         ->and((float) $comp->net_pay)->toBeGreaterThan(0.00);
 });
@@ -242,13 +242,13 @@ test('regular staff payroll computation includes 2026 statutory brackets and TRA
     $comp = $service->computeForEmployee($staff, '2026-07-01_15');
 
     expect((float) $comp->base_pay)->toBe(12500.00)
-        ->and((float) $comp->sss_deduction)->toBe(625.00) // 25k MSC * 5% / 2 = 625.00
-        ->and((float) $comp->sss_employer)->toBe(1250.00) // 25k MSC * 10% / 2 = 1250.00
-        ->and((float) $comp->philhealth_deduction)->toBe(312.50) // 25k * 2.5% / 2 = 312.50
-        ->and((float) $comp->philhealth_employer)->toBe(312.50)
-        ->and((float) $comp->pagibig_deduction)->toBe(100.00)
-        ->and((float) $comp->pagibig_employer)->toBe(100.00)
-        ->and((float) $comp->ec_contribution)->toBe(15.00);
+        ->and((float) $comp->sss_deduction)->toBe(288.46) // 25k MSC * 5% * 12 / 52 = 288.46
+        ->and((float) $comp->sss_employer)->toBe(576.92) // 25k MSC * 10% * 12 / 52 = 576.92
+        ->and((float) $comp->philhealth_deduction)->toBe(144.23) // 25k * 2.5% * 12 / 52 = 144.23
+        ->and((float) $comp->philhealth_employer)->toBe(144.23)
+        ->and((float) $comp->pagibig_deduction)->toBe(46.15)
+        ->and((float) $comp->pagibig_employer)->toBe(46.15)
+        ->and((float) $comp->ec_contribution)->toBe(6.92);
 });
 
 test('streaming exports for payroll register, SSS R-3, PhilHealth RF-1, Pag-IBIG MCRF, and Security Bank CSV work correctly', function () {

@@ -184,4 +184,68 @@ class ProbationaryConversionService
             default => 3.5,
         };
     }
+
+    /**
+     * Retrieve Probationary Employees grouped by milestone evaluation status.
+     *
+     * @return array<string, mixed>
+     */
+    public function getProbationaryOverview(): array
+    {
+        $probationaryEmployees = Employee::with('department')
+            ->where('employment_status', 'probationary')
+            ->orWhere(function ($q) {
+                $q->whereNull('employment_status')
+                    ->where('hire_date', '>=', now()->subMonths(6));
+            })
+            ->get();
+
+        $critical7Days = [];
+        $due30Days = [];
+        $review60Days = [];
+        $onTrack = [];
+
+        foreach ($probationaryEmployees as $emp) {
+            $hireDate = $emp->hire_date ? \Carbon\Carbon::parse($emp->hire_date) : now()->subMonths(3);
+            $targetRegularization = $hireDate->copy()->addMonths(6);
+            $daysLeft = (int) now()->diffInDays($targetRegularization, false);
+
+            $currentSalary = (float) ($emp->monthly_rate ?: ($emp->daily_rate ? $emp->daily_rate * 26 : 20000.00));
+            $grade = SalaryGrade::where('position_name', $emp->position)->first();
+            $midpoint = $grade ? (($grade->min_salary + $grade->max_salary) / 2) : ($currentSalary * 1.10);
+            $suggestedRegularRate = max($currentSalary * 1.08, $midpoint);
+
+            $item = [
+                'employee' => $emp,
+                'hire_date' => $hireDate->format('M j, Y'),
+                'target_date' => $targetRegularization->format('M j, Y'),
+                'days_remaining' => $daysLeft,
+                'current_salary' => $currentSalary,
+                'suggested_regular_salary' => round($suggestedRegularRate, 2),
+            ];
+
+            if ($daysLeft <= 7) {
+                $critical7Days[] = $item;
+            } elseif ($daysLeft <= 30) {
+                $due30Days[] = $item;
+            } elseif ($daysLeft <= 60) {
+                $review60Days[] = $item;
+            } else {
+                $onTrack[] = $item;
+            }
+        }
+
+        $all = array_merge($critical7Days, $due30Days, $review60Days, $onTrack);
+
+        return [
+            'total_probationary' => $probationaryEmployees->count(),
+            'critical_7_days' => $critical7Days,
+            'due_30_days' => $due30Days,
+            'notice_60_days' => $review60Days,
+            'review_60_days' => $review60Days,
+            'on_track' => $onTrack,
+            'upcoming' => $onTrack,
+            'employees' => $all,
+        ];
+    }
 }

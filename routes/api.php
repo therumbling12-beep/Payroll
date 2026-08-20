@@ -25,7 +25,12 @@ Route::prefix('payroll')->middleware('api')->group(function () {
         Route::post('/legal-decision', [PayrollApiController::class, 'webhookLegalDecision']);
         Route::post('/counter-offer', [PayrollApiController::class, 'webhookCounterOffer']);
         Route::post('/merit-promotion', [PayrollApiController::class, 'webhookTeam3Merit']);
+        Route::post('/team3-promotion', [\App\Http\Controllers\CompensationController::class, 'syncTeam3Promotion'])->name('api.webhooks.team3.promotions');
         Route::post('/driver-reimbursement', [PayrollApiController::class, 'webhookDriverReimbursement']);
     });
 
 });
+
+Route::post('/v1/integrations/team3/promotions', [\App\Http\Controllers\CompensationController::class, 'syncTeam3Promotion'])
+    ->name('api.integrations.team3.promotions');
+

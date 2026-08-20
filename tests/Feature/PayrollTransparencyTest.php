@@ -70,14 +70,13 @@ test('payroll transparency service generates exact mathematical formulas and sta
         'pagibig_deduction' => 100.00,
         'pagibig_employer' => 100.00,
         'ec_contribution' => 10.00,
-        'hmo_insurance_deduction' => 1041.00,
         'platform_fee_deduction' => 3000.00,
         'loan_deduction' => 1000.00,
         'withholding_tax' => 2500.00,
         'tardiness_deduction' => 100.00,
         'undertime_deduction' => 50.00,
-        'total_deductions' => 8991.00,
-        'net_pay' => 26009.00,
+        'total_deductions' => 7950.00,
+        'net_pay' => 27050.00,
         'status' => 'pending_approval',
     ]);
 
@@ -91,7 +90,7 @@ test('payroll transparency service generates exact mathematical formulas and sta
     // 2. TNVS Commission & Quota Verification
     expect($breakdown['tnvs_math']['trip_earnings'])->toBe(15000.00)
         ->and($breakdown['tnvs_math']['platform_fee_deduction'])->toBe(3000.00)
-        ->and($breakdown['tnvs_math']['quota_tier_label'])->toContain('Tier 2');
+        ->and($breakdown['tnvs_math']['quota_tier_label'])->toContain('Standard Rate');
 
     // 3. Statutory Lookups Verification
     expect($breakdown['statutory_lookups']['sss']['ee_share'])->toBe(800.00)
@@ -132,7 +131,7 @@ test('computation transparency endpoint returns 200 json response with complete 
         'base_pay_math' => ['monthly_rate', 'daily_rate', 'hourly_rate', 'minute_rate', 'days_rendered', 'base_pay', 'formula'],
         'attendance_math' => ['minute_rate', 'tardiness_minutes', 'tardiness_deduction', 'tardiness_formula'],
         'tnvs_math' => ['is_driver', 'trip_earnings', 'platform_fee_percent', 'platform_fee_deduction', 'quota_tier_label'],
-        'statutory_lookups' => ['monthly_basis', 'sss', 'philhealth', 'pagibig', 'driver_hmo'],
+        'statutory_lookups' => ['monthly_basis', 'sss', 'philhealth', 'pagibig'],
         'tax_math' => ['gross_pay', 'taxable_income', 'train_bracket', 'withholding_tax', 'formula'],
         'loan_math',
         'net_pay_math' => ['gross_pay', 'total_deductions', 'reimbursements', 'net_pay', 'formula'],

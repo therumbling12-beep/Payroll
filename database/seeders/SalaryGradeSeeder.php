@@ -7,12 +7,17 @@ namespace Database\Seeders;
 use App\Models\SalaryGrade;
 use App\Models\SalaryStep;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
 
 class SalaryGradeSeeder extends Seeder
 {
     public function run(): void
     {
-        // 1. Seed Official PG-1 to PG-9 Pay Grades (known.md §6.2)
+        // 0. Clean database-agnostic deletion to eliminate obsolete duplicate rows
+        SalaryStep::query()->delete();
+        SalaryGrade::query()->delete();
+
+        // 1. Seed Strictly 7 Official Corporate Pay Grades (PG-1 to PG-7)
         $grades = [
             [
                 'grade_code' => 'PG-1',
@@ -48,7 +53,7 @@ class SalaryGradeSeeder extends Seeder
                 'grade_code' => 'PG-4',
                 'job_level' => 'Senior',
                 'position_name' => 'Senior Staff & Senior Driver',
-                'sample_positions' => 'Senior Dispatcher, Accounting Staff, Senior TNVS Driver',
+                'sample_positions' => 'Senior Dispatcher, Accounting Staff, Senior TNVS Driver, HR Specialist',
                 'min_salary' => 28000.00,
                 'max_salary' => 40000.00,
                 'annual_growth_rate' => 6.50,
@@ -57,8 +62,8 @@ class SalaryGradeSeeder extends Seeder
             [
                 'grade_code' => 'PG-5',
                 'job_level' => 'Supervisor',
-                'position_name' => 'Fleet Supervisor',
-                'sample_positions' => 'Fleet Supervisor, Payroll Supervisor, Senior Coordinator',
+                'position_name' => 'Fleet Supervisor & Specialist Lead',
+                'sample_positions' => 'Fleet Supervisor, Payroll Supervisor, Senior Coordinator, IT Specialist',
                 'min_salary' => 38000.00,
                 'max_salary' => 55000.00,
                 'annual_growth_rate' => 7.00,
@@ -67,7 +72,7 @@ class SalaryGradeSeeder extends Seeder
             [
                 'grade_code' => 'PG-6',
                 'job_level' => 'Manager',
-                'position_name' => 'Operations Manager',
+                'position_name' => 'Operations & Department Manager',
                 'sample_positions' => 'Operations Manager, Finance Manager, HR Manager',
                 'min_salary' => 50000.00,
                 'max_salary' => 80000.00,
@@ -76,32 +81,12 @@ class SalaryGradeSeeder extends Seeder
             ],
             [
                 'grade_code' => 'PG-7',
-                'job_level' => 'Senior Manager',
-                'position_name' => 'Regional & Fleet Director',
-                'sample_positions' => 'Regional Operations Manager, Fleet Director',
+                'job_level' => 'Executive & Director',
+                'position_name' => 'Regional Director & Managing Executive',
+                'sample_positions' => 'Regional Operations Director, Fleet Director, Managing Executive',
                 'min_salary' => 75000.00,
                 'max_salary' => 120000.00,
                 'annual_growth_rate' => 9.00,
-                'effectivity_date' => now()->startOfYear(),
-            ],
-            [
-                'grade_code' => 'PG-8',
-                'job_level' => 'Executive',
-                'position_name' => 'Vice President & Deputies',
-                'sample_positions' => 'VP Operations, Chief Operating Officer, Chief Financial Officer',
-                'min_salary' => 120000.00,
-                'max_salary' => 200000.00,
-                'annual_growth_rate' => 10.00,
-                'effectivity_date' => now()->startOfYear(),
-            ],
-            [
-                'grade_code' => 'PG-9',
-                'job_level' => 'C-Suite',
-                'position_name' => 'Chief Executive & President',
-                'sample_positions' => 'Chief Executive Officer, President, Managing Director',
-                'min_salary' => 200000.00,
-                'max_salary' => 350000.00,
-                'annual_growth_rate' => 12.00,
                 'effectivity_date' => now()->startOfYear(),
             ],
         ];
@@ -118,10 +103,7 @@ class SalaryGradeSeeder extends Seeder
         ];
 
         foreach ($grades as $gradeData) {
-            $grade = SalaryGrade::updateOrCreate(
-                ['position_name' => $gradeData['position_name']],
-                $gradeData
-            );
+            $grade = SalaryGrade::create($gradeData);
 
             // Seed steps 1 to 7 for this grade
             foreach ($stepDefinitions as $stepDef) {
@@ -129,17 +111,13 @@ class SalaryGradeSeeder extends Seeder
                 $pct = $stepDef['increment_percentage'];
                 $baseAmount = $base + ($base * ($pct / 100));
 
-                SalaryStep::updateOrCreate(
-                    [
-                        'salary_grade_id' => $grade->id,
-                        'step_number' => $stepDef['step_number'],
-                    ],
-                    [
-                        'years_required' => $stepDef['years_required'],
-                        'increment_percentage' => $pct,
-                        'base_amount' => round($baseAmount, 2),
-                    ]
-                );
+                SalaryStep::create([
+                    'salary_grade_id' => $grade->id,
+                    'step_number' => $stepDef['step_number'],
+                    'years_required' => $stepDef['years_required'],
+                    'increment_percentage' => $pct,
+                    'base_amount' => round($baseAmount, 2),
+                ]);
             }
         }
     }

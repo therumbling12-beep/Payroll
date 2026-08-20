@@ -11,7 +11,7 @@
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
             <h1 class="text-2xl font-black font-outfit text-gray-900 tracking-tight">Compensation Audit Trail & Compliance Log</h1>
-            <p class="text-xs text-gray-500 mt-1">Read-only statutory compliance record tracking all compensation approvals, salary band recalibrations, and payroll syncs.</p>
+            <p class="text-xs text-gray-500 mt-1">Read-only statutory compliance record tracking all compensation approvals, pay scale benchmark updates, and payroll syncs.</p>
         </div>
         <div class="flex items-center gap-3">
             <a href="{{ route('compensation.audit-trail.export', request()->query()) }}" 

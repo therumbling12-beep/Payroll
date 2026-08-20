@@ -51,9 +51,17 @@
         <!-- 13th Month Batch & Workflow Header Toolbar -->
         <div class="bg-white/80 backdrop-blur-sm rounded-2xl border border-gray-100 p-6 shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-4">
             <div>
-                <div class="flex items-center gap-2 mb-1">
-                    <span class="text-xs font-bold text-gray-500 uppercase tracking-wider">Active Calendar Year:</span>
-                    <span class="text-sm font-black font-outfit text-gray-900">{{ $year }}</span>
+                <div class="flex items-center gap-3 mb-1">
+                    <span class="text-xs font-bold text-gray-500 uppercase tracking-wider">Calendar Year:</span>
+                    <form action="{{ route('payroll.thirteenth-month') }}" method="GET" class="inline-flex items-center">
+                        <select name="year" onchange="this.form.submit()" class="text-xs font-black bg-gray-50 border border-gray-200 rounded-xl px-3 py-1.5 text-gray-900 focus:outline-none focus:border-[#F44336] shadow-2xs">
+                            @foreach($availableYears ?? [2026, 2027, 2028] as $y)
+                                <option value="{{ $y }}" {{ (int)$year === (int)$y ? 'selected' : '' }}>
+                                    Year {{ $y }} {{ (int)$y === 2026 ? '(Active)' : '' }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </form>
                     <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black border {{ $batch->status->badgeClasses() }}">
                         <span class="w-1.5 h-1.5 rounded-full bg-current"></span>
                         {{ $batch->status->label() }}
@@ -153,52 +161,29 @@
             </div>
         </div>
 
-        <!-- Interactive Tab Navigation -->
-        <div class="flex items-center gap-2 border-b border-gray-200 pb-3">
-            <button type="button" @click="activeTab = 'table'"
-                    :class="activeTab === 'table' ? 'bg-gray-900 text-white font-black' : 'bg-white text-gray-600 font-bold hover:bg-gray-50'"
-                    class="px-4 py-2 text-xs rounded-xl transition-all whitespace-nowrap flex items-center gap-2 shadow-xs">
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/>
-                </svg>
-                Employee Breakdown Table
-            </button>
-            <button type="button" @click="activeTab = 'workflow'"
-                    :class="activeTab === 'workflow' ? 'bg-gray-900 text-white font-black' : 'bg-white text-gray-600 font-bold hover:bg-gray-50'"
-                    class="px-4 py-2 text-xs rounded-xl transition-all whitespace-nowrap flex items-center gap-2">
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
-                </svg>
-                Approval Workflow Trace
-            </button>
-            <button type="button" @click="activeTab = 'guide'"
-                    :class="activeTab === 'guide' ? 'bg-gray-900 text-white font-black' : 'bg-white text-gray-600 font-bold hover:bg-gray-50'"
-                    class="px-4 py-2 text-xs rounded-xl transition-all whitespace-nowrap flex items-center gap-2">
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
-                </svg>
-                P.D. 851 & TRAIN Exemption Guide
-            </button>
-        </div>
-
         <!-- ========================================================================= -->
-        <!-- TAB 1: EMPLOYEE BREAKDOWN TABLE -->
+        <!-- EMPLOYEE BREAKDOWN TABLE -->
         <!-- ========================================================================= -->
-        <div x-show="activeTab === 'table'" x-transition class="space-y-6">
+        <div class="space-y-6">
 
             <div class="bg-white/80 backdrop-blur-sm rounded-2xl border border-gray-100 p-6 shadow-sm space-y-5">
-                
-                <!-- Search & Department Filter -->
+                               <!-- Search & Department & Year Filter -->
                 <form action="{{ route('payroll.thirteenth-month') }}" method="GET" class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <input type="hidden" name="year" value="{{ $year }}">
-                    <div class="flex flex-1 items-center gap-3">
-                        <div class="relative flex-1 max-w-sm">
+                    <div class="flex flex-1 flex-wrap items-center gap-3">
+                        <div class="relative flex-1 min-w-[200px] max-w-sm">
                             <input type="text" name="search" value="{{ $search }}" placeholder="Search employee name or code..." 
                                    class="w-full text-xs bg-gray-50 border border-gray-200 rounded-xl pl-9 pr-3.5 py-2.5 text-gray-800 focus:outline-none focus:border-[#F44336]">
                             <svg class="w-4 h-4 text-gray-400 absolute left-3 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
                             </svg>
                         </div>
+
+                        <select name="year" onchange="this.form.submit()" 
+                                class="text-xs font-bold bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-gray-800 focus:outline-none focus:border-[#F44336]">
+                            @foreach($availableYears ?? [2026, 2027, 2028] as $y)
+                                <option value="{{ $y }}" {{ (int)$year === (int)$y ? 'selected' : '' }}>Year {{ $y }} {{ (int)$y === 2026 ? '(Active)' : '' }}</option>
+                            @endforeach
+                        </select>
 
                         <select name="department" onchange="this.form.submit()" 
                                 class="text-xs font-bold bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-gray-800 focus:outline-none focus:border-[#F44336]">
@@ -226,7 +211,7 @@
                                 <th class="py-3 px-4">Employee</th>
                                 <th class="py-3 px-4">Position</th>
                                 <th class="py-3 px-4">Department</th>
-                                <th class="py-3 px-4 text-center">Months Rendered</th>
+                                <th class="py-3 px-4 text-center">Weekly Periods Rendered</th>
                                 <th class="py-3 px-4 text-right">Monthly Base</th>
                                 <th class="py-3 px-4 text-right">13th Month Pay</th>
                                 <th class="py-3 px-4 text-center">Status</th>
@@ -240,7 +225,7 @@
                                     $months = (float) $comp->months_worked;
                                     $monthlySalary = (float) ($comp->monthly_salary ?: $emp?->monthly_rate ?: 0);
                                     $amount = (float) $comp->amount;
-                                    $isProrated = $months < 12;
+                                    $weeksCount = (int) ($comp->weeks_worked ?? ($amount > 0 ? 1 : 0));
                                 @endphp
                                 <tr class="hover:bg-gray-50/75 transition-colors">
                                     <td class="py-3.5 px-4 font-black text-gray-900">
@@ -251,22 +236,19 @@
                                         {{ $emp?->position }}
                                     </td>
                                     <td class="py-3.5 px-4">
-                                        <span class="px-2.5 py-1 bg-purple-50 text-purple-800 font-bold rounded-lg text-xs">
-                                            {{ $emp?->department?->name ?? 'General' }}
+                                        <span class="px-2.5 py-1 bg-blue-50 text-blue-800 font-bold rounded-lg text-xs">
+                                             {{ $emp?->department?->name ?? 'General' }}
                                         </span>
                                     </td>
                                     <td class="py-3.5 px-4 text-center">
-                                        <span class="font-bold text-gray-900">{{ number_format($months, 1) }} / 12 mos</span>
-                                        @if($isProrated)
-                                            <span class="text-[11px] text-amber-700 font-extrabold block">Pro-Rated</span>
-                                        @else
-                                            <span class="text-[11px] text-emerald-700 font-extrabold block">Full Year</span>
-                                        @endif
+                                        <span class="px-2.5 py-1 rounded-full text-xs font-black {{ $weeksCount > 0 ? 'bg-purple-50 text-purple-800 border border-purple-200' : 'bg-gray-100 text-gray-600' }}">
+                                            {{ $weeksCount }} / 52 Weeks
+                                        </span>
                                     </td>
-                                    <td class="py-3.5 px-4 text-right font-black font-outfit text-sm text-gray-900">
+                                    <td class="py-3.5 px-4 text-right font-black font-outfit text-gray-900">
                                         PHP {{ number_format($monthlySalary, 2) }}
                                     </td>
-                                    <td class="py-3.5 px-4 text-right font-black font-outfit text-base text-purple-900">
+                                    <td class="py-3.5 px-4 text-right font-black font-outfit text-sm text-purple-900">
                                         PHP {{ number_format($amount, 2) }}
                                     </td>
                                     <td class="py-3.5 px-4 text-center">
@@ -277,8 +259,11 @@
                                     </td>
                                     <td class="py-3.5 px-4 text-right">
                                         <button type="button" @click="openCalc({{ Js::from($comp) }})" 
-                                                class="bg-gray-900 hover:bg-black text-white font-bold text-xs px-3.5 py-1.5 rounded-xl transition-all shadow-xs">
-                                            Audit 12-Mo Ledger
+                                                title="Audit 12-Month Cutoff Ledger & Formula Math"
+                                                class="p-2 rounded-xl bg-purple-50 text-purple-700 hover:bg-purple-100 hover:text-purple-900 border border-purple-200 transition-all shadow-2xs inline-flex items-center justify-center">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                                            </svg>
                                         </button>
                                     </td>
                                 </tr>
@@ -301,93 +286,6 @@
 
             </div>
 
-        </div>
-
-        <!-- ========================================================================= -->
-        <!-- TAB 2: APPROVAL WORKFLOW -->
-        <!-- ========================================================================= -->
-        <div x-show="activeTab === 'workflow'" x-transition class="space-y-6">
-            <div class="bg-white/80 backdrop-blur-sm rounded-2xl border border-gray-100 p-6 shadow-sm space-y-6">
-                <div class="border-b border-gray-100 pb-4">
-                    <h2 class="text-base font-black font-outfit text-gray-900">13th Month Pay Institutional Approval Chain</h2>
-                    <p class="text-xs text-gray-500 mt-0.5">Automated computation passing Admin verification, Financial budget release, and disbursement.</p>
-                </div>
-
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-                    <div class="p-5 bg-purple-50/40 rounded-2xl border border-purple-200 space-y-2">
-                        <span class="text-xs font-black text-purple-900 uppercase tracking-wider block">1. Auto-Computation</span>
-                        <p class="text-xs text-gray-700 font-medium">System calculates total basic salary earned / 12 for all active personnel.</p>
-                    </div>
-
-                    <div class="p-5 bg-blue-50/40 rounded-2xl border border-blue-200 space-y-2">
-                        <span class="text-xs font-black text-blue-900 uppercase tracking-wider block">2. HR & Admin Review</span>
-                        <p class="text-xs text-gray-700 font-medium">Administrator verifies pro-rata records, LWOP adjustments, and signs off.</p>
-                    </div>
-
-                    <div class="p-5 bg-amber-50/40 rounded-2xl border border-amber-200 space-y-2">
-                        <span class="text-xs font-black text-amber-900 uppercase tracking-wider block">3. Finance Budget</span>
-                        <p class="text-xs text-gray-700 font-medium">System sends formal budget allocation request to Financial Management (Team 5).</p>
-                    </div>
-
-                    <div class="p-5 bg-indigo-50/40 rounded-2xl border border-indigo-200 space-y-2">
-                        <span class="text-xs font-black text-indigo-900 uppercase tracking-wider block">4. Fund Transfer</span>
-                        <p class="text-xs text-gray-700 font-medium">Finance confirms liquidity and transfers funds to the payroll disbursement account.</p>
-                    </div>
-
-                    <div class="p-5 bg-emerald-50/40 rounded-2xl border border-emerald-200 space-y-2">
-                        <span class="text-xs font-black text-emerald-900 uppercase tracking-wider block">5. Payout Release</span>
-                        <p class="text-xs text-gray-700 font-medium">Disbursed via bank transfer / cash on or before statutory Dec 24 deadline.</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- ========================================================================= -->
-        <!-- TAB 3: LEGAL & PRORATION GUIDE -->
-        <!-- ========================================================================= -->
-        <div x-show="activeTab === 'guide'" x-transition class="space-y-6">
-            <div class="bg-white/80 backdrop-blur-sm rounded-2xl border border-gray-100 p-6 shadow-sm space-y-6">
-                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-100 pb-4">
-                    <div>
-                        <h2 class="text-base font-black font-outfit text-gray-900">Presidential Decree No. 851 Compliance Mandates</h2>
-                        <p class="text-xs text-gray-500 mt-0.5">Statutory entitlement criteria, computation formulas, and legal deadlines.</p>
-                    </div>
-                    <span class="px-3.5 py-1.5 bg-rose-50 text-rose-800 border border-rose-200 rounded-full text-xs font-black">
-                        Statutory Deadline: On or Before Dec 24
-                    </span>
-                </div>
-
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
-                    <div class="p-5 bg-gray-50/80 rounded-2xl border border-gray-200 space-y-3">
-                        <span class="text-xs font-black text-gray-900 uppercase tracking-wider block">Full Year Service Formula</span>
-                        <div class="p-3.5 bg-white rounded-xl border border-gray-200 font-mono text-xs font-black text-gray-900">
-                            13th Month Pay = Total Basic Salary Earned in Year / 12
-                        </div>
-                        <p class="text-xs text-gray-600 font-medium leading-relaxed">
-                            Example: An employee with a fixed monthly rate of PHP 30,000 who worked 12 full months receives:
-                            <strong class="text-gray-900 block mt-1">(PHP 30,000 x 12) / 12 = PHP 30,000.00</strong>
-                        </p>
-                    </div>
-
-                    <div class="p-5 bg-gray-50/80 rounded-2xl border border-gray-200 space-y-3">
-                        <span class="text-xs font-black text-gray-900 uppercase tracking-wider block">Pro-Rated Service Formula (New Hires / Resigned)</span>
-                        <div class="p-3.5 bg-white rounded-xl border border-gray-200 font-mono text-xs font-black text-gray-900">
-                            13th Month Pay = (Monthly Salary x Actual Months Worked) / 12
-                        </div>
-                        <p class="text-xs text-gray-600 font-medium leading-relaxed">
-                            Example: An employee hired mid-year with PHP 30,000 salary who worked 6 months receives:
-                            <strong class="text-gray-900 block mt-1">(PHP 30,000 x 6) / 12 = PHP 15,000.00</strong>
-                        </p>
-                    </div>
-                </div>
-
-                <div class="p-4 bg-purple-50 rounded-2xl border border-purple-200 text-xs text-purple-900 space-y-1">
-                    <span class="font-black block text-purple-900">Entitlement Criteria:</span>
-                    <p class="text-purple-800 font-medium">
-                        All rank-and-file employees who have worked for at least one (1) month during the calendar year are legally entitled to 13th month pay, regardless of position or employment status.
-                    </p>
-                </div>
-            </div>
         </div>
 
         <!-- ========================================================================= -->
@@ -441,41 +339,49 @@
                             </button>
                         </div>
 
-                        <!-- TAB 1: 12-MONTH CUTOFF MATRIX -->
+                        <!-- TAB 1: 52-WEEK CUTOFF MATRIX -->
                         <div x-show="calcModalTab === 'matrix'" class="space-y-3">
                             <div class="border border-gray-200 rounded-2xl overflow-hidden">
                                 <div class="bg-gray-100 px-3.5 py-2 font-black text-gray-800 uppercase text-[11px] flex justify-between">
-                                    <span>24-Cutoff Base Pay Historical Ledger (Year {{ $year }})</span>
-                                    <span x-text="(transparencyData?.audit_metrics?.cutoffs_recorded_count || 0) + ' Cutoffs Recorded'"></span>
+                                    <span>52-Week Base Pay Historical Ledger (Year {{ $year }})</span>
+                                    <span x-text="(transparencyData?.audit_metrics?.cutoffs_recorded_count || 0) + ' Weekly Payouts Recorded'"></span>
                                 </div>
-                                <table class="w-full text-left border-collapse text-xs">
-                                    <thead>
-                                        <tr class="bg-gray-50 border-b border-gray-200 text-gray-400 font-black text-[10px] uppercase">
-                                            <th class="py-1.5 px-3">Month</th>
-                                            <th class="py-1.5 px-3 text-right">Cutoff 1 (1-15)</th>
-                                            <th class="py-1.5 px-3 text-right">Cutoff 2 (16-End)</th>
-                                            <th class="py-1.5 px-3 text-right">Month Total</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody class="divide-y divide-gray-100">
-                                        <template x-for="row in transparencyData?.monthly_breakdown" :key="row.month_number">
-                                            <tr :class="row.is_eligible ? 'hover:bg-gray-50' : 'bg-gray-50/50 text-gray-400'">
-                                                <td class="py-1.5 px-3 font-bold" x-text="row.month_name"></td>
-                                                <td class="py-1.5 px-3 text-right font-mono" x-text="'PHP ' + Number(row.cutoff_1.base_pay).toFixed(2)"></td>
-                                                <td class="py-1.5 px-3 text-right font-mono" x-text="'PHP ' + Number(row.cutoff_2.base_pay).toFixed(2)"></td>
-                                                <td class="py-1.5 px-3 text-right font-mono font-bold" :class="row.month_total > 0 ? 'text-purple-900' : 'text-gray-400'" x-text="'PHP ' + Number(row.month_total).toFixed(2)"></td>
+                                <div class="overflow-x-auto">
+                                    <table class="w-full text-left border-collapse text-xs">
+                                        <thead>
+                                            <tr class="bg-gray-50 border-b border-gray-200 text-gray-400 font-black text-[10px] uppercase">
+                                                <th class="py-1.5 px-2.5">Month</th>
+                                                <th class="py-1.5 px-2 text-right">Week 1</th>
+                                                <th class="py-1.5 px-2 text-right">Week 2</th>
+                                                <th class="py-1.5 px-2 text-right">Week 3</th>
+                                                <th class="py-1.5 px-2 text-right">Week 4</th>
+                                                <th class="py-1.5 px-2 text-right">Week 5</th>
+                                                <th class="py-1.5 px-2.5 text-right">Month Total</th>
                                             </tr>
-                                        </template>
-                                    </tbody>
-                                    <tfoot>
-                                        <tr class="bg-gray-50 border-t border-gray-200 font-black">
-                                            <td class="py-2 px-3 text-gray-900">Total Annual Base Pay:</td>
-                                            <td colspan="3" class="py-2 px-3 text-right font-mono text-purple-950 font-outfit text-sm"
-                                                x-text="'PHP ' + Number(transparencyData?.audit_metrics?.annual_base_pay_basis || activeComp.amount * 12).toLocaleString(undefined, {minimumFractionDigits: 2})">
-                                            </td>
-                                        </tr>
-                                    </tfoot>
-                                </table>
+                                        </thead>
+                                        <tbody class="divide-y divide-gray-100">
+                                            <template x-for="row in transparencyData?.monthly_breakdown" :key="row.month_number">
+                                                <tr :class="row.is_eligible ? 'hover:bg-gray-50' : 'bg-gray-50/50 text-gray-400'">
+                                                    <td class="py-1.5 px-2.5 font-bold" x-text="row.month_name"></td>
+                                                    <td class="py-1.5 px-2 text-right font-mono" x-text="'PHP ' + Number(row.weeks?.[0]?.base_pay || row.cutoff_1?.base_pay || 0).toFixed(2)"></td>
+                                                    <td class="py-1.5 px-2 text-right font-mono" x-text="'PHP ' + Number(row.weeks?.[1]?.base_pay || row.cutoff_2?.base_pay || 0).toFixed(2)"></td>
+                                                    <td class="py-1.5 px-2 text-right font-mono" x-text="'PHP ' + Number(row.weeks?.[2]?.base_pay || 0).toFixed(2)"></td>
+                                                    <td class="py-1.5 px-2 text-right font-mono" x-text="'PHP ' + Number(row.weeks?.[3]?.base_pay || 0).toFixed(2)"></td>
+                                                    <td class="py-1.5 px-2 text-right font-mono" x-text="'PHP ' + Number(row.weeks?.[4]?.base_pay || 0).toFixed(2)"></td>
+                                                    <td class="py-1.5 px-2.5 text-right font-mono font-bold" :class="row.month_total > 0 ? 'text-purple-900' : 'text-gray-400'" x-text="'PHP ' + Number(row.month_total).toFixed(2)"></td>
+                                                </tr>
+                                            </template>
+                                        </tbody>
+                                        <tfoot>
+                                            <tr class="bg-gray-50 border-t border-gray-200 font-black">
+                                                <td class="py-2 px-2.5 text-gray-900">Total Annual Base Pay:</td>
+                                                <td colspan="6" class="py-2 px-2.5 text-right font-mono text-purple-950 font-outfit text-sm"
+                                                    x-text="'PHP ' + Number(transparencyData?.audit_metrics?.annual_base_pay_basis || 0).toLocaleString(undefined, {minimumFractionDigits: 2})">
+                                                </td>
+                                            </tr>
+                                        </tfoot>
+                                    </table>
+                                </div>
                             </div>
                         </div>
 
@@ -542,9 +448,9 @@
                         <div class="p-4 bg-purple-950 text-white rounded-2xl flex items-center justify-between">
                             <div>
                                 <span class="text-xs text-purple-300 font-bold block">Final Computed 13th Month Benefit</span>
-                                <span class="text-[10px] text-purple-400 font-mono" x-text="transparencyData?.audit_metrics?.computation_mode || 'Statutory Calculation'"></span>
+                                <span class="text-[10px] text-purple-400 font-mono" x-text="transparencyData?.audit_metrics?.computation_mode || 'Strict Weekly Cutoff Earnings'"></span>
                             </div>
-                            <span class="text-xl font-black font-outfit text-purple-200" x-text="'PHP ' + Number(activeComp.amount).toLocaleString(undefined, {minimumFractionDigits: 2})"></span>
+                            <span class="text-xl font-black font-outfit text-purple-200" x-text="'PHP ' + Number(transparencyData?.audit_metrics?.calculated_amount ?? activeComp.amount).toLocaleString(undefined, {minimumFractionDigits: 2})"></span>
                         </div>
 
                         <div class="flex items-center justify-end pt-2">

@@ -132,32 +132,14 @@ test('qualifyDriverRoster reads trip income records and qualifies drivers', func
         ->and($driverRow['total_incentive_amount'])->toBe(1000.00);
 });
 
-test('POST /claims/incentives/batch-qualify commits approved claim records and audits', function () {
+test('POST /claims/incentives/batch-qualify redirects to work expenses', function () {
     $cutoff = '2026-07-01_15';
-
-    TripIncome::create([
-        'employee_id' => $this->driver->id,
-        'cutoff_period' => $cutoff,
-        'total_trips' => 82,
-        'gross_trip_fare' => 28000.00,
-        'platform_commission' => 5600.00,
-        'net_trip_income' => 22400.00,
-    ]);
 
     $response = $this->post('/claims/incentives/batch-qualify', [
         'cutoff_period' => $cutoff,
     ]);
 
-    $response->assertRedirect();
-
-    $this->assertDatabaseHas('claims', [
-        'employee_id' => $this->driver->id,
-        'cutoff_period' => $cutoff,
-        'type' => 'incentive',
-        'amount' => 2500.00, // Tier 4 (80+ rides)
-        'tax_classification' => 'taxable',
-        'approval_status' => 'approved',
-    ]);
+    $response->assertRedirect(route('claims.expenses'));
 });
 
 test('Decommissioned milestone calculator API endpoint returns 404', function () {

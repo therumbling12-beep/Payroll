@@ -135,10 +135,12 @@ test('MedicalAssistanceService files claim and splits amounts based on PHP 10,00
         ->and((float) $claim2->taxable_amount)->toBe(2000.00);
 });
 
-test('POST /claims/maternity/store files maternity advance via web endpoint', function () {
-    $response = $this->post('/claims/maternity/store', [
+test('POST ess.claims.submit files maternity advance via self-service endpoint', function () {
+    $response = $this->post(route('ess.claims.submit'), [
         'employee_id' => $this->femaleEmp->id,
+        'type' => 'maternity',
         'maternity_type' => 'solo_parent',
+        'amount' => 180000.00,
         'receipt_number' => 'MAT-WEB-001',
         'expense_date' => '2026-07-02',
     ]);

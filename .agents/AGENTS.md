@@ -1,8 +1,42 @@
+# ABSOLUTE RULE 0: ZERO PREMATURE CODING & HARD EXECUTION GATES
+
+**THIS RULE APPLIES AUTOMATICALLY TO EVERY TURN WITHOUT REQUIRING THE USER TO SAY "DO NOT CODE":**
+
+1. **Zero Premature Coding on Analytical / Planning Requests**:
+   - Whenever the user asks to **scan, audit, list, review, analyze, compare, explain, or plan**:
+     - **NEVER** edit, create, or delete application source code files.
+     - **NEVER** run modifying commands.
+     - Provide the analytical answer in chat, OR write/update the `implementation_plan.md` artifact.
+     - **ALWAYS STOP CALLING TOOLS IMMEDIATELY AND WAIT FOR EXPLICIT USER APPROVAL** before executing any code changes.
+
+2. **Mandatory Complete Pest Test Code Blocks in Plans**:
+   - Implementation plans MUST NOT just list terminal test commands.
+   - Every implementation plan MUST contain **complete, copy-pasteable Pest feature/unit test code blocks** (`test('...', function () { ... });`) with concrete expectations, line numbers, and full assertions.
+
+3. **Mandatory Pre-Execution Approval**:
+   - Code execution is strictly forbidden until the user explicitly responds with approval (e.g. "approved", "proceed", "yes").
+
+---
+
 # Project Specific Rules
 
+### Mandatory Visible Skill Announcement Directive
+On **EVERY SINGLE RESPONSE**, the assistant MUST explicitly announce the active skill(s) being applied at the top of the message in a prominent banner, for example:
+- `🎯 Active Skill: brainstorming (Spike / Bounded / Architectural Path)`
+- `🎨 Active Skill: design-review`
+- `🛡️ Active Skill: error-handling-patterns`
+- `🧪 Active Skill: pest-testing`
+- `⚙️ Active Skill: laravel-best-practices`
+
+- **ALWAYS** apply the `brainstorming` skill before any creative work, feature creation, UI design, or behavior modification, classifying tasks into Spike, Bounded, or Architectural paths with mandatory pre-implementation human approval.
+- **ALWAYS** apply the `design-review` skill and visual design quality standards (consistent spacing, typography scales, Heroicons SVGs, zero emojis, responsive tables) whenever creating, editing, or reviewing any HTML, Blade, CSS, or UI component.
+- **ALWAYS** apply the `error-handling-patterns` skill whenever writing, editing, or reviewing controllers, services, database transactions, and exceptions.
 - **ALWAYS** apply the `laravel-best-practices` skill whenever writing, editing, or reviewing any PHP/Laravel code in this project.
 - **ALWAYS** apply the `pest-testing` skill whenever writing or debugging tests.
 - **ALWAYS** apply the `tailwindcss-development` skill when working with HTML, Blade, or Vue views.
+- **ALWAYS** apply the `skill-creator` skill whenever authoring, refactoring, or optimizing workspace customizations.
+
+---
 
 # Core Engineering Rules
 
@@ -89,7 +123,7 @@ When creating an implementation plan:
    - Specify exact absolute/relative file paths to modify, create, or delete.
    - Specify target method names, line number ranges, and concrete code/signature changes.
    - Detail database, relationship, and zero-hardcoding considerations.
-   - List explicit Pest unit and feature test verification commands.
+   - **Include complete, copy-pasteable Pest unit/feature test code blocks** (`test('...', function () { ... });`) with assertions, test descriptions, and edge cases.
    - Never write vague or high-level placeholders; make every step copy-pasteable and technically verified.
 3. The implementation plan must be based on:
    - The project's actual requirements and audit findings.

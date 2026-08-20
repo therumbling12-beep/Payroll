@@ -39,41 +39,10 @@
             </div>
         </div>
 
-        <!-- Tab Navigation Bar -->
-        <div class="bg-gray-100/80 p-1 rounded-2xl flex items-center gap-1 overflow-x-auto">
-            <button type="button" @click="activeTab = 'registry'" 
-                    :class="activeTab === 'registry' ? 'bg-white text-gray-900 font-black shadow-sm' : 'text-gray-500 font-bold hover:text-gray-700'"
-                    class="px-4 py-2 text-xs rounded-xl transition-all whitespace-nowrap flex items-center gap-2">
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
-                </svg>
-                Employee Payment Registry
-                <span class="px-2 py-0.5 rounded-full text-[11px] font-black bg-gray-100 text-gray-700">{{ $employees->total() }}</span>
-            </button>
-
-            <button type="button" @click="activeTab = 'bank'" 
-                    :class="activeTab === 'bank' ? 'bg-white text-gray-900 font-black shadow-sm' : 'text-gray-500 font-bold hover:text-gray-700'"
-                    class="px-4 py-2 text-xs rounded-xl transition-all whitespace-nowrap flex items-center gap-2">
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
-                </svg>
-                Security Bank Payroll Facility
-            </button>
-
-            <button type="button" @click="activeTab = 'cash'" 
-                    :class="activeTab === 'cash' ? 'bg-white text-gray-900 font-black shadow-sm' : 'text-gray-500 font-bold hover:text-gray-700'"
-                    class="px-4 py-2 text-xs rounded-xl transition-all whitespace-nowrap flex items-center gap-2">
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/>
-                </svg>
-                Physical Cash Envelope Roster
-            </button>
-        </div>
-
         <!-- ========================================================================= -->
-        <!-- TAB 1: EMPLOYEE REGISTRY -->
+        <!-- EMPLOYEE PAYMENT REGISTRY -->
         <!-- ========================================================================= -->
-        <div x-show="activeTab === 'registry'" x-transition class="space-y-6">
+        <div class="space-y-6">
 
             <div class="bg-white/80 backdrop-blur-sm rounded-2xl border border-gray-100 p-6 shadow-sm space-y-5">
                 
@@ -152,8 +121,11 @@
                                     </td>
                                     <td class="py-3.5 px-4 text-right">
                                         <button type="button" @click="openEdit({{ Js::from($emp) }})" 
-                                                class="bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold text-xs px-3.5 py-1.5 rounded-xl transition-all">
-                                            Edit Channel
+                                                title="Edit Disbursement Channel"
+                                                class="p-2 rounded-xl bg-gray-100 text-gray-700 hover:bg-gray-200 hover:text-gray-900 transition-all shadow-2xs inline-flex items-center justify-center">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                                            </svg>
                                         </button>
                                     </td>
                                 </tr>
@@ -176,63 +148,6 @@
 
             </div>
 
-        </div>
-
-        <!-- ========================================================================= -->
-        <!-- TAB 2: SECURITY BANK FACILITY -->
-        <!-- ========================================================================= -->
-        <div x-show="activeTab === 'bank'" x-transition class="space-y-6">
-            <div class="bg-white/80 backdrop-blur-sm rounded-2xl border border-gray-100 p-6 shadow-sm space-y-6">
-                <div class="border-b border-gray-100 pb-4">
-                    <h2 class="text-base font-black font-outfit text-gray-900">Security Bank Corporation (SBC) Payroll Facility</h2>
-                    <p class="text-xs text-gray-500 mt-0.5">Automated batch bank disbursement files with Maker-Authorizer workflow and SBC Easy Savings accounts.</p>
-                </div>
-
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
-                    <div class="p-5 bg-emerald-50/60 rounded-2xl border border-emerald-200 space-y-2">
-                        <span class="text-xs text-emerald-800 font-bold block uppercase tracking-wider">Corporate Bank Partner</span>
-                        <span class="text-lg font-black font-outfit text-gray-900 block">Security Bank Corporation</span>
-                        <p class="text-xs text-gray-600">Disbursement platform: <strong>SBC Payroll Manager</strong> with same-day salary crediting.</p>
-                    </div>
-
-                    <div class="p-5 bg-blue-50/60 rounded-2xl border border-blue-200 space-y-2">
-                        <span class="text-xs text-blue-800 font-bold block uppercase tracking-wider">Account Standard</span>
-                        <span class="text-lg font-black font-outfit text-gray-900 block">SBC Easy Savings</span>
-                        <p class="text-xs text-gray-600">Zero initial deposit corporate payroll account tied to TripWise Corp. facility.</p>
-                    </div>
-
-                    <div class="p-5 bg-purple-50/60 rounded-2xl border border-purple-200 space-y-2">
-                        <span class="text-xs text-purple-800 font-bold block uppercase tracking-wider">Disbursement Batch Protocol</span>
-                        <span class="text-lg font-black font-outfit text-gray-900 block">Maker-Authorizer</span>
-                        <p class="text-xs text-gray-600">Batch advice reference: <code class="text-purple-900 font-bold">PR-[YYYYMMDD]-[BATCH]</code></p>
-                    </div>
-                </div>
-
-                <div class="p-5 bg-gray-50 rounded-2xl border border-gray-200 space-y-2">
-                    <span class="text-xs font-black text-gray-900 uppercase tracking-wider block">Security Bank Bulk File Format</span>
-                    <pre class="text-[11px] font-mono bg-gray-900 text-emerald-400 p-3.5 rounded-xl overflow-x-auto">SEQ_NO,EMPLOYEE_ID,ACCOUNT_NAME,ACCOUNT_NUMBER,AMOUNT,REFERENCE_NUMBER,REMARKS
-1,EMP-1001,MARIA SANTOS,0012345678,25000.00,PR-20260715-001,PAYROLL SALARY 2026-07-01_15</pre>
-                </div>
-            </div>
-        </div>
-
-        <!-- ========================================================================= -->
-        <!-- TAB 3: PHYSICAL CASH -->
-        <!-- ========================================================================= -->
-        <div x-show="activeTab === 'cash'" x-transition class="space-y-6">
-            <div class="bg-white/80 backdrop-blur-sm rounded-2xl border border-gray-100 p-6 shadow-sm space-y-6">
-                <div class="border-b border-gray-100 pb-4">
-                    <h2 class="text-base font-black font-outfit text-gray-900">Physical Cash Payroll Envelope Preparation & Acknowledgment</h2>
-                    <p class="text-xs text-gray-500 mt-0.5">Manage over-the-counter cash distribution rosters and signed acknowledgment slips.</p>
-                </div>
-
-                <div class="p-4 bg-amber-50 rounded-2xl border border-amber-200 text-xs text-amber-900 space-y-1">
-                    <span class="font-black block text-amber-900">Statutory Requirement:</span>
-                    <p class="text-amber-800 font-medium">
-                        Cash payments generate cash vouchers with cashier and employee signature acknowledgment before payout is closed in the ledger.
-                    </p>
-                </div>
-            </div>
         </div>
 
         <!-- ========================================================================= -->

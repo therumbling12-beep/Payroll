@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Services\Compensation;
 
 use App\Models\CompanySetting;
-use App\Models\Department;
 use App\Models\Employee;
 use App\Models\SalaryGrade;
 
@@ -120,6 +119,7 @@ class MeritIncreaseService
         $newCtc = $this->counterOfferService->calculateTotalCostToCompany($promotedSalary, $defaultAllowance);
 
         return [
+            'type' => 'promotion',
             'employee_id' => $employee->id,
             'employee_name' => "{$employee->first_name} {$employee->last_name}",
             'old_position' => $employee->position,
@@ -140,45 +140,6 @@ class MeritIncreaseService
                 'incremental_annual_ctc' => round($newCtc['annual_ctc'] - $oldCtc['annual_ctc'], 2),
             ],
             'formula' => "Promoted Salary = MAX(New Grade Min PHP " . number_format($newGradeMin, 2) . ", Current x 1.15 PHP " . number_format($fifteenPctBase, 2) . ") = PHP " . number_format($promotedSalary, 2),
-        ];
-    }
-
-    /**
-     * Calculate Departmental Batch Summary for Financial Requisition (Team 5 Integration)
-     *
-     * @return array<string, mixed>
-     */
-    public function calculateDepartmentalSummary(int $departmentId): array
-    {
-        $department = Department::find($departmentId);
-        $employees = Employee::where('department_id', $departmentId)
-            ->where('employment_status', '!=', 'resigned')
-            ->get();
-
-        $totalHeadcount = $employees->count();
-        $totalCurrentSalary = 0.0;
-        $totalProposedSalary = 0.0;
-        $totalMonthlyCtcIncrease = 0.0;
-        $totalAnnualCtcIncrease = 0.0;
-
-        foreach ($employees as $employee) {
-            $merit = $this->computeMeritIncrease($employee);
-            $totalCurrentSalary += $merit['current_salary'];
-            $totalProposedSalary += $merit['proposed_salary'];
-            $totalMonthlyCtcIncrease += $merit['ctc_impact']['incremental_monthly_ctc'];
-            $totalAnnualCtcIncrease += $merit['ctc_impact']['incremental_annual_ctc'];
-        }
-
-        return [
-            'department_id' => $departmentId,
-            'department_name' => $department?->name ?? 'All Departments',
-            'headcount' => $totalHeadcount,
-            'total_current_salary' => round($totalCurrentSalary, 2),
-            'total_proposed_salary' => round($totalProposedSalary, 2),
-            'total_salary_increase' => round($totalProposedSalary - $totalCurrentSalary, 2),
-            'total_monthly_ctc_increase' => round($totalMonthlyCtcIncrease, 2),
-            'total_annual_ctc_increase' => round($totalAnnualCtcIncrease, 2),
-            'requisition_status' => 'PENDING_FINANCE_VALIDATION',
         ];
     }
 

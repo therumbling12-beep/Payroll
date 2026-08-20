@@ -129,16 +129,19 @@ test('OperationalExpenseService files toll and maintenance claims as non-taxable
     Storage::disk('public')->assertExists($claim->attachment_path);
 });
 
-test('POST /claims/expenses/fuel stores fuel claim with validation feedback', function () {
-    $response = $this->post('/claims/expenses/fuel', [
+test('POST ess.claims.submit stores fuel claim with validation feedback', function () {
+    $category = ClaimCategory::where('code', 'CAT-DRV-GAS')->first();
+
+    $response = $this->post(route('ess.claims.submit'), [
         'employee_id' => $this->driver->id,
+        'category_id' => $category?->id,
+        'type' => 'expense',
         'amount' => 1700.00,
         'distance_traveled_km' => 260.0,
         'vehicle_fuel_efficiency_kpl' => 10.0,
         'fuel_pump_price' => 65.0,
         'receipt_number' => 'OR-SHELL-2026-7788',
         'merchant_name' => 'Shell EDSA Station',
-        'merchant_tin' => '000-111-222-333',
         'expense_date' => '2026-07-12',
         'description' => 'Routine route fuel top-up.',
     ]);
@@ -148,19 +151,18 @@ test('POST /claims/expenses/fuel stores fuel claim with validation feedback', fu
     $this->assertDatabaseHas('claims', [
         'employee_id' => $this->driver->id,
         'receipt_number' => 'OR-SHELL-2026-7788',
-        'expense_subtype' => 'fuel',
         'auto_validated' => true,
-        'tax_classification' => 'non_taxable',
+        'non_taxable_amount' => 1700.00,
     ]);
 });
 
-test('POST /claims/expenses/operational stores operational expense claim', function () {
+test('POST ess.claims.submit stores operational expense claim', function () {
     $category = ClaimCategory::where('code', 'CAT-DRV-WORK')->first();
 
-    $response = $this->post('/claims/expenses/operational', [
+    $response = $this->post(route('ess.claims.submit'), [
         'employee_id' => $this->driver->id,
-        'category_id' => $category->id,
-        'expense_subtype' => 'parking',
+        'category_id' => $category?->id,
+        'type' => 'expense',
         'amount' => 350.00,
         'receipt_number' => 'PRK-DEPOT-2026-004',
         'merchant_name' => 'Manila Grand Depot Parking',
@@ -173,8 +175,7 @@ test('POST /claims/expenses/operational stores operational expense claim', funct
     $this->assertDatabaseHas('claims', [
         'employee_id' => $this->driver->id,
         'receipt_number' => 'PRK-DEPOT-2026-004',
-        'expense_subtype' => 'parking',
-        'tax_classification' => 'non_taxable',
+        'non_taxable_amount' => 350.00,
     ]);
 });
 

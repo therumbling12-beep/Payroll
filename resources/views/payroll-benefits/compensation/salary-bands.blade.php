@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
 @php
-    $pageTitle = 'Salary Band Management & Candidate Determination';
+    $pageTitle = 'Flexible Compensation & Starting Salary Determination';
     $currentPage = 'compensation.salary-bands';
 
     $minFloor = $salaryGrades->min('min_salary') ?? 19630.00;
@@ -9,62 +9,18 @@
     $avgGrowth = $salaryGrades->avg('annual_growth_rate') ?? 7.5;
 @endphp
 
-@push('styles')
-<style>
-    .comp-bar-track {
-        background-color: #e2e8f0;
-        height: 10px;
-        border-radius: 9999px;
-        position: relative;
-    }
-    .penetration-dot-green {
-        position: absolute;
-        top: -3px;
-        width: 16px;
-        height: 16px;
-        border-radius: 9999px;
-        background-color: #059669;
-        border: 2.5px solid #ffffff;
-        box-shadow: 0 1px 4px rgba(0,0,0,0.3);
-        transform: translateX(-50%);
-    }
-    .penetration-dot-red {
-        position: absolute;
-        top: -3px;
-        width: 16px;
-        height: 16px;
-        border-radius: 9999px;
-        background-color: #e11d48;
-        border: 2.5px solid #ffffff;
-        box-shadow: 0 1px 4px rgba(0,0,0,0.3);
-        transform: translateX(-50%);
-    }
-    .penetration-dot-orange {
-        position: absolute;
-        top: -3px;
-        width: 16px;
-        height: 16px;
-        border-radius: 9999px;
-        background-color: #d97706;
-        border: 2.5px solid #ffffff;
-        box-shadow: 0 1px 4px rgba(0,0,0,0.3);
-        transform: translateX(-50%);
-    }
-</style>
-@endpush
-
 @section('content')
 
     <!-- Page Header -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
-            <h1 class="text-2xl font-black font-outfit text-gray-900 tracking-tight">Salary Band Management & Determination</h1>
-            <p class="text-xs text-gray-500 mt-1">Manage official PG-1 to PG-9 hierarchy, DOLE NCR-27 minimum wage compliance guards, and 5-factor weighted candidate salary scoring.</p>
+            <h1 class="text-2xl font-black font-outfit text-gray-900 tracking-tight">Flexible Compensation & Starting Salary Determination</h1>
+            <p class="text-xs text-gray-500 mt-1">Locality minimum wage floor (₱{{ number_format($localityMinimumWage, 2) }}/day), 6-factor candidate starting salary scoring, and flexible direct merit increase adjustments (docs/no.md §1).</p>
         </div>
         <div class="flex items-center gap-3">
             <span class="flex items-center gap-2 text-xs font-bold text-gray-800 bg-white border border-gray-200 px-3.5 py-1.5 rounded-full shadow-2xs">
                 <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                Salary Scale Active (PG-1 to PG-9)
+                Flexible Pay Scale Active
             </span>
             <span class="text-xs text-gray-400 font-semibold font-mono">{{ now()->format('M j, Y') }}</span>
         </div>
@@ -82,32 +38,39 @@
     <div x-data="{
         activeTab: 'scale',
         editModalOpen: false,
-        bulkModalOpen: false,
         calcModalOpen: false,
+        meritModalOpen: false,
         activeGrade: { id: null, position: '', code: '', level: '', min: 0, max: 0, mid: 0, growth: 0, effectivity: '' },
-        bulkPercentage: 5.0,
         
-        // 5-Factor Candidate Salary Determination State
+        // 6-Factor Candidate Salary Determination State (docs/no.md Lines 25-35)
         calcGradeId: '{{ $salaryGrades->first()?->id ?? 1 }}',
-        eduScore: 3,
         expScore: 2,
         skillScore: 3,
-        marketScore: 3,
-        equityScore: 3,
+        eduScore: 3,
+        certScore: 3,
+        prevSalaryScore: 3,
+        interviewScore: 4,
         calcResult: null,
         calcLoading: false,
 
-        openEdit(grade) {
+        // Direct Merit Increase Modal State (docs/no.md Line 51)
+        selectedEmp: { id: null, name: '', code: '', position: '', daily: 0, monthly: 0 },
+        meritDailyRate: 0,
+        meritMonthlyRate: 0,
+        meritPercentage: 5.0,
+        meritJustification: '',
+
+        openEdit(id, code, level, position, min, max, growth, effectivity) {
             this.activeGrade = {
-                id: grade.id,
-                code: grade.grade_code || 'PG-1',
-                level: grade.job_level || 'Entry Level',
-                position: grade.position_name,
-                min: parseFloat(grade.min_salary),
-                max: parseFloat(grade.max_salary),
-                mid: (parseFloat(grade.min_salary) + parseFloat(grade.max_salary)) / 2,
-                growth: parseFloat(grade.annual_growth_rate || 5),
-                effectivity: grade.effectivity_date ? grade.effectivity_date.split('T')[0] : '{{ date('Y-m-d') }}'
+                id: id,
+                code: code || 'PG-1',
+                level: level || 'Entry Level',
+                position: position,
+                min: parseFloat(min),
+                max: parseFloat(max),
+                mid: (parseFloat(min) + parseFloat(max)) / 2,
+                growth: parseFloat(growth || 5),
+                effectivity: effectivity || '{{ date('Y-m-d') }}'
             };
             this.editModalOpen = true;
         },
@@ -131,11 +94,12 @@
                 },
                 body: JSON.stringify({
                     salary_grade_id: this.calcGradeId,
-                    education: parseInt(this.eduScore),
                     experience: parseInt(this.expScore),
                     skills: parseInt(this.skillScore),
-                    market_benchmark: parseInt(this.marketScore),
-                    internal_equity: parseInt(this.equityScore)
+                    education: parseInt(this.eduScore),
+                    certifications: parseInt(this.certScore),
+                    previous_salary: parseInt(this.prevSalaryScore),
+                    interview_performance: parseInt(this.interviewScore)
                 })
             })
             .then(r => r.json())
@@ -146,6 +110,29 @@
             .catch(() => {
                 this.calcLoading = false;
             });
+        },
+        openDirectMerit(id, name, code, position, daily, monthly) {
+            var dailyRate = parseFloat(daily || 755.00);
+            var monthlyRate = parseFloat(monthly || (dailyRate * 26.0));
+            this.selectedEmp = {
+                id: id,
+                name: name,
+                code: code,
+                position: position || 'Staff',
+                daily: dailyRate,
+                monthly: monthlyRate
+            };
+            this.meritPercentage = 5.0;
+            this.meritDailyRate = (dailyRate * 1.05).toFixed(2);
+            this.meritMonthlyRate = (this.meritDailyRate * 26.0).toFixed(2);
+            this.meritJustification = 'Quarterly performance and merit adjustment';
+            this.meritModalOpen = true;
+        },
+        recalcMeritRates() {
+            if (this.meritPercentage > 0 && this.selectedEmp.daily > 0) {
+                this.meritDailyRate = (this.selectedEmp.daily * (1 + (parseFloat(this.meritPercentage) / 100))).toFixed(2);
+                this.meritMonthlyRate = (this.meritDailyRate * 26.0).toFixed(2);
+            }
         }
     }" class="space-y-6 pb-12">
 
@@ -153,15 +140,15 @@
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-200 pb-3">
             <div class="flex items-center gap-1.5 bg-gray-100 p-1 rounded-2xl">
                 
-                <!-- Tab 1: Master Grade Scale -->
+                <!-- Tab 1: Market Benchmark Scales -->
                 <button type="button" @click="activeTab = 'scale'" 
                         :class="activeTab === 'scale' ? 'bg-white text-gray-900 font-black shadow-sm' : 'text-gray-500 hover:text-gray-900 font-bold'" 
                         class="px-4 py-2 text-xs rounded-xl transition-all flex items-center gap-2">
                     <svg class="w-4 h-4" :class="activeTab === 'scale' ? 'text-[#F44336]' : 'text-gray-400'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
                     </svg>
-                    PG-1 to PG-9 Hierarchy & Calibration
-                    <span class="px-2 py-0.5 text-[10px] font-black rounded-full bg-gray-200 text-gray-800">{{ $salaryGrades->count() }} Grades</span>
+                    Market Benchmark Reference Scales
+                    <span class="px-2 py-0.5 text-[10px] font-black rounded-full bg-gray-200 text-gray-800">{{ $salaryGrades->count() }} Scales</span>
                 </button>
 
                 <!-- Tab 2: Personnel Range Visualizer -->
@@ -174,17 +161,6 @@
                     Personnel Distribution Visualizer
                     <span class="px-2 py-0.5 text-[10px] font-black rounded-full bg-gray-200 text-gray-800">{{ $employees->total() }}</span>
                 </button>
-
-                <!-- Tab 3: History & Audit Log -->
-                <button type="button" @click="activeTab = 'history'" 
-                        :class="activeTab === 'history' ? 'bg-white text-gray-900 font-black shadow-sm' : 'text-gray-500 hover:text-gray-900 font-bold'" 
-                        class="px-4 py-2 text-xs rounded-xl transition-all flex items-center gap-2">
-                    <svg class="w-4 h-4" :class="activeTab === 'history' ? 'text-[#F44336]' : 'text-gray-400'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                    </svg>
-                    Calibration History Log
-                    <span class="px-2 py-0.5 text-[10px] font-black rounded-full bg-gray-200 text-gray-800">{{ $bandHistory->count() }}</span>
-                </button>
             </div>
 
             <!-- Quick Action Buttons -->
@@ -194,15 +170,7 @@
                     <svg class="w-3.5 h-3.5 text-purple-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
                     </svg>
-                    5-Factor Candidate Calculator
-                </button>
-
-                <button type="button" @click="bulkModalOpen = true" 
-                        class="bg-[#1c1c1e] hover:bg-black text-white text-xs font-extrabold px-4 py-2 rounded-xl transition-all shadow-sm flex items-center gap-2">
-                    <svg class="w-3.5 h-3.5 text-[#F44336]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
-                    </svg>
-                    Bulk Annual Adjustment (%)
+                    6-Factor Candidate Calculator
                 </button>
             </div>
         </div>
@@ -234,7 +202,7 @@
                 <!-- Card 2: Minimum Floor Base -->
                 <div class="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm space-y-1">
                     <div class="flex items-center justify-between">
-                        <span class="text-xs font-bold uppercase tracking-wider text-gray-400">Statutory Floor (PG-1)</span>
+                        <span class="text-xs font-bold uppercase tracking-wider text-gray-400">Locality Minimum Wage</span>
                         <div class="w-8 h-8 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"/>
@@ -242,9 +210,11 @@
                         </div>
                     </div>
                     <div class="text-2xl font-black font-outfit text-gray-900">
-                        PHP {{ number_format($minFloor, 2) }}
+                        PHP {{ number_format($localityMinimumWage ?? 755.00, 2) }} <span class="text-xs text-gray-400 font-bold">/ day</span>
                     </div>
-                    <p class="text-xs text-emerald-700 font-bold">DOLE NCR-27 Compliant (PHP 755/day)</p>
+                    <p class="text-xs text-emerald-700 font-bold">
+                        PHP {{ number_format($localityMonthlyFloor ?? (($localityMinimumWage ?? 755.00) * 26.0), 2) }} / mo statutory baseline (docs/no.md §1)
+                    </p>
                 </div>
 
                 <!-- Card 3: Executive Ceiling -->
@@ -285,8 +255,8 @@
             <div class="bg-white/80 backdrop-blur-sm rounded-2xl border border-gray-100 p-6 shadow-sm space-y-4">
                 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div>
-                        <h2 class="text-base font-extrabold font-outfit text-gray-900">Official Company Salary Scale (PG-1 to PG-9)</h2>
-                        <p class="text-xs text-gray-500 mt-0.5">Defined minimum base, calculated 25th / 50th / 75th percentiles, and maximum ceilings across all organizational levels.</p>
+                        <h2 class="text-base font-extrabold font-outfit text-gray-900">Market Benchmark Reference Scales</h2>
+                        <p class="text-xs text-gray-500 mt-0.5">Reference salary benchmarks for market positioning. Starting salaries are determined flexibly via the 6-factor candidate scoring engine anchored on the locality minimum wage.</p>
                     </div>
                 </div>
 
@@ -365,7 +335,7 @@
                                                     class="text-xs font-bold text-purple-800 bg-purple-50 hover:bg-purple-100 border border-purple-200 px-2.5 py-1.5 rounded-xl transition-all">
                                                 Score
                                             </button>
-                                            <button type="button" @click="openEdit({{ Js::from($grade) }})" 
+                                            <button type="button" @click="openEdit({{ $grade->id }}, '{{ $grade->grade_code }}', '{{ $grade->job_level ?? 'Standard' }}', '{{ addslashes($grade->position_name) }}', {{ (float)$grade->min_salary }}, {{ (float)$grade->max_salary }}, {{ (float)($grade->annual_growth_rate ?? 5) }}, '{{ $grade->effectivity_date ? $grade->effectivity_date->format('Y-m-d') : date('Y-m-d') }}')" 
                                                     class="text-xs font-extrabold text-white bg-[#F44336] hover:bg-[#D32F2F] px-3 py-1.5 rounded-xl transition-all shadow-2xs">
                                                 Edit
                                             </button>
@@ -402,6 +372,7 @@
                                 <th class="py-3 px-4">Department</th>
                                 <th class="py-3 px-4 text-right">Current Salary</th>
                                 <th class="py-3 px-4 text-center">Status</th>
+                                <th class="py-3 px-4 text-center">Action</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-100">
@@ -429,6 +400,15 @@
                                             {{ ucfirst($emp->employment_status ?? 'regular') }}
                                         </span>
                                     </td>
+                                    <td class="py-3.5 px-4 text-center">
+                                        <button type="button" @click="openDirectMerit({{ $emp->id }}, '{{ addslashes($emp->first_name . ' ' . $emp->last_name) }}', '{{ $emp->employee_code }}', '{{ addslashes($emp->position ?? 'Staff') }}', {{ (float)($emp->daily_rate ?? 755.00) }}, {{ (float)($emp->monthly_rate ?? 19630.00) }})"
+                                                class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 font-bold text-[11px] transition-all">
+                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
+                                            </svg>
+                                            Direct Merit
+                                        </button>
+                                    </td>
                                 </tr>
                             @endforeach
                         </tbody>
@@ -444,43 +424,15 @@
         </div>
 
         <!-- ========================================================================= -->
-        <!-- TAB 3: CALIBRATION HISTORY LOG -->
-        <!-- ========================================================================= -->
-        <div x-show="activeTab === 'history'" x-transition class="space-y-6">
-            <div class="bg-white/80 backdrop-blur-sm rounded-2xl border border-gray-100 p-6 shadow-sm space-y-4">
-                <div class="border-b border-gray-100 pb-3">
-                    <h2 class="text-base font-extrabold font-outfit text-gray-900">Salary Band Calibration Audit Log</h2>
-                    <p class="text-xs text-gray-500 mt-0.5">Historical record of band modifications and bulk annual adjustments.</p>
-                </div>
-
-                <div class="divide-y divide-gray-100 text-xs">
-                    @forelse($bandHistory as $log)
-                        <div class="py-3 flex items-center justify-between">
-                            <div>
-                                <span class="font-bold text-gray-900">{{ $log->action }}</span>
-                                <p class="text-gray-500 text-[11px]">By {{ $log->user_name }} • IP: {{ $log->ip_address }}</p>
-                            </div>
-                            <span class="font-mono text-gray-400 text-xs">{{ $log->created_at->format('M d, Y H:i') }}</span>
-                        </div>
-                    @empty
-                        <div class="py-8 text-center text-gray-400 font-bold">
-                            No calibration history logged yet.
-                        </div>
-                    @endforelse
-                </div>
-            </div>
-        </div>
-
-        <!-- ========================================================================= -->
-        <!-- MODAL: 5-FACTOR CANDIDATE SALARY DETERMINATION CALCULATOR -->
+        <!-- MODAL: 6-FACTOR CANDIDATE SALARY DETERMINATION CALCULATOR (docs/no.md Lines 25-35) -->
         <!-- ========================================================================= -->
         <div x-show="calcModalOpen" style="display: none;" 
              class="fixed inset-0 z-50 overflow-y-auto bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
             <div @click.away="calcModalOpen = false" class="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl border border-gray-100 space-y-4 max-h-[90vh] overflow-y-auto">
                 <div class="flex items-center justify-between border-b border-gray-100 pb-3">
                     <div>
-                        <h3 class="text-base font-black font-outfit text-gray-900">5-Factor Candidate Salary Determination Calculator</h3>
-                        <p class="text-xs text-gray-500 mt-0.5">Standardized weighted candidate scoring and band percentile mapper.</p>
+                        <h3 class="text-base font-black font-outfit text-gray-900">6-Factor Candidate Salary Determination Calculator</h3>
+                        <p class="text-xs text-gray-500 mt-0.5">Weighted candidate scoring anchored to the ₱755.00/day minimum wage floor (docs/no.md §1).</p>
                     </div>
                     <button @click="calcModalOpen = false" class="text-gray-400 hover:text-gray-600 text-sm font-bold">✕</button>
                 </div>
@@ -488,7 +440,7 @@
                 <div class="space-y-4 text-xs">
                     <!-- Grade Selection -->
                     <div>
-                        <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Target Pay Grade / Position</label>
+                        <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Target Position / Benchmark Scale</label>
                         <select x-model="calcGradeId" @change="evaluateCandidateSalary()"
                                 class="w-full bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-xs font-bold text-gray-900 focus:outline-none focus:border-[#F44336]">
                             @foreach($salaryGrades as $g)
@@ -499,90 +451,107 @@
                         </select>
                     </div>
 
-                    <!-- 5 Factors Grid -->
+                    <!-- 6 Factors Grid (docs/no.md Lines 28-34) -->
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-gray-50 p-4 rounded-2xl border border-gray-200">
-                        <!-- Factor 1: Education (25%) -->
+                        <!-- Factor 1: Relevant Experience (25%) -->
                         <div>
                             <div class="flex justify-between font-bold mb-1">
-                                <span>1. Education (25% Weight)</span>
+                                <span>1. Relevant Experience (25%)</span>
+                                <span class="text-purple-800 font-mono" x-text="expScore + '/6'"></span>
+                            </div>
+                            <select x-model="expScore" @change="evaluateCandidateSalary()"
+                                    class="w-full bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs font-medium text-gray-800">
+                                <option value="1">1 - Entry (0 to 1 Year)</option>
+                                <option value="2">2 - Junior (1 to 2 Years)</option>
+                                <option value="3">3 - Intermediate (2 to 4 Years)</option>
+                                <option value="4">4 - Experienced (4 to 7 Years)</option>
+                                <option value="5">5 - Senior (7 to 10 Years)</option>
+                                <option value="6">6 - Veteran Lead (10+ Years)</option>
+                            </select>
+                        </div>
+
+                        <!-- Factor 2: Technical & Job Skills (20%) -->
+                        <div>
+                            <div class="flex justify-between font-bold mb-1">
+                                <span>2. Technical & Job Skills (20%)</span>
+                                <span class="text-purple-800 font-mono" x-text="skillScore + '/6'"></span>
+                            </div>
+                            <select x-model="skillScore" @change="evaluateCandidateSalary()"
+                                    class="w-full bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs font-medium text-gray-800">
+                                <option value="1">1 - Foundational knowledge</option>
+                                <option value="2">2 - Basic functional skills</option>
+                                <option value="3">3 - Standard proficient skills</option>
+                                <option value="4">4 - Advanced domain competencies</option>
+                                <option value="5">5 - Specialized mastery</option>
+                                <option value="6">6 - Elite subject matter expert</option>
+                            </select>
+                        </div>
+
+                        <!-- Factor 3: Educational Attainment (15%) -->
+                        <div>
+                            <div class="flex justify-between font-bold mb-1">
+                                <span>3. Educational Attainment (15%)</span>
                                 <span class="text-purple-800 font-mono" x-text="eduScore + '/6'"></span>
                             </div>
                             <select x-model="eduScore" @change="evaluateCandidateSalary()"
                                     class="w-full bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs font-medium text-gray-800">
                                 <option value="1">1 - High School Graduate</option>
                                 <option value="2">2 - Vocational / TESDA NC II</option>
-                                <option value="3">3 - College Graduate</option>
+                                <option value="3">3 - College Graduate / Bachelor's</option>
                                 <option value="4">4 - Bachelor with Honors</option>
                                 <option value="5">5 - Master's Degree</option>
-                                <option value="6">6 - Doctoral Degree</option>
+                                <option value="6">6 - Post-Graduate / Doctorate</option>
                             </select>
                         </div>
 
-                        <!-- Factor 2: Experience (35%) -->
+                        <!-- Factor 4: Professional Certifications (15%) -->
                         <div>
                             <div class="flex justify-between font-bold mb-1">
-                                <span>2. Experience (35% Weight)</span>
-                                <span class="text-purple-800 font-mono" x-text="expScore + '/6'"></span>
+                                <span>4. Professional Certifications (15%)</span>
+                                <span class="text-purple-800 font-mono" x-text="certScore + '/6'"></span>
                             </div>
-                            <select x-model="expScore" @change="evaluateCandidateSalary()"
+                            <select x-model="certScore" @change="evaluateCandidateSalary()"
                                     class="w-full bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs font-medium text-gray-800">
-                                <option value="1">1 - 0 to 1 Year</option>
-                                <option value="2">2 - 1 to 3 Years</option>
-                                <option value="3">3 - 3 to 5 Years</option>
-                                <option value="4">4 - 5 to 8 Years</option>
-                                <option value="5">5 - 8 to 12 Years</option>
-                                <option value="6">6 - 12+ Years</option>
+                                <option value="1">1 - No external certifications</option>
+                                <option value="2">2 - Basic safety / local certification</option>
+                                <option value="3">3 - Industry accredited certification</option>
+                                <option value="4">4 - Multiple professional credentials</option>
+                                <option value="5">5 - Advanced specialized master license</option>
+                                <option value="6">6 - Top-tier international credentials</option>
                             </select>
                         </div>
 
-                        <!-- Factor 3: Relevant Skills (20%) -->
+                        <!-- Factor 5: Previous Salary Benchmark (15%) -->
                         <div>
                             <div class="flex justify-between font-bold mb-1">
-                                <span>3. Skills Fit (20% Weight)</span>
-                                <span class="text-purple-800 font-mono" x-text="skillScore + '/6'"></span>
+                                <span>5. Previous Salary Benchmark (15%)</span>
+                                <span class="text-purple-800 font-mono" x-text="prevSalaryScore + '/6'"></span>
                             </div>
-                            <select x-model="skillScore" @change="evaluateCandidateSalary()"
+                            <select x-model="prevSalaryScore" @change="evaluateCandidateSalary()"
                                     class="w-full bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs font-medium text-gray-800">
-                                <option value="1">1 - Entry / Foundational</option>
-                                <option value="2">2 - Basic Competencies</option>
-                                <option value="3">3 - Standard Competency</option>
-                                <option value="4">4 - Proficient Practitioner</option>
-                                <option value="5">5 - Advanced Specialist</option>
-                                <option value="6">6 - Subject Matter Expert</option>
+                                <option value="1">1 - Baseline minimum wage previous pay</option>
+                                <option value="2">2 - Modest entry rate</option>
+                                <option value="3">3 - Median market rate benchmark</option>
+                                <option value="4">4 - Above-average historical rate</option>
+                                <option value="5">5 - Premium historical package</option>
+                                <option value="6">6 - High executive benchmark</option>
                             </select>
                         </div>
 
-                        <!-- Factor 4: Market Benchmark (10%) -->
+                        <!-- Factor 6: Interview Assessment (10%) -->
                         <div>
                             <div class="flex justify-between font-bold mb-1">
-                                <span>4. Market Rate (10% Weight)</span>
-                                <span class="text-purple-800 font-mono" x-text="marketScore + '/6'"></span>
+                                <span>6. Interview Assessment (10%)</span>
+                                <span class="text-purple-800 font-mono" x-text="interviewScore + '/6'"></span>
                             </div>
-                            <select x-model="marketScore" @change="evaluateCandidateSalary()"
+                            <select x-model="interviewScore" @change="evaluateCandidateSalary()"
                                     class="w-full bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs font-medium text-gray-800">
-                                <option value="1">1 - Below Market Floor</option>
-                                <option value="2">2 - Low Market Tier</option>
-                                <option value="3">3 - Standard Market Rate</option>
-                                <option value="4">4 - Competitive Rate</option>
-                                <option value="5">5 - High Demand Skillset</option>
-                                <option value="6">6 - Premium Market Leader</option>
-                            </select>
-                        </div>
-
-                        <!-- Factor 5: Internal Equity (10%) -->
-                        <div class="sm:col-span-2">
-                            <div class="flex justify-between font-bold mb-1">
-                                <span>5. Internal Peer Equity (10% Weight)</span>
-                                <span class="text-purple-800 font-mono" x-text="equityScore + '/6'"></span>
-                            </div>
-                            <select x-model="equityScore" @change="evaluateCandidateSalary()"
-                                    class="w-full bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs font-medium text-gray-800">
-                                <option value="1">1 - Aligns with Band Minimum incumbents</option>
-                                <option value="2">2 - Aligns with 25th percentile incumbents</option>
-                                <option value="3">3 - Aligns with Midpoint incumbents</option>
-                                <option value="4">4 - Aligns with Senior incumbents in band</option>
-                                <option value="5">5 - Aligns with Top-tier incumbents</option>
-                                <option value="6">6 - Exceptional placement justification</option>
+                                <option value="1">1 - Marginal pass</option>
+                                <option value="2">2 - Satisfactory responses</option>
+                                <option value="3">3 - Solid cultural & technical fit</option>
+                                <option value="4">4 - Strong communicator & problem solver</option>
+                                <option value="5">5 - Outstanding leadership presence</option>
+                                <option value="6">6 - Exceptional visionary performance</option>
                             </select>
                         </div>
                     </div>
@@ -613,11 +582,19 @@
                             </div>
 
                             <!-- Recommended Salary Banner -->
-                            <div class="p-3 bg-purple-950 text-white rounded-xl flex items-center justify-between">
-                                <span class="text-xs font-bold text-purple-200">Recommended Starting Offer:</span>
-                                <span class="text-xl font-black font-outfit text-purple-100"
-                                      x-text="'PHP ' + Number(calcResult.recommended_salary).toLocaleString(undefined, {minimumFractionDigits: 2})">
-                                </span>
+                            <div class="p-3 bg-purple-950 text-white rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                <div>
+                                    <span class="text-[10px] font-bold text-purple-300 block uppercase">Recommended Starting Offer:</span>
+                                    <span class="text-xl font-black font-outfit text-white"
+                                          x-text="'PHP ' + Number(calcResult.recommended_salary).toLocaleString(undefined, {minimumFractionDigits: 2}) + ' /mo'">
+                                    </span>
+                                </div>
+                                <div class="sm:text-right">
+                                    <span class="text-[10px] font-bold text-purple-300 block uppercase">Daily Rate Floor:</span>
+                                    <span class="text-sm font-bold font-mono text-emerald-300"
+                                          x-text="'PHP ' + Number(calcResult.recommended_daily_rate).toLocaleString(undefined, {minimumFractionDigits: 2}) + '/day'">
+                                    </span>
+                                </div>
                             </div>
                         </div>
                     </template>
@@ -632,17 +609,19 @@
         </div>
 
         <!-- ========================================================================= -->
-        <!-- MODAL: EDIT SALARY BAND -->
+        <!-- MODAL: EDIT PAY SCALE BENCHMARK -->
         <!-- ========================================================================= -->
         <div x-show="editModalOpen" style="display: none;" 
              class="fixed inset-0 z-50 overflow-y-auto bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
             <div @click.away="editModalOpen = false" class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-gray-100 space-y-4">
                 <div class="flex items-center justify-between border-b border-gray-100 pb-3">
-                    <h3 class="text-base font-black font-outfit text-gray-900">Edit Salary Band Configuration</h3>
-                    <button @click="editModalOpen = false" class="text-gray-400 hover:text-gray-600 text-sm font-bold">✕</button>
+                    <h3 class="text-base font-black font-outfit text-gray-900">Edit Market Benchmark Reference Scale</h3>
+                    <button @click="editModalOpen = false" class="text-gray-400 hover:text-gray-600 transition-colors">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    </button>
                 </div>
 
-                <form :action="'{{ url('/compensation/salary-bands') }}/' + activeGrade.id + '/update'" method="POST" class="space-y-4 text-xs">
+                <form :action="'{{ route('compensation.salary-bands.update', ['grade' => '__ID__']) }}'.replace('__ID__', activeGrade.id)" method="POST" class="space-y-4 text-xs">
                     @csrf
                     <div>
                         <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Pay Grade & Position</label>
@@ -693,35 +672,71 @@
             </div>
         </div>
 
+        </div>
+
         <!-- ========================================================================= -->
-        <!-- MODAL: BULK BAND INFLATION ADJUSTMENT -->
+        <!-- MODAL: DIRECT MERIT INCREASE (docs/no.md Line 51) -->
         <!-- ========================================================================= -->
-        <div x-show="bulkModalOpen" style="display: none;" 
+        <div x-show="meritModalOpen" style="display: none;" 
              class="fixed inset-0 z-50 overflow-y-auto bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-            <div @click.away="bulkModalOpen = false" class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-gray-100 space-y-4">
+            <div @click.away="meritModalOpen = false" class="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-gray-100 space-y-4">
                 <div class="flex items-center justify-between border-b border-gray-100 pb-3">
-                    <h3 class="text-base font-black font-outfit text-gray-900">Bulk Annual Band Inflation Adjustment</h3>
-                    <button @click="bulkModalOpen = false" class="text-gray-400 hover:text-gray-600 text-sm font-bold">✕</button>
+                    <div>
+                        <h3 class="text-base font-black font-outfit text-gray-900">Direct Merit Increase (No Promotion Needed)</h3>
+                        <p class="text-xs text-gray-500 mt-0.5">Flexible merit adjustment based on performance and loyalty (docs/no.md §1).</p>
+                    </div>
+                    <button @click="meritModalOpen = false" class="text-gray-400 hover:text-gray-600 transition-colors">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    </button>
                 </div>
 
-                <form action="{{ route('compensation.salary-bands.bulk-adjust') }}" method="POST" class="space-y-4 text-xs">
+                <form :action="'{{ route('compensation.direct-merit', ['employee' => '__ID__']) }}'.replace('__ID__', selectedEmp.id)" method="POST" class="space-y-4 text-xs">
                     @csrf
-                    <p class="text-gray-600">
-                        Apply a company-wide percentage increase across all salary band minimums and maximums (e.g. for statutory minimum wage inflation).
-                    </p>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Target Personnel</label>
+                        <div class="p-3 bg-purple-50 rounded-2xl border border-purple-100 flex items-center justify-between">
+                            <div>
+                                <span class="font-bold text-gray-900 text-sm block" x-text="selectedEmp.name"></span>
+                                <span class="text-gray-500 font-mono text-[11px]" x-text="selectedEmp.code + ' • ' + selectedEmp.position"></span>
+                            </div>
+                            <div class="text-right">
+                                <span class="text-[10px] uppercase font-bold text-gray-400 block">Current Base</span>
+                                <span class="font-mono font-black text-purple-900" x-text="'PHP ' + Number(selectedEmp.daily).toLocaleString(undefined, {minimumFractionDigits: 2}) + '/day'"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Merit Percentage (%)</label>
+                            <input type="number" step="0.5" min="0.1" max="100" x-model="meritPercentage" @input="recalcMeritRates()"
+                                   class="w-full bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 font-bold text-gray-900 focus:outline-none focus:border-[#F44336]">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 uppercase mb-1">New Daily Rate (PHP)</label>
+                            <input type="number" step="0.01" min="755.00" name="new_daily_rate" x-model="meritDailyRate" required
+                                   class="w-full bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 font-bold text-gray-900 focus:outline-none focus:border-[#F44336]">
+                        </div>
+                    </div>
+
+                    <div class="p-3 bg-emerald-50 rounded-xl border border-emerald-100 flex justify-between items-center font-bold">
+                        <span class="text-emerald-900 text-xs">Equivalent Monthly Salary (26-day basis):</span>
+                        <span class="font-outfit text-emerald-950 font-black text-sm" x-text="'PHP ' + Number(meritDailyRate * 26).toLocaleString(undefined, {minimumFractionDigits: 2})"></span>
+                    </div>
 
                     <div>
-                        <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Adjustment Percentage (%)</label>
-                        <input type="number" step="0.1" min="0.1" max="50" name="percentage" x-model="bulkPercentage" required
-                               class="w-full bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 font-black text-gray-900 text-base focus:outline-none focus:border-[#F44336]">
+                        <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Merit Justification / Performance Notes</label>
+                        <textarea name="justification" x-model="meritJustification" rows="2" required
+                                  placeholder="e.g. Excellent safety score, exceptional attendance and zero incidents..."
+                                  class="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs font-medium text-gray-900 focus:outline-none focus:border-[#F44336]"></textarea>
                     </div>
 
                     <div class="flex items-center justify-end gap-2 pt-2 border-t border-gray-100">
-                        <button type="button" @click="bulkModalOpen = false" class="bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold text-xs px-4 py-2.5 rounded-xl transition-all">
+                        <button type="button" @click="meritModalOpen = false" class="bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold text-xs px-4 py-2.5 rounded-xl transition-all">
                             Cancel
                         </button>
-                        <button type="submit" class="bg-gray-900 hover:bg-black text-white font-black text-xs px-5 py-2.5 rounded-xl transition-all shadow-sm">
-                            Apply Bulk Adjustment
+                        <button type="submit" class="bg-purple-600 hover:bg-purple-700 text-white font-black text-xs px-5 py-2.5 rounded-xl transition-all shadow-sm">
+                            Apply Merit Increase
                         </button>
                     </div>
                 </form>

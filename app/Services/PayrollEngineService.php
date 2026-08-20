@@ -11,7 +11,6 @@ use App\Models\Employee;
 use App\Models\PerformanceBonus;
 use App\Models\SalaryComputation;
 use App\Models\TripIncome;
-use App\Services\Payroll\DriverTripIncentiveService;
 use App\Services\Payroll\HolidayPayService;
 use App\Services\Payroll\LoanAmortizationService;
 use App\Services\Payroll\OvertimePayService;
@@ -32,7 +31,6 @@ class PayrollEngineService
         protected HolidayPayService $holidayService,
         protected OvertimePayService $overtimeService,
         protected TardinessDeductionService $tardinessService,
-        protected DriverTripIncentiveService $tripIncentiveService,
         protected LoanAmortizationService $loanService
     ) {}
 
@@ -42,8 +40,18 @@ class PayrollEngineService
     public function computeForEmployee(Employee $employee, string $cutoffPeriod): SalaryComputation
     {
         return DB::transaction(function () use ($employee, $cutoffPeriod) {
-            $defaultDaysWorked = (int) CompanySetting::getValue('payroll_default_semi_monthly_days_worked', 11);
-            $defaultStaffBase = (float) CompanySetting::getValue('payroll_default_staff_semi_monthly_base', 12500.00);
+            $frequencySetting = (string) CompanySetting::getValue('payroll_frequency', 'weekly');
+            $isSemiMonthlyCutoff = str_ends_with($cutoffPeriod, '_15') || str_ends_with($cutoffPeriod, '_30') || str_ends_with($cutoffPeriod, '_31');
+            $isWeekly = (! $isSemiMonthlyCutoff) || ($frequencySetting === 'weekly' && ! $isSemiMonthlyCutoff);
+
+            if (! $isWeekly) {
+                $defaultDaysWorked = (int) CompanySetting::getValue('payroll_default_semi_monthly_days_worked', 11);
+                $defaultStaffBase = (float) CompanySetting::getValue('payroll_default_staff_semi_monthly_base', 12500.00);
+            } else {
+                $defaultDaysWorked = (int) CompanySetting::getValue('payroll_default_weekly_days_worked', 6);
+                $defaultStaffBase = (float) CompanySetting::getValue('payroll_default_staff_weekly_base', 5769.23);
+            }
+
             $statutoryMinBasis = (float) CompanySetting::getValue('statutory_minimum_monthly_basis', 10000.00);
 
             $attendance = Attendance::where('employee_id', $employee->id)
@@ -53,9 +61,14 @@ class PayrollEngineService
             $daysWorked = $attendance ? $attendance->days_worked : $defaultDaysWorked;
             $isDriver = str_contains(strtolower($employee->position ?? ''), 'driver');
 
-            // 1. Base Pay Computation (Semi-monthly: Monthly / 2 or Daily * Days Worked)
+            // 1. Base Pay Computation (Weekly: (Monthly * 12) / 52 or Daily * Days Worked; Semi-monthly: Monthly / 2)
             if ($employee->monthly_rate > 0) {
-                $basePay = round((float) $employee->monthly_rate / 2, 2);
+                if (! $isWeekly) {
+                    $basePay = round((float) $employee->monthly_rate / 2, 2);
+                } else {
+                    $weeksPerYear = (float) CompanySetting::getValue('payroll_standard_weeks_per_year', 52.0);
+                    $basePay = round(((float) $employee->monthly_rate * 12) / $weeksPerYear, 2);
+                }
             } elseif ($employee->daily_rate > 0) {
                 $basePay = round((float) $employee->daily_rate * $daysWorked, 2);
             } else {
@@ -68,9 +81,8 @@ class PayrollEngineService
                 ->first();
             $tripEarnings = $tripIncome ? (float) $tripIncome->total_trip_earnings : 0.00;
 
-            // 3. Driver Multi-Tier Trip Quota Incentives (Section 2.5)
-            $incentiveResult = $this->tripIncentiveService->compute($employee, $cutoffPeriod);
-            $driverTripIncentive = (float) $incentiveResult['incentive_amount'];
+            // 3. Driver Multi-Tier Trip Quota Incentives (docs/no.md Lines 87, 91, 214 - Client does not use incentives/bonuses in payroll)
+            $driverTripIncentive = 0.00;
 
             // 4. Holiday Pay & Timekeeping Premiums (Labor Code Articles 87, 90, 93, 94)
             $holidayResult = $this->holidayService->compute($employee, $attendance, $cutoffPeriod);
@@ -80,33 +92,28 @@ class PayrollEngineService
             $overtimePay = (float) $otResult['overtime_pay'];
             $nightDiffPay = (float) $otResult['night_diff_pay'];
 
-            // 5. Performance Bonuses & Approved Claims
-            $bonus = PerformanceBonus::where('employee_id', $employee->id)
-                ->where('cutoff_period', $cutoffPeriod)
-                ->first();
+            // 5. Performance Bonuses & Approved Claims (docs/no.md: Lines 87, 214)
+            $includeDiscretionary = (bool) CompanySetting::getValue('payroll_include_discretionary_bonuses', false);
+            $bonus = $includeDiscretionary
+                ? PerformanceBonus::where('employee_id', $employee->id)->where('cutoff_period', $cutoffPeriod)->first()
+                : null;
             $bonusAmount = $bonus ? (float) $bonus->bonus_amount : 0.00;
 
             // Fetch Approved Claims
             $approvedClaims = Claim::where('employee_id', $employee->id)
                 ->where('cutoff_period', $cutoffPeriod)
-                ->where('status', 'approved')
+                ->whereIn('approval_status', ['approved', 'payroll_queued'])
                 ->get();
 
-            // Taxable Driver Incentives
-            $incentiveClaims = (float) $approvedClaims->where('type', 'incentive')->sum('amount');
-            $bonusAmount += $incentiveClaims;
-
-            // Non-Taxable Reimbursements (Expenses & Maternity Benefits)
+            // Non-Taxable Reimbursements (Expenses & Maternity Benefits) - Cash Settlement (docs/no.md: Line 200)
             $reimbursements = (float) $approvedClaims->whereIn('type', ['expense', 'maternity'])->sum('amount');
 
-            // 6. Gross Pay
+            // 6. Gross Pay (docs/no.md: Base Pay + Trips + Holiday + OT + NSD)
             $grossPay = round($basePay + $tripEarnings + $driverTripIncentive + $holidayPay + $overtimePay + $nightDiffPay + $bonusAmount, 2);
 
-            // 7. Driver Platform Fees & HMO Deductions
+            // 7. Driver Platform Fees (TNC Commission)
             $platformFeeRate = (float) CompanySetting::getValue('driver_tnc_platform_fee_rate', 0.20);
-            $driverHmoRate = (float) CompanySetting::getValue('driver_group_hmo_deduction_rate', 0.03);
             $platformFee = $isDriver ? round($tripEarnings * $platformFeeRate, 2) : 0.00; // TNC Commission
-            $hmoInsuranceDeduction = $isDriver ? round($grossPay * $driverHmoRate, 2) : 0.00; // Driver Group Coverage
 
             // 8. Loan Amortization Deductions (SSS, Pag-IBIG, Company Loans)
             $loanResult = $this->loanService->compute($employee, $cutoffPeriod);
@@ -117,12 +124,24 @@ class PayrollEngineService
             $tardinessDeduction = (float) $tardyResult['tardiness_deduction'];
             $undertimeDeduction = (float) $tardyResult['undertime_deduction'];
 
-            // 10. Statutory Deductions (2025-2026 Official Tables)
-            $monthlyBasis = max($statutoryMinBasis, (float) ($employee->monthly_rate ?: ($grossPay * 2)));
+            // 10. Statutory Deductions (2025-2026 Official Tables - Identical Parity for Staff and Drivers)
+            $workingDaysPerMonth = (float) CompanySetting::getValue('standard_working_days_per_month', 26.0);
+            if ($employee->monthly_rate > 0) {
+                $monthlyBasis = (float) $employee->monthly_rate;
+            } elseif ($employee->daily_rate > 0) {
+                $monthlyBasis = round((float) $employee->daily_rate * $workingDaysPerMonth, 2);
+            } else {
+                $monthlyBasis = max($statutoryMinBasis, (float) ($grossPay * ($isWeekly ? 4.33 : 2)));
+            }
 
-            $sssResult = $this->sssService->compute($monthlyBasis, true);
-            $philhealthResult = $this->philhealthService->compute($monthlyBasis, true);
-            $pagibigResult = $this->pagibigService->compute($monthlyBasis, true);
+            $sssResult = $this->sssService->compute($monthlyBasis, false, true);
+            $philhealthResult = $this->philhealthService->compute($monthlyBasis, false, true);
+            $pagibigResult = $this->pagibigService->compute(
+                $monthlyBasis,
+                false,
+                (float) ($employee->pagibig_voluntary_contribution ?? 0.0),
+                true
+            );
 
             $sssEe = (float) $sssResult['employee_share'];
             $sssEr = (float) $sssResult['employer_share'];
@@ -136,14 +155,14 @@ class PayrollEngineService
 
             // 11. Taxable Base & BIR Withholding Tax (TRAIN Law Graduated Brackets)
             $taxableIncome = max(0.00, $grossPay - ($sssEe + $philhealthEe + $pagibigEe + $tardinessDeduction + $undertimeDeduction));
-            $withholdingTax = $this->taxService->compute($taxableIncome, true);
+            $withholdingTax = $this->taxService->compute($taxableIncome, false, true);
 
-            // 12. Total Deductions & Net Take-Home Pay
+            // 12. Total Deductions & Net Take-Home Pay (Strictly Gross minus Deductions; Cash Reimbursements settled separately)
             $totalDeductions = round(
-                $sssEe + $philhealthEe + $pagibigEe + $hmoInsuranceDeduction + $platformFee + $loanDeduction + $withholdingTax + $tardinessDeduction + $undertimeDeduction,
+                $sssEe + $philhealthEe + $pagibigEe + $platformFee + $loanDeduction + $withholdingTax + $tardinessDeduction + $undertimeDeduction,
                 2
             );
-            $netPay = round(($grossPay - $totalDeductions) + $reimbursements, 2);
+            $netPay = round($grossPay - $totalDeductions, 2);
 
             $computation = SalaryComputation::updateOrCreate(
                 [
@@ -163,11 +182,10 @@ class PayrollEngineService
                     'sss_deduction' => $sssEe,
                     'sss_employer' => $sssEr,
                     'philhealth_deduction' => $philhealthEe,
-                    'philhealth_employer' => $philRes['employer_share'] ?? $philhealthEr,
+                    'philhealth_employer' => $philhealthEr,
                     'pagibig_deduction' => $pagibigEe,
                     'pagibig_employer' => $pagibigEr,
                     'ec_contribution' => $ec,
-                    'hmo_insurance_deduction' => $hmoInsuranceDeduction,
                     'platform_fee_deduction' => $platformFee,
                     'loan_deduction' => $loanDeduction,
                     'withholding_tax' => $withholdingTax,

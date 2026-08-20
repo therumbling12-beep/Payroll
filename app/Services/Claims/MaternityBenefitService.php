@@ -22,6 +22,13 @@ class MaternityBenefitService
         'miscarriage' => ['days' => 60, 'label' => 'Miscarriage / Emergency Termination (60 Days)'],
     ];
 
+    protected DuplicateClaimDetectionService $duplicateService;
+
+    public function __construct(?DuplicateClaimDetectionService $duplicateService = null)
+    {
+        $this->duplicateService = $duplicateService ?? app(DuplicateClaimDetectionService::class);
+    }
+
     /**
      * Get maximum SSS Monthly Salary Credit (MSC) ceiling from company settings or statutory default
      */
@@ -155,7 +162,7 @@ class MaternityBenefitService
                 'sss_reimbursement_status' => 'advanced_to_employee',
                 'doctor_license_number' => $data['doctor_license_number'] ?? null,
                 'expense_date' => $data['expense_date'] ?? now()->toDateString(),
-                'cutoff_period' => $data['cutoff_period'] ?? '2026-07-01_15',
+                'cutoff_period' => $data['cutoff_period'] ?? '2026-08-13_19',
                 'description' => $data['description'] ?? sprintf(
                     'RA 11210 Maternity Advance (%s). %s',
                     $calc['maternity_type_label'],
@@ -182,6 +189,8 @@ class MaternityBenefitService
                     'total_advance' => $calc['total_advance_amount'],
                 ],
             ]);
+
+            $this->duplicateService->flagClaimIfDuplicate($claim);
 
             return $claim;
         });

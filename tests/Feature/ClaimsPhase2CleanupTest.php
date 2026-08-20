@@ -40,41 +40,19 @@ beforeEach(function () {
     ]);
 });
 
-test('Driver ride incentives page renders without cumulative mode toggle', function () {
+test('Driver ride incentives route redirects gracefully to work expenses', function () {
     $response = $this->get(route('claims.incentives'));
 
-    $response->assertOk()
-        ->assertSee('Driver Ride-Based Incentives')
-        ->assertSee('Arman Solis')
-        ->assertSee('Tier 3 (60 Rides)')
-        ->assertDontSee('Cumulative Mode:');
+    $response->assertRedirect(route('claims.expenses'));
 });
 
-test('Batch qualify and commit driver incentives creates approved claims with standard tier amount', function () {
-    $milestoneService = app(\App\Services\Claims\DriverMilestoneIncentiveService::class);
-    $roster = $milestoneService->qualifyDriverRoster('2026-07-01_15');
-    $driverPlan = $roster->firstWhere('driver_id', $this->driver->id);
-
-    expect($driverPlan)->not->toBeNull()
-        ->and($driverPlan['is_qualified'])->toBeTrue()
-        ->and((float) $driverPlan['base_milestone_amount'])->toBe(1500.00);
-
+test('Batch qualify driver incentives route redirects gracefully to work expenses', function () {
     $response = $this->post(route('claims.incentives.batch-qualify'), [
         'cutoff_period' => '2026-07-01_15',
-        'plans_json' => json_encode([$driverPlan]),
+        'plans_json' => '[]',
     ]);
 
-    $response->assertRedirect();
-    $response->assertSessionHas('status');
-
-    $claim = Claim::where('employee_id', $this->driver->id)
-        ->where('type', 'incentive')
-        ->where('cutoff_period', '2026-07-01_15')
-        ->first();
-
-    expect($claim)->not->toBeNull()
-        ->and((float) $claim->amount)->toBe(1500.00)
-        ->and($claim->approval_status)->toBe('approved');
+    $response->assertRedirect(route('claims.expenses'));
 });
 
 test('Decommissioned performance-incentive route returns 404', function () {

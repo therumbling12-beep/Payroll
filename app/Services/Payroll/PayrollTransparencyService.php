@@ -36,11 +36,12 @@ class PayrollTransparencyService
         $workingDays = (float) CompanySetting::getValue('standard_working_days_per_month', 26.0);
         $workingHours = (float) CompanySetting::getValue('standard_working_hours_per_day', 8.0);
         $platformFeeRate = (float) CompanySetting::getValue('driver_tnc_platform_fee_rate', 0.20);
-        $driverHmoRate = (float) CompanySetting::getValue('driver_group_hmo_deduction_rate', 0.03);
         $regularMultiplier = (float) CompanySetting::getValue('holiday_regular_worked_multiplier', 2.00);
         $specialMultiplier = (float) CompanySetting::getValue('holiday_special_worked_multiplier', 1.30);
         $regularOtRate = (float) CompanySetting::getValue('overtime_regular_multiplier', 1.25);
-        $nsdRate = (float) CompanySetting::getValue('night_shift_differential_rate', 0.10);
+        $restDayMultiplier = (float) CompanySetting::getValue('overtime_rest_day_multiplier', 1.30);
+        $nightDiffMultiplier = (float) CompanySetting::getValue('night_shift_differential_rate', 0.10);
+        $nsdRate = $nightDiffMultiplier;
 
         // 1. Base Pay & Rate Conversion
         $monthlyRate = (float) ($employee?->monthly_rate ?: 0);
@@ -51,6 +52,8 @@ class PayrollTransparencyService
         $basePay = (float) $computation->base_pay;
         $daysRendered = $dailyRate > 0 ? round($basePay / $dailyRate, 1) : 0.0;
 
+        $formula = "PHP {$dailyRate} (Daily Rate) x {$daysRendered} Days = PHP " . number_format($basePay, 2) . ($monthlyRate > 0 ? " (PHP " . number_format($monthlyRate, 2) . " Monthly)" : "");
+
         $basePayMath = [
             'monthly_rate' => $monthlyRate,
             'daily_rate' => $dailyRate,
@@ -58,23 +61,28 @@ class PayrollTransparencyService
             'minute_rate' => $minuteRate,
             'days_rendered' => $daysRendered,
             'base_pay' => $basePay,
-            'formula' => "PHP {$dailyRate} (Daily Rate) x {$daysRendered} Days = PHP " . number_format($basePay, 2),
+            'formula' => $formula,
         ];
 
-        // 2. Attendance Timekeeping Deductions
+        // 2. Attendance Timekeeping Deductions (docs/no.md: Daily Rate / 8 x Hours)
         $tardinessDeduction = (float) $computation->tardiness_deduction;
         $undertimeDeduction = (float) $computation->undertime_deduction;
-        $tardinessMinutes = $minuteRate > 0 ? (int) round($tardinessDeduction / $minuteRate) : 0;
-        $undertimeMinutes = $minuteRate > 0 ? (int) round($undertimeDeduction / $minuteRate) : 0;
+        $tardinessHours = $hourlyRate > 0 ? round($tardinessDeduction / $hourlyRate, 2) : 0.0;
+        $undertimeHours = $hourlyRate > 0 ? round($undertimeDeduction / $hourlyRate, 2) : 0.0;
+        $tardinessMinutes = (int) round($tardinessHours * 60);
+        $undertimeMinutes = (int) round($undertimeHours * 60);
 
         $attendanceMath = [
+            'hourly_rate' => $hourlyRate,
             'minute_rate' => $minuteRate,
+            'tardiness_hours' => $tardinessHours,
             'tardiness_minutes' => $tardinessMinutes,
             'tardiness_deduction' => $tardinessDeduction,
-            'tardiness_formula' => "{$tardinessMinutes} mins x PHP {$minuteRate}/min = PHP " . number_format($tardinessDeduction, 2),
+            'tardiness_formula' => "{$tardinessHours} hrs late x PHP {$hourlyRate}/hr = PHP " . number_format($tardinessDeduction, 2),
+            'undertime_hours' => $undertimeHours,
             'undertime_minutes' => $undertimeMinutes,
             'undertime_deduction' => $undertimeDeduction,
-            'undertime_formula' => "{$undertimeMinutes} mins x PHP {$minuteRate}/min = PHP " . number_format($undertimeDeduction, 2),
+            'undertime_formula' => "{$undertimeHours} hrs undertime x PHP {$hourlyRate}/hr = PHP " . number_format($undertimeDeduction, 2),
             'total_attendance_deduction' => round($tardinessDeduction + $undertimeDeduction, 2),
         ];
 
@@ -99,14 +107,16 @@ class PayrollTransparencyService
             'platform_fee_percent' => $platformFeePct,
             'platform_fee_deduction' => $platformFee,
             'platform_fee_formula' => "PHP {$tripEarnings} (Gross Fares) x {$platformFeePct}% TNC Commission = PHP " . number_format($platformFee, 2),
-            'driver_trip_incentive' => $driverTripIncentive,
-            'quota_tier_label' => $quotaTier,
+            'driver_trip_incentive' => 0.00,
+            'quota_tier_label' => 'Standard Rate (No Incentives)',
         ];
 
         // 4. Holiday & Overtime Formulas
         $holidayPay = (float) $computation->holiday_pay;
         $overtimePay = (float) $computation->overtime_pay;
         $nightDiffPay = (float) $computation->night_diff_pay;
+
+        $contractedGross = round($basePay + $tripEarnings + $holidayPay + $overtimePay + $nightDiffPay, 2);
 
         $holidayOtMath = [
             'hourly_rate' => $hourlyRate,
@@ -115,15 +125,25 @@ class PayrollTransparencyService
             'special_holiday_rate' => round($hourlyRate * $specialMultiplier, 2),
             'overtime_pay' => $overtimePay,
             'overtime_rate' => round($hourlyRate * $regularOtRate, 2),
+            'rest_day_rate' => round($hourlyRate * $restDayMultiplier, 2),
             'night_diff_pay' => $nightDiffPay,
-            'night_diff_rate' => round($hourlyRate * $nsdRate, 2),
+            'night_diff_rate' => round($hourlyRate * $nightDiffMultiplier, 2),
+            'contracted_gross' => $contractedGross,
             'performance_bonus' => (float) $computation->performance_bonus,
             'reimbursements' => (float) $computation->reimbursements,
             'total_gross' => (float) $computation->gross_pay,
         ];
 
-        // 5. Statutory Contribution Table Lookups
-        $monthlyBasis = max(10000.00, $employee?->monthly_rate ?: ((float) $computation->gross_pay * 2));
+        // 5. Statutory Contribution Table Lookups (Identical Parity for Staff and Drivers)
+        $workingDaysPerMonth = (float) CompanySetting::getValue('standard_working_days_per_month', 26.0);
+        if ($employee?->monthly_rate > 0) {
+            $monthlyBasis = (float) $employee->monthly_rate;
+        } elseif ($employee?->daily_rate > 0) {
+            $monthlyBasis = round((float) $employee->daily_rate * $workingDaysPerMonth, 2);
+        } else {
+            $monthlyBasis = max(10000.00, (float) $computation->gross_pay * 2);
+        }
+
         $sssCalc = $this->sssService->compute($monthlyBasis, true);
         $philHealthCalc = $this->philHealthService->compute($monthlyBasis, true);
         $pagIbigCalc = $this->pagIbigService->compute($monthlyBasis, true);
@@ -150,14 +170,12 @@ class PayrollTransparencyService
                 'compensation' => $monthlyBasis,
                 'ee_share' => (float) $computation->pagibig_deduction,
                 'er_share' => (float) ($computation->pagibig_employer ?? $pagIbigCalc['employer_share']),
-                'ceiling_applied' => true,
-                'table_reference' => 'Pag-IBIG HDMF Circular No. 460 (PHP 100 EE / PHP 100 ER Semi-Monthly)',
-                'formula' => "Statutory Fixed Share = PHP " . number_format((float) $computation->pagibig_deduction, 2),
-            ],
-            'driver_hmo' => [
-                'rate' => $driverHmoRate * 100,
-                'deduction' => (float) $computation->hmo_insurance_deduction,
-                'formula' => $isDriver ? "Gross Earnings PHP " . number_format((float) $computation->gross_pay, 2) . " x " . ($driverHmoRate * 100) . "% Driver HMO = PHP " . number_format((float) $computation->hmo_insurance_deduction, 2) : "N/A",
+                'ceiling_applied' => ! ($employee && (float) $employee->pagibig_voluntary_contribution > 200.00),
+                'voluntary_applied' => (bool) ($employee && (float) $employee->pagibig_voluntary_contribution > 200.00),
+                'table_reference' => 'Pag-IBIG HDMF Circular No. 460 (PHP 100 EE / PHP 100 ER Semi-Monthly Baseline)',
+                'formula' => ($employee && (float) $employee->pagibig_voluntary_contribution > 200.00)
+                    ? "Employee Voluntary Contribution = PHP " . number_format((float) $computation->pagibig_deduction, 2) . " / cutoff"
+                    : "Statutory Fixed Share = PHP " . number_format((float) $computation->pagibig_deduction, 2),
             ],
         ];
 

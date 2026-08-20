@@ -44,6 +44,7 @@ class DatabaseSeeder extends Seeder
             'maternity_leave_days' => 105,
             'standard_working_days_divisor' => 26,
             'ai_wage_safety_floor' => 755.00,
+            'minimum_wage_daily' => 755.00,
             'tnvs_platform_commission_rate' => 0.20,
         ];
 
@@ -378,10 +379,10 @@ class DatabaseSeeder extends Seeder
             $createdEmployees->push($emp);
         }
 
-        // 3. For each employee, seed attendance, trip income, performance bonus, and calculated salary
-        $cutoff = '2026-07-01_15';
+        // 3. For each employee, seed weekly attendance, trip income, and calculated weekly salary
+        $cutoff = '2026-08-06_12';
         foreach ($createdEmployees as $employee) {
-            $daysWorked = rand(9, 11);
+            $daysWorked = rand(5, 6);
 
             Attendance::updateOrCreate(
                 ['employee_id' => $employee->id, 'cutoff_period' => $cutoff],
@@ -392,7 +393,7 @@ class DatabaseSeeder extends Seeder
             );
 
             $isDriver = str_contains($employee->position, 'Driver');
-            $tripEarnings = $isDriver ? rand(25, 45) * 150.00 : 0.00;
+            $tripEarnings = $isDriver ? (float) (rand(10, 20) * 150.00) : 0.00;
             if ($isDriver) {
                 TripIncome::updateOrCreate(
                     ['employee_id' => $employee->id, 'cutoff_period' => $cutoff],
@@ -403,53 +404,15 @@ class DatabaseSeeder extends Seeder
                 );
             }
 
-            $bonusAmount = ($employee->performance_rating === 'Outstanding') ? 1500.00 : (($employee->performance_rating === 'Very Satisfactory') ? 1000.00 : 0.00);
-            if ($bonusAmount > 0) {
-                PerformanceBonus::updateOrCreate(
-                    ['employee_id' => $employee->id, 'cutoff_period' => $cutoff],
-                    [
-                        'bonus_amount' => $bonusAmount,
-                        'reason' => 'High performance rating (' . $employee->performance_rating . ')',
-                    ]
-                );
-            }
-
-            // Seed mock claims (Expense, Incentive, Maternity)
+            // Seed mock work expense claims (Fuel & Toll Reimbursement)
             Claim::updateOrCreate(
                 ['employee_id' => $employee->id, 'cutoff_period' => $cutoff, 'type' => 'expense'],
                 [
-                    'amount' => rand(300, 1800),
+                    'amount' => rand(300, 1200),
                     'description' => 'Vehicle Fuel & Toll Reimbursement',
                     'receipt_number' => 'RCP-' . rand(10000, 99999),
                     'status' => 'approved',
                     'effective_date' => now(),
-                ]
-            );
-
-            if ($isDriver) {
-                Claim::updateOrCreate(
-                    ['employee_id' => $employee->id, 'cutoff_period' => $cutoff, 'type' => 'incentive'],
-                    [
-                        'amount' => rand(1500, 3500),
-                        'description' => 'Peak Hours High Efficiency Driver Incentive',
-                        'receipt_number' => 'INC-' . rand(10000, 99999),
-                        'status' => 'approved',
-                        'effective_date' => now(),
-                    ]
-                );
-            }
-
-            // Seed HMO Enrollments
-            $hmoPlan = $isDriver ? 'InLife Fleet Protect' : (str_contains($employee->position, 'Supervisor') ? 'Maxicard Gold' : 'Intellicare Silver');
-            $mbl = $hmoPlan === 'Maxicard Gold' ? 250000.00 : ($hmoPlan === 'Intellicare Silver' ? 150000.00 : 100000.00);
-
-            HmoEnrollment::updateOrCreate(
-                ['employee_id' => $employee->id],
-                [
-                    'hmo_card_number' => rand(1000, 9999) . '-' . rand(1000, 9999) . '-' . rand(1000, 9999),
-                    'provider_plan' => $hmoPlan,
-                    'mbl_amount' => $mbl,
-                    'status' => 'active',
                 ]
             );
 
@@ -466,21 +429,27 @@ class DatabaseSeeder extends Seeder
                 );
             }
 
-            $basePay = $isDriver ? 0.00 : ($employee->monthly_rate / 2);
-            $grossPay = $basePay + $tripEarnings + $bonusAmount;
+            $basePay = $isDriver 
+                ? round((float) $employee->daily_rate * $daysWorked, 2) 
+                : round(((float) $employee->monthly_rate * 12) / 52, 2);
+            $grossPay = $basePay + $tripEarnings;
 
-            $sss = $isDriver ? 0.00 : min(1350.00, round($grossPay * 0.045, 2));
-            $philhealth = $isDriver ? 0.00 : min(1250.00, round($grossPay * 0.025, 2));
-            $pagibig = $isDriver ? 0.00 : 100.00;
-            $hmoDeduction = 0.00;
-            $platformFee = $isDriver ? round($tripEarnings * 0.20, 2) : 0.00;
+            $monthlyEquivalent = $employee->monthly_rate > 0 ? (float) $employee->monthly_rate : ((float) $employee->daily_rate * 26);
+            $sssMonthly = min(1350.00, round($monthlyEquivalent * 0.045, 2));
+            $sss = round(($sssMonthly * 12) / 52, 2);
 
-            $taxableIncome = $isDriver ? 0.00 : max(0.00, $grossPay - ($sss + $philhealth + $pagibig));
-            $withholdingTax = $isDriver ? 0.00 : (($taxableIncome > 10416.67) ? round(($taxableIncome - 10416.67) * 0.15, 2) : 0.00);
+            $philhealthMonthly = min(1250.00, round($monthlyEquivalent * 0.025, 2));
+            $philhealth = round(($philhealthMonthly * 12) / 52, 2);
 
-            $totalDeductions = $sss + $philhealth + $pagibig + $hmoDeduction + $platformFee + $withholdingTax;
+            $pagibig = 50.00; // Weekly share
+            $platformFee = 0.00;
+
+            $taxableIncome = max(0.00, $grossPay - ($sss + $philhealth + $pagibig));
+            $withholdingTax = ($taxableIncome > 4807.69) ? round(($taxableIncome - 4807.69) * 0.15, 2) : 0.00;
+
+            $totalDeductions = $sss + $philhealth + $pagibig + $platformFee + $withholdingTax;
             $reimbursements = (float) Claim::where('employee_id', $employee->id)->where('cutoff_period', $cutoff)->where('type', 'expense')->sum('amount');
-            $netPay = ($grossPay - $totalDeductions) + $reimbursements;
+            $netPay = round($grossPay - $totalDeductions, 2);
 
             $comp = SalaryComputation::updateOrCreate(
                 [
@@ -490,13 +459,12 @@ class DatabaseSeeder extends Seeder
                 [
                     'base_pay' => $basePay,
                     'trip_earnings' => $tripEarnings,
-                    'performance_bonus' => $bonusAmount,
+                    'performance_bonus' => 0.00,
                     'reimbursements' => $reimbursements,
                     'gross_pay' => $grossPay,
                     'sss_deduction' => $sss,
                     'philhealth_deduction' => $philhealth,
                     'pagibig_deduction' => $pagibig,
-                    'hmo_insurance_deduction' => $hmoDeduction,
                     'platform_fee_deduction' => $platformFee,
                     'withholding_tax' => $withholdingTax,
                     'total_deductions' => $totalDeductions,

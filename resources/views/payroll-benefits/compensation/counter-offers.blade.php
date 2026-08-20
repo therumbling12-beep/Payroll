@@ -3,35 +3,7 @@
 @php
     $pageTitle = 'Counter Offers & Offer Packages Desk';
     $currentPage = 'compensation.counter-offers';
-
-    // Map salary grades for quick lookup
-    $gradeMap = [];
-    foreach ($salaryGrades as $sg) {
-        $gradeMap[strtolower(trim($sg->position_name))] = $sg;
-    }
 @endphp
-
-@push('styles')
-<style>
-    .comp-bar-track {
-        background-color: #e2e8f0;
-        height: 10px;
-        border-radius: 9999px;
-        position: relative;
-    }
-    .penetration-dot-brand {
-        position: absolute;
-        top: -3px;
-        width: 16px;
-        height: 16px;
-        border-radius: 9999px;
-        background-color: #F44336;
-        border: 2.5px solid #ffffff;
-        box-shadow: 0 1px 4px rgba(0,0,0,0.25);
-        transform: translateX(-50%);
-    }
-</style>
-@endpush
 
 @section('content')
 
@@ -96,15 +68,12 @@
         mealAllowance: 1500,
         commsAllowance: 500,
         signingBonus: 5000,
-        hmoTier: 'Individual',
         urgencyDays: 5,
         reason: 'Counter offer formulated to retain key operational talent against competitor market offer.',
 
         // Live Calculated Results
         calculationResult: null,
         calculationLoading: false,
-        breakdownModalOpen: false,
-        activeBreakdownItem: null,
 
         employeesData: {{ Js::from($employees->mapWithKeys(function($e) {
             $isDriver = str_contains(strtolower($e->position ?? ''), 'driver');
@@ -228,11 +197,6 @@
             .catch(() => {
                 this.calculationLoading = false;
             });
-        },
-
-        openBreakdown(item) {
-            this.activeBreakdownItem = item;
-            this.breakdownModalOpen = true;
         },
 
         init() {
@@ -541,22 +505,10 @@
                                 </div>
                             </div>
 
-                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs pt-2">
-                                <div>
-                                    <label class="block font-bold text-gray-700 mb-1">One-Time Signing Bonus (PHP)</label>
-                                    <input type="number" step="500" name="signing_bonus" x-model="signingBonus" @input="calculateLivePackage()"
-                                           class="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-xs font-black text-gray-900 focus:outline-none focus:border-[#F44336]">
-                                </div>
-                                <div>
-                                    <label class="block font-bold text-gray-700 mb-1">HMO Tier Entitlement</label>
-                                    <select name="hmo_tier" x-model="hmoTier"
-                                            class="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold text-gray-900 focus:outline-none focus:border-[#F44336]">
-                                        <option value="Individual">Individual Standard (MBL 150k)</option>
-                                        <option value="Individual+1">Individual + 1 Dependent (MBL 200k)</option>
-                                        <option value="Family">Family Comprehensive (MBL 300k)</option>
-                                        <option value="Executive">Executive Platinum (MBL 500k)</option>
-                                    </select>
-                                </div>
+                            <div class="text-xs pt-2">
+                                <label class="block font-bold text-gray-700 mb-1">One-Time Signing Bonus (PHP)</label>
+                                <input type="number" step="500" name="signing_bonus" x-model="signingBonus" @input="calculateLivePackage()"
+                                       class="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-xs font-black text-gray-900 focus:outline-none focus:border-[#F44336]">
                             </div>
                         </div>
 

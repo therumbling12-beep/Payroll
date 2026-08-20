@@ -14,6 +14,10 @@ class Claim extends Model
 
     protected $guarded = [];
 
+    protected $attributes = [
+        'disbursement_method' => 'cash',
+    ];
+
     protected $casts = [
         'amount' => 'decimal:2',
         'non_taxable_amount' => 'decimal:2',
@@ -41,10 +45,16 @@ class Claim extends Model
         'payroll_queued_at' => 'datetime',
         'rejected_at' => 'datetime',
         'paid_at' => 'datetime',
+        'cash_released_at' => 'datetime',
         'is_duplicate_flagged' => 'boolean',
         'duplicate_risk_score' => 'integer',
         'duplicate_match_details' => 'array',
     ];
+
+    public function isCashSettlement(): bool
+    {
+        return ($this->disbursement_method ?? 'cash') === 'cash';
+    }
 
     public function employee(): BelongsTo
     {
@@ -179,5 +189,106 @@ class Claim extends Model
         }
 
         return "Waiting {$days} " . ($days === 1 ? 'Day' : 'Days');
+    }
+
+    /**
+     * Scope: Claims requiring action by HR, Admin, or Finance
+     *
+     * @param \Illuminate\Database\Eloquent\Builder<Claim> $query
+     */
+    public function scopeNeedsAction($query)
+    {
+        return $query->whereIn('approval_status', ['pending_hr', 'pending_admin', 'pending_finance', 'pending']);
+    }
+
+    /**
+     * Scope: Claims awaiting HR validation
+     *
+     * @param \Illuminate\Database\Eloquent\Builder<Claim> $query
+     */
+    public function scopePendingHr($query)
+    {
+        return $query->whereIn('approval_status', ['pending_hr', 'pending']);
+    }
+
+    /**
+     * Scope: Claims awaiting Admin authorization
+     *
+     * @param \Illuminate\Database\Eloquent\Builder<Claim> $query
+     */
+    public function scopePendingAdmin($query)
+    {
+        return $query->where('approval_status', 'pending_admin');
+    }
+
+    /**
+     * Scope: Claims awaiting Finance budget approval
+     *
+     * @param \Illuminate\Database\Eloquent\Builder<Claim> $query
+     */
+    public function scopePendingFinance($query)
+    {
+        return $query->where('approval_status', 'pending_finance');
+    }
+
+    /**
+     * Scope: Claims fully authorized and approved
+     *
+     * @param \Illuminate\Database\Eloquent\Builder<Claim> $query
+     */
+    public function scopeApproved($query)
+    {
+        return $query->where('approval_status', 'approved');
+    }
+
+    /**
+     * Scope: Claims queued into active payroll cutoff
+     *
+     * @param \Illuminate\Database\Eloquent\Builder<Claim> $query
+     */
+    public function scopePayrollQueued($query)
+    {
+        return $query->where('approval_status', 'payroll_queued');
+    }
+
+    /**
+     * Scope: Claims disbursed/paid
+     *
+     * @param \Illuminate\Database\Eloquent\Builder<Claim> $query
+     */
+    public function scopePaid($query)
+    {
+        return $query->where('approval_status', 'paid');
+    }
+
+    /**
+     * Scope: Rejected claims
+     *
+     * @param \Illuminate\Database\Eloquent\Builder<Claim> $query
+     */
+    public function scopeRejected($query)
+    {
+        return $query->where('approval_status', 'rejected');
+    }
+
+    /**
+     * Scope: Claims ready for payroll inclusion (approved or already queued)
+     *
+     * @param \Illuminate\Database\Eloquent\Builder<Claim> $query
+     */
+    public function scopeReadyForPayroll($query)
+    {
+        return $query->whereIn('approval_status', ['approved', 'payroll_queued']);
+    }
+
+    /**
+     * Scope: Pending claims exceeding 3-day SLA
+     *
+     * @param \Illuminate\Database\Eloquent\Builder<Claim> $query
+     */
+    public function scopeOverdue($query)
+    {
+        return $query->whereIn('approval_status', ['pending_hr', 'pending_admin', 'pending_finance', 'pending'])
+            ->where('created_at', '<=', now()->subDays(3));
     }
 }

@@ -201,7 +201,7 @@ class PayrollApiController extends Controller
     /**
      * Inbound Webhook: Team 1 (Applicant Management Counter-Offer Request)
      */
-    public function webhookCounterOffer(Request $request, \App\Services\CompensationService $compensationService): JsonResponse
+    public function webhookCounterOffer(Request $request, \App\Services\Compensation\CounterOfferService $counterOfferService): JsonResponse
     {
         $validated = $request->validate([
             'position' => 'required|string',
@@ -209,10 +209,20 @@ class PayrollApiController extends Controller
             'certifications_count' => 'nullable|integer|min:0',
         ]);
 
-        $result = $compensationService->computeCounterOffer(
-            $validated['position'],
-            $validated['years_experience'],
-            $validated['certifications_count'] ?? 0
+        $grade = \App\Models\SalaryGrade::where('position_name', $validated['position'])->first()
+            ?? \App\Models\SalaryGrade::all()->first(fn ($sg) => str_contains(strtolower($validated['position']), strtolower(explode(' ', $sg->position_name)[0])))
+            ?? \App\Models\SalaryGrade::firstOrFail();
+
+        $result = $counterOfferService->computeModeA(
+            $grade,
+            0.0,
+            [
+                'education' => 3,
+                'experience' => min(6, max(1, (int) $validated['years_experience'])),
+                'skills' => min(6, max(1, (int) ($validated['certifications_count'] ?? 1))),
+                'market_benchmark' => 3,
+                'internal_equity' => 3,
+            ]
         );
 
         return response()->json([
@@ -224,7 +234,7 @@ class PayrollApiController extends Controller
     /**
      * Inbound Webhook: Team 3 (Performance Data & Merit Promotion Trigger)
      */
-    public function webhookTeam3Merit(Request $request, \App\Services\CompensationService $compensationService, \App\Services\FinancialService $financialService): JsonResponse
+    public function webhookTeam3Merit(Request $request, \App\Services\FinancialService $financialService): JsonResponse
     {
         $validated = $request->validate([
             'employee_id' => 'required|exists:employees,id',
@@ -281,7 +291,7 @@ class PayrollApiController extends Controller
             'amount' => $validated['amount'],
             'description' => '[Team 7 Driver Reimbursement] ' . $validated['description'],
             'receipt_number' => $validated['receipt_number'] ?? ('T7-' . strtoupper(Str::random(6))),
-            'cutoff_period' => $validated['cutoff_period'] ?? '2026-07-01_15',
+            'cutoff_period' => $validated['cutoff_period'] ?? '2026-08-13_19',
             'status' => 'pending',
             'effective_date' => now(),
         ]);

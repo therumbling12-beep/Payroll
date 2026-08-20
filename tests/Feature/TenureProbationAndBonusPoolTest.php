@@ -7,7 +7,6 @@ use App\Models\Department;
 use App\Models\Employee;
 use App\Models\SalaryGrade;
 use App\Models\SalaryStep;
-use App\Services\Compensation\BonusPoolDistributionService;
 use App\Services\Compensation\CounterOfferService;
 use App\Services\Compensation\ProbationaryConversionService;
 use App\Services\Compensation\SalaryDeterminationService;
@@ -112,27 +111,10 @@ test('ProbationaryConversionService evaluates DOLE 6-month status and converts t
         ->and($adj->status)->toBe('approved');
 });
 
-test('BonusPoolDistributionService distributes bonus pool proportionally without rounding leak', function () {
-    $counterOfferService = new CounterOfferService(new SalaryDeterminationService());
-    $financialService = new FinancialService();
-    $service = new BonusPoolDistributionService($financialService, $counterOfferService);
+// BonusPoolDistributionService test removed — service deleted (Phase 5, docs/no.md: bonuses N/A)
 
-    $poolAmount = 100000.00;
-    $result = $service->calculateDistribution($poolAmount, $this->dept->id, 'performance');
 
-    expect($result['pool_amount'])->toBe(100000.00)
-        ->and($result['total_allocated'])->toBe(100000.00)
-        ->and(count($result['allocations']))->toBeGreaterThan(0);
-
-    // Commit Bonus Allocation
-    $committed = $service->commitBonusAllocation($poolAmount, $this->dept->id, 'performance', $result['allocations']);
-    expect($committed)->toBeTrue();
-
-    $bonusAdjustments = CompensationAdjustment::where('type', 'performance_bonus')->get();
-    expect($bonusAdjustments->count())->toBeGreaterThan(0);
-});
-
-test('POST /compensation/api/tenure-calculator, /probationary-calculator and /bonus-pool-calculator return 200 OK', function () {
+test('POST /compensation/api/tenure-calculator and /probationary-calculator return 200 OK', function () {
     // 1. Tenure API
     $tenureRes = $this->postJson('/compensation/api/tenure-calculator', [
         'employee_id' => $this->employee->id,
@@ -148,30 +130,45 @@ test('POST /compensation/api/tenure-calculator, /probationary-calculator and /bo
             'formula',
         ]);
 
-    // 2. Probationary API
+    // 2. Probationary API decommissioned (Phase 2)
     $probRes = $this->postJson('/compensation/api/probationary-calculator', [
         'employee_id' => $this->probationaryEmp->id,
     ]);
-    $probRes->assertOk()
-        ->assertJsonStructure([
-            'employee_id',
-            'days_rendered',
-            'is_eligible',
-            'recommended_salary',
-            'dole_compliance',
-        ]);
+    $probRes->assertNotFound();
 
-    // 3. Bonus Pool API
-    $bonusRes = $this->postJson('/compensation/api/bonus-pool-calculator', [
-        'pool_amount' => 50000.00,
-        'department_id' => $this->dept->id,
-        'bonus_type' => 'performance',
+    // 3. Bonus Pool API — removed (bonus-allocation route removed, Phase 2, docs/no.md: bonuses N/A)
+});
+
+test('salary step computes step_salary accessor correctly with explicit base_amount and dynamic fallback', function () {
+    $grade = SalaryGrade::create([
+        'grade_code' => 'PG-TEST-1',
+        'job_level' => 'Entry',
+        'position_name' => 'Test Fleet Assistant',
+        'min_salary' => 20000.00,
+        'max_salary' => 30000.00,
+        'annual_growth_rate' => 5.00,
     ]);
-    $bonusRes->assertOk()
-        ->assertJsonStructure([
-            'pool_amount',
-            'total_allocated',
-            'allocations',
-            'budget_check',
-        ]);
+
+    $stepWithBase = SalaryStep::create([
+        'salary_grade_id' => $grade->id,
+        'step_number' => 2,
+        'years_required' => 3.0,
+        'increment_percentage' => 5.0,
+        'base_amount' => 22500.00,
+    ]);
+
+    expect($stepWithBase->step_salary)->toBe(22500.00)
+        ->and($stepWithBase->salary_amount)->toBe(22500.00);
+
+    $stepWithoutBase = SalaryStep::create([
+        'salary_grade_id' => $grade->id,
+        'step_number' => 3,
+        'years_required' => 6.0,
+        'increment_percentage' => 10.0,
+        'base_amount' => null,
+    ]);
+
+    // 20,000 + (10% of 20,000) = 22,000.00
+    expect($stepWithoutBase->step_salary)->toBe(22000.00)
+        ->and($stepWithoutBase->salary_amount)->toBe(22000.00);
 });

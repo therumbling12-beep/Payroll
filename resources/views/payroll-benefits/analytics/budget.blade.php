@@ -14,7 +14,7 @@
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
             <h1 class="text-xl font-extrabold font-outfit text-gray-900">Company Benefits & Cost Overview</h1>
-            <p class="text-xs text-gray-500 mt-0.5">High-level financial overview of company funds allocated across HMO, Driver Claims, and Requisitions.</p>
+            <p class="text-xs text-gray-500 mt-0.5">High-level financial overview of company funds allocated across Statutory Benefits, Driver Claims, and Requisitions.</p>
         </div>
         <div class="flex items-center gap-3">
             <span class="flex items-center gap-1.5 text-xs font-semibold text-blue-600 bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-full">
@@ -44,10 +44,10 @@
         </div>
 
         <div class="bg-white rounded-2xl border border-gray-100 p-5 shadow-xs">
-            <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Enrolled HMO Members</span>
+            <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Driver Insurance Members</span>
             <div class="flex items-center justify-between">
-                <span class="text-2xl font-extrabold font-outfit text-blue-600">{{ $totalHmoEnrolled }} Employees</span>
-                <span class="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">Active Coverage</span>
+                <span class="text-2xl font-extrabold font-outfit text-blue-600">{{ $totalDriverInsuranceMembers }} Drivers</span>
+                <span class="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">Pool Protected</span>
             </div>
         </div>
     </div>

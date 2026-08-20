@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Models\AiComplianceLog;
+use App\Models\CompanySetting;
 use App\Models\SalaryComputation;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -33,7 +34,7 @@ Data to evaluate:
 - Performance Bonus / Taxable Claims: ₱{$computation->performance_bonus}
 - Reimbursements (Non-Taxable): ₱{$computation->reimbursements}
 - Gross Pay: ₱{$computation->gross_pay}
-- Deductions: SSS (₱{$computation->sss_deduction}), PhilHealth (₱{$computation->philhealth_deduction}), Pag-IBIG (₱{$computation->pagibig_deduction}), Driver HMO Insurance (₱{$computation->hmo_insurance_deduction}), BIR Withholding Tax (₱{$computation->withholding_tax})
+- Deductions: SSS (₱{$computation->sss_deduction}), PhilHealth (₱{$computation->philhealth_deduction}), Pag-IBIG (₱{$computation->pagibig_deduction}), BIR Withholding Tax (₱{$computation->withholding_tax})
 - Total Deductions: ₱{$computation->total_deductions}
 - Net Pay Payout: ₱{$computation->net_pay}
 
@@ -50,7 +51,8 @@ Respond ONLY in valid JSON with this exact structure:
     \"ai_summary\": \"Short 1-sentence audit summary.\",
     \"flagged_issues\": [\"Pattern issue 1 if any\", \"Pattern issue 2 if any\"],
     \"resolution_suggestions\": [\"Actionable step 1 on how to fix\", \"Actionable step 2\"]
-}";
+}
+";
 
         try {
             $response = Http::withToken($apiKey)
@@ -96,18 +98,20 @@ Respond ONLY in valid JSON with this exact structure:
         $score = 100;
         $status = 'PASSED';
 
-        $wageFloor = 755.00; // NCR-27 baseline
+        $wageFloor = (float) CompanySetting::getValue('statutory_minimum_wage_daily_rate', 755.00);
+        $maxDeductionPct = (float) CompanySetting::getValue('dole_max_deduction_percentage', 0.50);
 
         if ((float) $computation->net_pay < $wageFloor && (float) $computation->gross_pay > 0) {
-            $issues[] = 'Net pay payout (₱' . number_format((float)$computation->net_pay, 2) . ') falls below DOLE minimum daily wage safety floor threshold (₱' . number_format($wageFloor, 2) . ').';
+            $issues[] = 'Net pay payout (PHP ' . number_format((float)$computation->net_pay, 2) . ') falls below DOLE minimum daily wage safety floor threshold (PHP ' . number_format($wageFloor, 2) . ').';
             $suggestions[] = 'Use Manual Override to adjust base pay or review excessive deductions to ensure net pay meets DOLE daily minimum limits.';
             $score -= 30;
             $status = 'WARNING';
         }
 
-        if ((float) $computation->gross_pay > 0 && (float) $computation->total_deductions > ((float) $computation->gross_pay * 0.5)) {
-            $issues[] = 'Total deductions (₱' . number_format((float)$computation->total_deductions, 2) . ') exceed the DOLE advisory ceiling of 50% of gross pay (₱' . number_format((float)$computation->gross_pay, 2) . ').';
-            $suggestions[] = 'Click Manual Override to reduce optional deductions (e.g. HMO, driver cash advances) so total deductions stay under 50%.';
+        if ((float) $computation->gross_pay > 0 && (float) $computation->total_deductions > ((float) $computation->gross_pay * $maxDeductionPct)) {
+            $ceilingPctFormatted = round($maxDeductionPct * 100);
+            $issues[] = 'Total deductions (PHP ' . number_format((float)$computation->total_deductions, 2) . ') exceed the DOLE advisory ceiling of ' . $ceilingPctFormatted . '% of gross pay (PHP ' . number_format((float)$computation->gross_pay, 2) . ').';
+            $suggestions[] = 'Click Manual Override to reduce optional deductions (e.g. optional advances, cash amortizations) so total deductions stay under ' . $ceilingPctFormatted . '%.';
             $score -= 20;
             $status = 'WARNING';
         }

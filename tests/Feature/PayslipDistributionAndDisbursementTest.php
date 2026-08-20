@@ -163,8 +163,7 @@ test('payslip web routes render individual batch views and handle ess push', fun
 
     // 1. Dashboard View
     $resIndex = $this->get(route('payroll.payslips', ['period' => $cutoff]));
-    $resIndex->assertOk();
-    $resIndex->assertViewIs('payroll-benefits.payroll.payslips');
+    $resIndex->assertRedirect(route('payroll.salary-computation.show', $cutoff));
 
     // 2. Individual Printable View
     $resSingle = $this->get(route('payroll.payslips.show', $comp->id));

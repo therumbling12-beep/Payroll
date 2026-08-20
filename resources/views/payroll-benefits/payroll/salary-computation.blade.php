@@ -19,7 +19,7 @@
                 </a>
             </div>
             <h1 class="text-xl font-extrabold font-outfit text-gray-900 mt-1">Batch Salary Computation & Audit</h1>
-            <p class="text-xs text-gray-500 mt-0.5">Period: <span class="font-mono font-bold text-gray-800">{{ $cutoff }}</span> • Automated statutory calculation, trip quota incentives, holiday/OT pay, and loan amortizations.</p>
+            <p class="text-xs text-gray-500 mt-0.5">Period: <span class="font-mono font-bold text-gray-800">{{ $cutoff }}</span> • Automated statutory calculation, holiday/OT pay, and loan amortizations.</p>
         </div>
         <div class="flex items-center gap-3">
             <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-black bg-emerald-50 text-emerald-800 border border-emerald-200">
@@ -33,6 +33,7 @@
     <div class="space-y-6" 
          x-data="{ 
             activeTab: 'table',
+            viewMode: 'sheet',
             selected: [], 
             selectAll: false,
             showManualModal: false,
@@ -43,6 +44,35 @@
             breakdownTab: 'summary',
             transparencyData: null,
             loadingTransparency: false,
+            rows: {{ Js::from($computations->map(fn($c) => [
+                'id' => $c->id,
+                'employee_name' => $c->employee->first_name . ' ' . $c->employee->last_name,
+                'employee_code' => $c->employee->employee_code,
+                'position' => $c->employee->position,
+                'department' => $c->employee->department?->name ?? 'General',
+                'base_pay' => (float)$c->base_pay,
+                'trip_earnings' => (float)$c->trip_earnings,
+                'driver_trip_incentive' => 0.0,
+                'overtime_pay' => (float)$c->overtime_pay,
+                'holiday_pay' => (float)$c->holiday_pay,
+                'night_diff_pay' => (float)$c->night_diff_pay,
+                'sss_deduction' => (float)$c->sss_deduction,
+                'philhealth_deduction' => (float)$c->philhealth_deduction,
+                'pagibig_deduction' => (float)$c->pagibig_deduction,
+                'loan_deduction' => (float)$c->loan_deduction,
+                'tardiness_deduction' => (float)$c->tardiness_deduction,
+                'undertime_deduction' => (float)$c->undertime_deduction,
+                'reimbursements' => (float)$c->reimbursements,
+            ])) }},
+            rowGross(r) {
+                return Math.round(((parseFloat(r.base_pay) || 0) + (parseFloat(r.trip_earnings) || 0) + (parseFloat(r.overtime_pay) || 0) + (parseFloat(r.holiday_pay) || 0) + (parseFloat(r.night_diff_pay) || 0)) * 100) / 100;
+            },
+            rowDeductions(r) {
+                return Math.round(((parseFloat(r.sss_deduction) || 0) + (parseFloat(r.philhealth_deduction) || 0) + (parseFloat(r.pagibig_deduction) || 0) + (parseFloat(r.loan_deduction) || 0) + (parseFloat(r.tardiness_deduction) || 0) + (parseFloat(r.undertime_deduction) || 0)) * 100) / 100;
+            },
+            rowNet(r) {
+                return Math.round((this.rowGross(r) - this.rowDeductions(r) + (parseFloat(r.reimbursements) || 0)) * 100) / 100;
+            },
             isDriver(comp) {
                 if (!comp || !comp.employee) return false;
                 const pos = (comp.employee.position || '').toLowerCase();
@@ -149,6 +179,16 @@
                         Re-Calculate Batch
                     </button>
                 </form>
+
+                <!-- Batch Print Payslips Shortcut -->
+                <a href="{{ route('payroll.payslips.batch', $cutoff) }}" target="_blank" 
+                   title="Print Batch Payslips for this Cutoff"
+                   class="bg-white hover:bg-gray-50 text-gray-800 font-bold text-xs px-3.5 py-2.5 rounded-xl border border-gray-200 shadow-2xs flex items-center gap-1.5 transition-all">
+                    <svg class="w-4 h-4 text-purple-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
+                    </svg>
+                    <span>Batch Payslips</span>
+                </a>
 
                 <!-- Manual Entry Button -->
                 <button type="button" @click="openOverrideModal(null)" 
@@ -277,11 +317,11 @@
 
             <div class="bg-white/80 backdrop-blur-sm rounded-2xl border border-gray-100 p-6 shadow-sm space-y-5">
                 
-                <!-- Interactive Search & Filter Form -->
-                <form action="{{ route('payroll.salary-computation') }}" method="GET" class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <input type="hidden" name="period" value="{{ $cutoff }}">
-                    <div class="flex flex-1 items-center gap-3">
-                        <div class="relative flex-1 max-w-sm">
+                <!-- Interactive Search, Filter & Direct Manual Mode Toggle -->
+                <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-2 border-b border-gray-100">
+                    <form action="{{ route('payroll.salary-computation') }}" method="GET" class="flex flex-wrap items-center gap-3 flex-1">
+                        <input type="hidden" name="period" value="{{ $cutoff }}">
+                        <div class="relative flex-1 min-w-[200px] max-w-sm">
                             <input type="text" name="search" value="{{ $search }}" placeholder="Search employee name or code..." 
                                    class="w-full text-xs bg-gray-50 border border-gray-200 rounded-xl pl-9 pr-3.5 py-2.5 text-gray-800 focus:outline-none focus:border-[#F44336]">
                             <svg class="w-4 h-4 text-gray-400 absolute left-3 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -300,15 +340,180 @@
                         <button type="submit" class="bg-gray-900 hover:bg-black text-white text-xs font-black px-4 py-2.5 rounded-xl transition-all">
                             Filter
                         </button>
-                    </div>
+                    </form>
 
-                    <div class="text-xs text-gray-500 font-bold">
-                        Showing {{ $computations->count() }} of {{ $computations->total() }} records
+                    <!-- Direct Encoding Mode Switch -->
+                    <div class="flex items-center gap-2 bg-gray-100/80 p-1 rounded-xl">
+                        <button type="button" @click="viewMode = 'sheet'"
+                                :class="viewMode === 'sheet' ? 'bg-white text-gray-900 font-black shadow-xs' : 'text-gray-500 font-bold hover:text-gray-800'"
+                                class="px-3 py-1.5 text-xs rounded-lg transition-all flex items-center gap-1.5">
+                            <svg class="w-3.5 h-3.5 text-[#F44336]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                            </svg>
+                            Direct Manual Encoding
+                        </button>
+                        <button type="button" @click="viewMode = 'summary'"
+                                :class="viewMode === 'summary' ? 'bg-white text-gray-900 font-black shadow-xs' : 'text-gray-500 font-bold hover:text-gray-800'"
+                                class="px-3 py-1.5 text-xs rounded-lg transition-all flex items-center gap-1.5">
+                            <svg class="w-3.5 h-3.5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/>
+                            </svg>
+                            Summary View
+                        </button>
                     </div>
-                </form>
+                </div>
 
-                <!-- Payroll Items Table -->
-                <div class="overflow-x-auto">
+                <!-- VIEW MODE A: DIRECT MANUAL ENCODING SHEET -->
+                <div x-show="viewMode === 'sheet'" class="space-y-4">
+                    <form action="{{ route('payroll.salary-computation.batch-update') }}" method="POST">
+                        @csrf
+                        <input type="hidden" name="cutoff_period" value="{{ $cutoff }}">
+
+                        <div class="flex items-center justify-between gap-4 pb-3">
+                            <div>
+                                <span class="text-xs font-black text-gray-900 block">Weekly Direct Calculation & Statutory Deductions Sheet</span>
+                                <span class="text-[11px] text-gray-500">Edit base pay, overtime, and government statutory deductions (SSS, PhilHealth, Pag-IBIG) directly. Net pay recalibrates instantly.</span>
+                            </div>
+                            <button type="submit" class="inline-flex items-center gap-2 bg-[#F44336] hover:bg-[#D32F2F] text-white text-xs font-black px-4 py-2.5 rounded-xl shadow-xs transition-all flex-shrink-0">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"/>
+                                </svg>
+                                Save & Commit Weekly Payroll
+                            </button>
+                        </div>
+
+                        <div class="overflow-x-auto border border-gray-200 rounded-2xl">
+                            <table class="w-full text-left border-collapse">
+                                <thead>
+                                    <tr class="bg-gray-50/80 border-b border-gray-200 text-[11px] font-black text-gray-500 uppercase tracking-wider">
+                                        <th class="py-3 px-3">Employee</th>
+                                        <th class="py-3 px-2 text-right">Base Pay</th>
+                                        <th class="py-3 px-2 text-right">OT Pay</th>
+                                        <th class="py-3 px-2 text-right text-rose-700">SSS (PHP)</th>
+                                        <th class="py-3 px-2 text-right text-rose-700">PhilHealth (PHP)</th>
+                                        <th class="py-3 px-2 text-right text-rose-700">Pag-IBIG (PHP)</th>
+                                        <th class="py-3 px-2 text-right text-rose-700">Loan/Advance</th>
+                                        <th class="py-3 px-2 text-right text-rose-700">Late/Under</th>
+                                        <th class="py-3 px-3 text-right">Gross Pay</th>
+                                        <th class="py-3 px-3 text-right text-rose-600">Total Deductions</th>
+                                        <th class="py-3 px-3 text-right text-emerald-700">Net Pay</th>
+                                        <th class="py-3 px-3 text-center">Payslip</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-gray-100 text-xs">
+                                    <template x-for="(row, index) in rows" :key="row.id">
+                                        <tr class="hover:bg-gray-50/75 transition-colors">
+                                            <!-- Employee Column -->
+                                            <td class="py-2.5 px-3 font-black text-gray-900 min-w-[160px]">
+                                                <input type="hidden" :name="'computations[' + index + '][id]'" :value="row.id">
+                                                <input type="hidden" :name="'computations[' + index + '][trip_earnings]'" :value="row.trip_earnings">
+                                                <input type="hidden" :name="'computations[' + index + '][holiday_pay]'" :value="row.holiday_pay">
+                                                <input type="hidden" :name="'computations[' + index + '][night_diff_pay]'" :value="row.night_diff_pay">
+                                                <input type="hidden" :name="'computations[' + index + '][reimbursements]'" :value="row.reimbursements">
+                                                <div class="text-xs font-black" x-text="row.employee_name"></div>
+                                                <div class="text-[10px] text-gray-400 font-mono" x-text="row.employee_code + ' • ' + row.position"></div>
+                                            </td>
+
+                                            <!-- Base Pay -->
+                                            <td class="py-2.5 px-2 text-right min-w-[100px]">
+                                                <input type="number" step="0.01" min="0" required
+                                                       :name="'computations[' + index + '][base_pay]'"
+                                                       x-model.number="row.base_pay"
+                                                       class="w-full bg-white border border-gray-200 rounded-lg p-1.5 text-right font-bold text-xs text-gray-900 focus:outline-none focus:border-[#F44336]">
+                                            </td>
+
+                                            <!-- Overtime Pay -->
+                                            <td class="py-2.5 px-2 text-right min-w-[90px]">
+                                                <input type="number" step="0.01" min="0"
+                                                       :name="'computations[' + index + '][overtime_pay]'"
+                                                       x-model.number="row.overtime_pay"
+                                                       class="w-full bg-white border border-gray-200 rounded-lg p-1.5 text-right font-bold text-xs text-gray-900 focus:outline-none focus:border-[#F44336]">
+                                            </td>
+
+                                            <!-- SSS Deduction -->
+                                            <td class="py-2.5 px-2 text-right min-w-[95px]">
+                                                <input type="number" step="0.01" min="0" required
+                                                       :name="'computations[' + index + '][sss_deduction]'"
+                                                       x-model.number="row.sss_deduction"
+                                                       class="w-full bg-rose-50/40 border border-rose-200 rounded-lg p-1.5 text-right font-bold text-xs text-rose-900 focus:outline-none focus:border-[#F44336]">
+                                            </td>
+
+                                            <!-- PhilHealth Deduction -->
+                                            <td class="py-2.5 px-2 text-right min-w-[95px]">
+                                                <input type="number" step="0.01" min="0" required
+                                                       :name="'computations[' + index + '][philhealth_deduction]'"
+                                                       x-model.number="row.philhealth_deduction"
+                                                       class="w-full bg-rose-50/40 border border-rose-200 rounded-lg p-1.5 text-right font-bold text-xs text-rose-900 focus:outline-none focus:border-[#F44336]">
+                                            </td>
+
+                                            <!-- Pag-IBIG Deduction -->
+                                            <td class="py-2.5 px-2 text-right min-w-[95px]">
+                                                <input type="number" step="0.01" min="0" required
+                                                       :name="'computations[' + index + '][pagibig_deduction]'"
+                                                       x-model.number="row.pagibig_deduction"
+                                                       class="w-full bg-rose-50/40 border border-rose-200 rounded-lg p-1.5 text-right font-bold text-xs text-rose-900 focus:outline-none focus:border-[#F44336]">
+                                            </td>
+
+                                            <!-- Loan / Cash Advance -->
+                                            <td class="py-2.5 px-2 text-right min-w-[90px]">
+                                                <input type="number" step="0.01" min="0"
+                                                       :name="'computations[' + index + '][loan_deduction]'"
+                                                       x-model.number="row.loan_deduction"
+                                                       class="w-full bg-white border border-gray-200 rounded-lg p-1.5 text-right font-bold text-xs text-gray-900 focus:outline-none focus:border-[#F44336]">
+                                            </td>
+
+                                            <!-- Tardiness / Undertime -->
+                                            <td class="py-2.5 px-2 text-right min-w-[85px]">
+                                                <input type="number" step="0.01" min="0"
+                                                       :name="'computations[' + index + '][tardiness_deduction]'"
+                                                       x-model.number="row.tardiness_deduction"
+                                                       class="w-full bg-white border border-gray-200 rounded-lg p-1.5 text-right font-bold text-xs text-gray-900 focus:outline-none focus:border-[#F44336]">
+                                            </td>
+
+                                            <!-- Live Gross Pay -->
+                                            <td class="py-2.5 px-3 text-right font-black font-outfit text-xs text-gray-900 whitespace-nowrap">
+                                                PHP <span x-text="rowGross(row).toFixed(2)"></span>
+                                            </td>
+
+                                            <!-- Live Total Deductions -->
+                                            <td class="py-2.5 px-3 text-right font-black font-outfit text-xs text-rose-600 whitespace-nowrap">
+                                                -PHP <span x-text="rowDeductions(row).toFixed(2)"></span>
+                                            </td>
+
+                                            <!-- Live Net Pay -->
+                                            <td class="py-2.5 px-3 text-right font-black font-outfit text-xs text-emerald-700 whitespace-nowrap">
+                                                PHP <span x-text="rowNet(row).toFixed(2)"></span>
+                                            </td>
+
+                                            <!-- Payslip Icon Action -->
+                                            <td class="py-2.5 px-3 text-center">
+                                                <template x-if="row.id">
+                                                    <a :href="'/payroll/payslips/' + row.id" target="_blank" 
+                                                       title="View Printable Payslip"
+                                                       class="inline-flex p-1.5 rounded-lg bg-purple-50 text-purple-700 hover:bg-purple-100 hover:text-purple-900 border border-purple-200 transition-all shadow-2xs">
+                                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                                                        </svg>
+                                                    </a>
+                                                </template>
+                                            </td>
+                                        </tr>
+                                    </template>
+                                    <template x-if="rows.length === 0">
+                                        <tr>
+                                            <td colspan="12" class="py-8 text-center text-gray-400 text-xs font-semibold">
+                                                No computed salary records found for this period. Click 'Execute Payroll Run' to process.
+                                            </td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- VIEW MODE B: SUMMARY VIEW -->
+                <div x-show="viewMode === 'summary'" class="overflow-x-auto">
                     <table class="w-full text-left border-collapse">
                         <thead>
                             <tr class="border-b border-gray-200 text-xs font-black text-gray-400 uppercase tracking-wider">
@@ -351,9 +556,9 @@
                                             <button type="button" @click="openAiInsight({{ Js::from($comp->aiComplianceLog) }}, {{ Js::from($comp) }})"
                                                     class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black transition-all hover:scale-105"
                                                     :class="{
-                                                        'bg-emerald-50 text-emerald-800 border border-emerald-200': '{{ $comp->aiComplianceLog->status }}' === 'PASSED',
-                                                        'bg-amber-50 text-amber-800 border border-amber-200': '{{ $comp->aiComplianceLog->status }}' === 'WARNING',
-                                                        'bg-rose-50 text-rose-800 border border-rose-200': '{{ $comp->aiComplianceLog->status }}' === 'FAILED'
+                                                         'bg-emerald-50 text-emerald-800 border border-emerald-200': '{{ $comp->aiComplianceLog->status }}' === 'PASSED',
+                                                         'bg-amber-50 text-amber-800 border border-amber-200': '{{ $comp->aiComplianceLog->status }}' === 'WARNING',
+                                                         'bg-rose-50 text-rose-800 border border-rose-200': '{{ $comp->aiComplianceLog->status }}' === 'FAILED'
                                                     }">
                                                 <span class="w-1.5 h-1.5 rounded-full bg-current"></span>
                                                 {{ $comp->aiComplianceLog->status }}
@@ -364,13 +569,31 @@
                                     </td>
                                     <td class="py-3.5 px-4 text-right">
                                         <div class="flex items-center justify-end gap-1.5">
+                                            <!-- 1. View Printable Payslip Icon -->
+                                            <a href="{{ route('payroll.payslips.show', $comp->id) }}" target="_blank" 
+                                               title="View Printable Payslip"
+                                               class="p-2 rounded-xl bg-purple-50 text-purple-700 hover:bg-purple-100 hover:text-purple-900 border border-purple-200 transition-all shadow-2xs">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                                                </svg>
+                                            </a>
+
+                                            <!-- 2. Calculation Breakdown Icon -->
                                             <button type="button" @click="openBreakdown({{ Js::from($comp) }})" 
-                                                    class="bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold text-xs px-3 py-1.5 rounded-xl transition-all">
-                                                Breakdown
+                                                    title="Detailed Formula Breakdown"
+                                                    class="p-2 rounded-xl bg-gray-100 text-gray-700 hover:bg-gray-200 hover:text-gray-900 transition-all shadow-2xs">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+                                                </svg>
                                             </button>
+
+                                            <!-- 3. Manual Override / Edit Icon -->
                                             <button type="button" @click="openOverrideModal({{ Js::from($comp) }})" 
-                                                    class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-xs px-3 py-1.5 rounded-xl transition-all">
-                                                Edit
+                                                    title="Edit / Manual Override"
+                                                    class="p-2 rounded-xl bg-gray-100 text-gray-700 hover:bg-gray-200 hover:text-gray-900 transition-all shadow-2xs">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                                                </svg>
                                             </button>
                                         </div>
                                     </td>
@@ -408,11 +631,11 @@
 
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-5 text-xs">
                     <div class="p-5 bg-gray-50 rounded-2xl border border-gray-200 space-y-2">
-                        <span class="font-black text-gray-900 uppercase tracking-wider block">1. Driver Trip Quota Incentives</span>
+                        <span class="font-black text-gray-900 uppercase tracking-wider block">1. Regular Basic Salary & Divisors</span>
                         <ul class="space-y-1.5 text-gray-600 font-medium">
-                            <li><strong class="text-gray-900">Tier 1 (30-49 Trips):</strong> +PHP 500.00 cash bonus</li>
-                            <li><strong class="text-gray-900">Tier 2 (50-69 Trips):</strong> +PHP 1,500.00 cash bonus</li>
-                            <li><strong class="text-gray-900">Tier 3 (70+ Trips):</strong> +PHP 3,000.00 cash bonus</li>
+                            <li><strong class="text-gray-900">Standard Monthly Days:</strong> 26.0 Days Basis</li>
+                            <li><strong class="text-gray-900">Standard Daily Hours:</strong> 8.0 Hours / Day</li>
+                            <li><strong class="text-gray-900">Hourly Rate:</strong> Daily Rate ÷ 8 Hours</li>
                         </ul>
                     </div>
 
@@ -507,12 +730,6 @@
                                         <div class="flex justify-between text-blue-900 font-bold">
                                             <span>Trip Fares:</span>
                                             <span class="font-mono" x-text="'+PHP ' + Number(activeComp.trip_earnings).toLocaleString(undefined, {minimumFractionDigits: 2})"></span>
-                                        </div>
-                                    </template>
-                                    <template x-if="Number(activeComp.driver_trip_incentive) > 0">
-                                        <div class="flex justify-between text-purple-900 font-bold">
-                                            <span>Quota Incentive:</span>
-                                            <span class="font-mono" x-text="'+PHP ' + Number(activeComp.driver_trip_incentive).toLocaleString(undefined, {minimumFractionDigits: 2})"></span>
                                         </div>
                                     </template>
                                     <template x-if="Number(activeComp.holiday_pay) > 0">
@@ -744,10 +961,6 @@
                             <div>
                                 <label class="block font-bold text-gray-600 mb-1">Trip Earnings (PHP)</label>
                                 <input type="number" step="0.01" name="trip_earnings" x-model="activeOverride.trip_earnings" class="w-full bg-gray-50 border border-gray-200 rounded-xl p-2.5 font-bold text-gray-900 focus:outline-none focus:border-[#F44336]">
-                            </div>
-                            <div>
-                                <label class="block font-bold text-gray-600 mb-1">Trip Incentive (PHP)</label>
-                                <input type="number" step="0.01" name="driver_trip_incentive" x-model="activeOverride.driver_trip_incentive" class="w-full bg-gray-50 border border-gray-200 rounded-xl p-2.5 font-bold text-gray-900 focus:outline-none focus:border-[#F44336]">
                             </div>
                             <div>
                                 <label class="block font-bold text-gray-600 mb-1">Holiday Pay (PHP)</label>

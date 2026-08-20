@@ -135,7 +135,7 @@
                 <div class="bg-white/80 backdrop-blur-sm rounded-2xl border border-gray-100 p-5 shadow-sm">
                     <span class="text-xs font-bold text-gray-500 uppercase tracking-wider block">Total Deductions</span>
                     <div class="text-xl font-black font-outfit text-rose-600 mt-1">-PHP {{ number_format($totalDeductions, 2) }}</div>
-                    <span class="text-[11px] text-gray-400 font-medium mt-0.5 block">Gov't taxes, loans & HMO</span>
+                    <span class="text-[11px] text-gray-400 font-medium mt-0.5 block">Gov't taxes, loans & statutory deductions</span>
                 </div>
 
                 <div class="bg-white/80 backdrop-blur-sm rounded-2xl border border-gray-100 p-5 shadow-sm">

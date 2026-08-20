@@ -14,7 +14,7 @@ class PhilHealthContributionService
      *
      * @return array{total_premium: float, employee_share: float, employer_share: float}
      */
-    public function compute(float $monthlyBasicSalary, bool $isSemiMonthly = false): array
+    public function compute(float $monthlyBasicSalary, bool $isSemiMonthly = false, bool $isWeekly = false): array
     {
         $defaultFloor = (float) CompanySetting::getValue('philhealth_salary_floor', 10000.00);
         $defaultCeiling = (float) CompanySetting::getValue('philhealth_salary_ceiling', 100000.00);
@@ -40,7 +40,12 @@ class PhilHealthContributionService
             $erShare = $eeShare;
         }
 
-        if ($isSemiMonthly) {
+        if ($isWeekly) {
+            $weeksPerYear = (float) CompanySetting::getValue('payroll_standard_weeks_per_year', 52.0);
+            $eeShare = round(($eeShare * 12) / $weeksPerYear, 2);
+            $erShare = round(($erShare * 12) / $weeksPerYear, 2);
+            $totalPremium = round(($totalPremium * 12) / $weeksPerYear, 2);
+        } elseif ($isSemiMonthly) {
             $eeShare = round($eeShare / 2, 2);
             $erShare = round($erShare / 2, 2);
             $totalPremium = round($totalPremium / 2, 2);

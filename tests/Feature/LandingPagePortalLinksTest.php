@@ -34,7 +34,8 @@ test('Landing page renders Employee Portal switchboard linking Team 4 to ESS das
 });
 
 test('Admin Dashboard does not contain internal ESS sidebar link and renders clean HR console', function () {
-    $response = $this->get(route('dashboard'));
+    $user = \App\Models\User::factory()->create();
+    $response = $this->actingAs($user)->get(route('dashboard'));
 
     $response->assertOk()
         ->assertDontSee('ESS Self Service')

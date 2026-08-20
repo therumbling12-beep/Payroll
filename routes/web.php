@@ -1,10 +1,11 @@
 <?php
 
 use App\Http\Controllers\AnalyticsController;
+use App\Http\Controllers\BenefitsController;
 use App\Http\Controllers\ClaimController;
 use App\Http\Controllers\CompensationController;
+use App\Http\Controllers\DriverInsuranceController;
 use App\Http\Controllers\EssController;
-use App\Http\Controllers\HmoController;
 use App\Http\Controllers\PayrollController;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -39,7 +40,7 @@ Route::post('/login', function (Request $request) {
     }
 
     $user = User::where('email', $credentials['email'])->first();
-    if ($user && ($user->password === $credentials['password'] || Hash::check($credentials['password'], $user->password))) {
+    if ($user && Hash::check($credentials['password'], $user->password)) {
         Auth::login($user, $request->boolean('remember'));
         $request->session()->regenerate();
 
@@ -49,12 +50,10 @@ Route::post('/login', function (Request $request) {
     return back()->withErrors(['email' => 'The provided credentials do not match our records.'])->onlyInput('email');
 })->name('login.post');
 
-// Dashboard Route — protect with your team's middleware when ready
+// Dashboard Route
 Route::get('/dashboard', function () {
-    // TODO: Add auth middleware once your login system is set up.
-    // ->middleware('auth')
     return view('dashboard');
-})->name('dashboard');
+})->middleware('auth')->name('dashboard');
 
 // Passenger Booking App Simulator (Team 10)
 Route::get('/passenger-booking-app', function () {
@@ -73,6 +72,7 @@ Route::prefix('compensation')->name('compensation.')->group(function () {
     Route::post('/salary-bands/{grade}/update', [CompensationController::class, 'updateSalaryBand'])->name('salary-bands.update');
     Route::post('/salary-bands/bulk-adjust', [CompensationController::class, 'bulkAdjustBands'])->name('salary-bands.bulk-adjust');
     Route::post('/api/salary-determination', [CompensationController::class, 'determineSalary'])->name('salary-determination');
+    Route::post('/employees/{employee}/direct-merit', [CompensationController::class, 'applyDirectMeritIncrease'])->name('direct-merit');
 
     // Sections 2.3, 2.6 & 2.13 Counter Offers & Multi-Level Approvals (§6.6, §6.9, §10.1, §13)
     Route::get('/counter-offers', [CompensationController::class, 'counterOffers'])->name('counter-offers');
@@ -83,7 +83,6 @@ Route::prefix('compensation')->name('compensation.')->group(function () {
     Route::post('/adjustments/{adjustment}/reject', [CompensationController::class, 'rejectAdjustment'])->name('adjustments.reject');
     Route::post('/api/finance-budget-validation', [CompensationController::class, 'validateFinanceBudget'])->name('finance.validate');
     Route::post('/api/counter-offer-calculator', [CompensationController::class, 'calculateCounterOffer'])->name('counter-offers.calculate');
-    Route::post('/api/simulate-growth', [CompensationController::class, 'simulateCompensation'])->name('simulate');
 
     // Sections 2.9 & 2.10 Merit & Promotions Planning (§6.4, §6.7, §6.8)
     Route::get('/merit-promotions', [CompensationController::class, 'meritPromotions'])->name('merit-promotions');
@@ -91,10 +90,7 @@ Route::prefix('compensation')->name('compensation.')->group(function () {
     Route::post('/api/merit-calculator', [CompensationController::class, 'calculateMeritProposal'])->name('merit-promotions.calculate');
     Route::post('/api/retroactive-calculator', [CompensationController::class, 'calculateRetroactivePay'])->name('retroactive.calculate');
 
-    // Section 2.11 Bonus Allocation (§6.10)
-    Route::get('/bonus-allocation', [CompensationController::class, 'bonusAllocation'])->name('bonus-allocation');
-    Route::post('/bonus-allocation/store', [CompensationController::class, 'storeBonusAllocation'])->name('bonus-allocation.store');
-    Route::post('/api/bonus-pool-calculator', [CompensationController::class, 'calculateBonusDistribution'])->name('bonus-allocation.calculate');
+    // Section 2.11 Bonus Allocation — removed (docs/no.md: bonuses N/A, Phase 2)
 
     // Section 2.12 Tenure Step Process (§6.5)
     Route::get('/tenure-steps', [CompensationController::class, 'tenureSteps'])->name('tenure-steps');
@@ -102,11 +98,6 @@ Route::prefix('compensation')->name('compensation.')->group(function () {
     Route::post('/tenure-steps/{employee}/apply', [CompensationController::class, 'applyStep'])->name('tenure-steps.apply');
     Route::post('/tenure-steps/{employee}/hold', [CompensationController::class, 'holdStep'])->name('tenure-steps.hold');
     Route::post('/api/tenure-calculator', [CompensationController::class, 'calculateTenureStep'])->name('tenure-steps.calculate');
-
-    // Section 2.8 Probationary to Regular Conversion (§6.8, DOLE Art. 296)
-    Route::get('/probationary', [CompensationController::class, 'probationary'])->name('probationary');
-    Route::post('/probationary/{employee}/regularize', [CompensationController::class, 'regularize'])->name('probationary.regularize');
-    Route::post('/api/probationary-calculator', [CompensationController::class, 'calculateProbationaryConversion'])->name('probationary.calculate');
 
     // Section 2.16 Audit Trail & Compliance Log
     Route::get('/audit-trail', [CompensationController::class, 'auditTrail'])->name('audit-trail');
@@ -120,6 +111,7 @@ Route::prefix('payroll')->name('payroll.')->group(function () {
     Route::get('/salary-computation/{cutoff}', [PayrollController::class, 'salaryComputation'])->name('salary-computation.show');
     Route::post('/batch-compute', [PayrollController::class, 'batchCompute'])->name('batch-compute');
     Route::post('/manual-compute', [PayrollController::class, 'storeManual'])->name('manual-compute');
+    Route::post('/salary-computation/batch-update', [PayrollController::class, 'batchUpdateManual'])->name('salary-computation.batch-update');
 
     // Workflow State Machine Transitions
     Route::post('/workflow/{cutoff}/submit-admin', [PayrollController::class, 'submitToAdmin'])->name('workflow.submit-admin');
@@ -172,14 +164,10 @@ Route::prefix('payroll')->name('payroll.')->group(function () {
 // Team 4 Claims & Reimbursement Sub-Modules (v2.md §3.1 – §3.11)
 Route::prefix('claims')->name('claims.')->group(function () {
     Route::get('/expenses', [ClaimController::class, 'expenses'])->name('expenses');
-    Route::post('/expenses/fuel', [ClaimController::class, 'storeFuelClaim'])->name('expenses.fuel');
-    Route::post('/expenses/operational', [ClaimController::class, 'storeOperationalExpense'])->name('expenses.operational');
-    Route::get('/incentives', [ClaimController::class, 'incentives'])->name('incentives');
-    Route::post('/incentives/batch-qualify', [ClaimController::class, 'batchQualifyIncentives'])->name('incentives.batch-qualify');
+    Route::get('/incentives', fn () => redirect()->route('claims.expenses'))->name('incentives');
+    Route::post('/incentives/batch-qualify', fn () => redirect()->route('claims.expenses'))->name('incentives.batch-qualify');
     Route::get('/maternity-leave', [ClaimController::class, 'maternityLeave'])->name('maternity-leave');
-    Route::post('/maternity/store', [ClaimController::class, 'storeMaternityClaim'])->name('maternity.store');
     Route::post('/maternity/{claim}/sss-status', [ClaimController::class, 'updateSssStatus'])->name('maternity.sss-status');
-    Route::post('/medical/store', [ClaimController::class, 'storeMedicalClaim'])->name('medical.store');
     Route::post('/{claim}/action', [ClaimController::class, 'workflowAction'])->name('workflow-action');
     Route::post('/batch-workflow', [ClaimController::class, 'batchWorkflow'])->name('batch-workflow');
     Route::post('/sync-payroll', [ClaimController::class, 'syncPayroll'])->name('sync-payroll');
@@ -194,56 +182,47 @@ Route::prefix('claims')->name('claims.')->group(function () {
     Route::get('/export', [ClaimController::class, 'export'])->name('export');
 });
 
-// Team 4 HMO & Benefits Administration Sub-Modules
-Route::prefix('hmo-benefits')->name('hmo.')->group(function () {
-    Route::get('/plans', [HmoController::class, 'plans'])->name('plans');
-    Route::get('/enrollments', [HmoController::class, 'enrollments'])->name('enrollments');
-    Route::post('/enrollments/sync-payroll', [HmoController::class, 'syncPayrollDeductions'])->name('enrollments.sync-payroll');
-    Route::post('/enrollments/{enrollment}/deactivate', [HmoController::class, 'deactivateEnrollment'])->name('enrollments.deactivate');
-    Route::post('/plans/enroll', [HmoController::class, 'enroll'])->name('enroll');
-    Route::post('/plans/{enrollment}/update', [HmoController::class, 'updateEnrollment'])->name('update-enrollment');
-    Route::post('/plans/log-utilization', [HmoController::class, 'logUtilization'])->name('log-utilization');
-    Route::post('/plans/config', [HmoController::class, 'updateHmoConfig'])->name('plans.config');
-    Route::post('/plans/config/reset', [HmoController::class, 'resetHmoConfiguration'])->name('plans.config.reset');
-    Route::post('/facilities', [HmoController::class, 'storeFacility'])->name('facilities.store');
-    Route::get('/plans/export-roster', [HmoController::class, 'exportRoster'])->name('plans.export-roster');
-    Route::get('/plans/export-plans', [HmoController::class, 'exportPlans'])->name('export-plans');
-    Route::post('/api/mbl-lookup', [HmoController::class, 'apiCalculateGradeMbl'])->name('api.mbl-lookup');
-    Route::post('/enrollments/{enrollment}/hr-validate', [HmoController::class, 'validateEnrollmentHr'])->name('enrollments.hr-validate');
-    Route::post('/enrollments/{enrollment}/request-budget', [HmoController::class, 'requestEnrollmentBudget'])->name('enrollments.request-budget');
-    Route::post('/enrollments/{enrollment}/activate', [HmoController::class, 'activateEnrollment'])->name('enrollments.activate');
-    Route::post('/enrollments/{enrollment}/reject', [HmoController::class, 'rejectEnrollment'])->name('enrollments.reject');
-    Route::post('/enrollments/{enrollment}/renew', [HmoController::class, 'renewEnrollment'])->name('enrollments.renew');
+// Benefits Administration Sub-Modules (SIL, Meal Allowance, Christmas Bonus)
+Route::prefix('benefits')->name('benefits.')->group(function () {
+    Route::get('/', [BenefitsController::class, 'index'])->name('index');
+    Route::post('/settings', [BenefitsController::class, 'updateAllSettings'])->name('settings.update');
+    Route::get('/sil', [BenefitsController::class, 'sil'])->name('sil');
+    Route::post('/sil/record', [BenefitsController::class, 'recordSil'])->name('sil.record');
+    Route::post('/sil/convert-cash', [BenefitsController::class, 'convertSilCash'])->name('sil.convert-cash');
+    Route::post('/sil/reset-year', [BenefitsController::class, 'resetSilYear'])->name('sil.reset-year');
+    Route::get('/sil/export', [BenefitsController::class, 'exportSilCsv'])->name('sil.export');
+    Route::post('/sil/settings', [BenefitsController::class, 'updateSilSettings'])->name('sil.settings');
 
-    Route::get('/driver-insurance', [HmoController::class, 'driverInsurance'])->name('driver-insurance');
-    Route::get('/driver-insurance/export-ledger', [HmoController::class, 'exportPoolLedger'])->name('driver-insurance.export-ledger');
-    Route::post('/driver-insurance/claim', [HmoController::class, 'fileClaim'])->name('file-claim');
-    Route::post('/driver-insurance/claim/{claim}/approve-hr', [HmoController::class, 'accidentClaimApproveHr'])->name('claim.approve-hr');
-    Route::post('/driver-insurance/claim/{claim}/approve-admin', [HmoController::class, 'accidentClaimApproveAdmin'])->name('claim.approve-admin');
-    Route::post('/driver-insurance/claim/{claim}/approve-finance', [HmoController::class, 'accidentClaimApproveFinance'])->name('claim.approve-finance');
-    Route::post('/driver-insurance/claim/{claim}/return', [HmoController::class, 'accidentClaimReturn'])->name('claim.return');
-    Route::post('/driver-insurance/contribution-rate', [HmoController::class, 'updateDriverContributionRate'])->name('update-contribution-rate');
+    Route::get('/meal-allowance', [BenefitsController::class, 'mealAllowance'])->name('meal-allowance');
+    Route::post('/meal-allowance/generate', [BenefitsController::class, 'generateMealDisbursements'])->name('meal-allowance.generate');
+    Route::post('/meal-allowance/approve', [BenefitsController::class, 'approveMealDisbursements'])->name('meal-allowance.approve');
+    Route::post('/meal-allowance/release', [BenefitsController::class, 'releaseMealDisbursements'])->name('meal-allowance.release');
+    Route::post('/meal-allowance/settings', [BenefitsController::class, 'updateMealAllowanceSettings'])->name('meal-allowance.settings');
+    Route::get('/meal-allowance/export', [BenefitsController::class, 'exportMealAllowanceCsv'])->name('meal-allowance.export');
 
-    Route::get('/benefit-types', [HmoController::class, 'benefitTypes'])->name('benefit-types');
-    Route::post('/benefit-types', [HmoController::class, 'storeBenefitType'])->name('store-benefit-type');
-    Route::post('/benefit-types/{benefitType}/toggle', [HmoController::class, 'toggleBenefitType'])->name('toggle-benefit-type');
-
-    Route::get('/cost-tracking', [HmoController::class, 'costTracking'])->name('cost-tracking');
-    Route::get('/cost-tracking/export-tce', [HmoController::class, 'exportTceCsv'])->name('cost-tracking.export-tce');
-
-    Route::get('/budget-requests', [HmoController::class, 'budgetRequests'])->name('budget-requests');
-    Route::post('/budget-requests', [HmoController::class, 'submitRequest'])->name('submit-request');
-    Route::post('/budget-requests/{requisition}/status', [HmoController::class, 'updateBudgetRequestStatus'])->name('update-budget-status');
-
-    Route::get('/corporate-wellness', [HmoController::class, 'corporateWellness'])->name('corporate-wellness');
-    Route::post('/ape/schedule', [HmoController::class, 'scheduleApe'])->name('ape.schedule');
-    Route::post('/ape/batch-schedule', [HmoController::class, 'batchScheduleApe'])->name('ape.batch-schedule');
-    Route::post('/ape/{exam}/record-results', [HmoController::class, 'recordApeResults'])->name('ape.record-results');
-    Route::post('/group-life/enroll', [HmoController::class, 'enrollGroupLife'])->name('group-life.enroll');
-    Route::post('/group-life/{policy}/update', [HmoController::class, 'updateGroupLife'])->name('group-life.update');
+    Route::get('/christmas-bonus', [BenefitsController::class, 'christmasBonus'])->name('christmas-bonus');
+    Route::post('/christmas-bonus/generate', [BenefitsController::class, 'generateChristmasBonus'])->name('christmas-bonus.generate');
+    Route::post('/christmas-bonus/approve', [BenefitsController::class, 'approveChristmasBonus'])->name('christmas-bonus.approve');
+    Route::post('/christmas-bonus/release', [BenefitsController::class, 'releaseChristmasBonus'])->name('christmas-bonus.release');
+    Route::post('/christmas-bonus/settings', [BenefitsController::class, 'updateChristmasBonusSettings'])->name('christmas-bonus.settings');
+    Route::get('/christmas-bonus/export', [BenefitsController::class, 'exportChristmasBonusCsv'])->name('christmas-bonus.export');
 });
 
-// Team 4 HR Analytics Dashboard Sub-Modules
+// Standalone Driver Accident Insurance Pool (Preserved & Isolated from HMO)
+Route::prefix('driver-insurance')->name('driver-insurance.')->group(function () {
+    Route::get('/', [DriverInsuranceController::class, 'index'])->name('index');
+    Route::get('/export-ledger', [DriverInsuranceController::class, 'exportPoolLedger'])->name('export-ledger');
+    Route::get('/export-statement', [DriverInsuranceController::class, 'exportStatement'])->name('export-statement');
+    Route::get('/driver/{employee}/history', [DriverInsuranceController::class, 'driverHistory'])->name('driver-history');
+    Route::post('/claim', [DriverInsuranceController::class, 'fileClaim'])->name('file-claim');
+    Route::post('/claim/{claim}/approve-hr', [DriverInsuranceController::class, 'accidentClaimApproveHr'])->name('claim.approve-hr');
+    Route::post('/claim/{claim}/approve-admin', [DriverInsuranceController::class, 'accidentClaimApproveAdmin'])->name('claim.approve-admin');
+    Route::post('/claim/{claim}/approve-finance', [DriverInsuranceController::class, 'accidentClaimApproveFinance'])->name('claim.approve-finance');
+    Route::post('/claim/{claim}/return', [DriverInsuranceController::class, 'accidentClaimReturn'])->name('claim.return');
+    Route::post('/contribution-rate', [DriverInsuranceController::class, 'updateDriverContributionRate'])->name('update-contribution-rate');
+});
+
+// Analytics Sub-Modules
 Route::prefix('analytics')->name('analytics.')->group(function () {
     Route::get('/performance', [AnalyticsController::class, 'performance'])->name('performance');
     Route::get('/payroll', [AnalyticsController::class, 'payroll'])->name('payroll');
@@ -251,15 +230,10 @@ Route::prefix('analytics')->name('analytics.')->group(function () {
     Route::get('/overview', [AnalyticsController::class, 'overview'])->name('overview');
 });
 
-// Team 4 Employee Self-Service (ESS) Portal
+// Employee Self-Service (ESS) Portal
 Route::prefix('ess')->name('ess.')->group(function () {
     Route::get('/dashboard', [EssController::class, 'index'])->name('dashboard');
     Route::post('/claims/submit', [EssController::class, 'submitClaim'])->name('claims.submit');
-    Route::post('/hmo/apply', [EssController::class, 'applyHmo'])->name('hmo.apply');
-    Route::get('/hmo/card', [EssController::class, 'digitalCard'])->name('hmo.card');
-    Route::post('/loa/request', [EssController::class, 'requestEmergencyLoa'])->name('loa.request');
-    Route::post('/ape/schedule', [EssController::class, 'scheduleApe'])->name('ape.schedule');
-    Route::post('/life/beneficiaries', [EssController::class, 'updateLifeBeneficiaries'])->name('life.beneficiaries');
     Route::post('/bank-details', [EssController::class, 'updateBankDetails'])->name('bank-details');
 });
 

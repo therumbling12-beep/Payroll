@@ -19,6 +19,13 @@ class FuelReimbursementValidationService
     public const DEFAULT_PUMP_PRICE = 65.00;
     public const TOLERANCE_PERCENTAGE = 15.00;
 
+    protected DuplicateClaimDetectionService $duplicateService;
+
+    public function __construct(?DuplicateClaimDetectionService $duplicateService = null)
+    {
+        $this->duplicateService = $duplicateService ?? app(DuplicateClaimDetectionService::class);
+    }
+
     /**
      * Get default fuel efficiency (km/L) from company settings or fallback
      */
@@ -183,7 +190,7 @@ class FuelReimbursementValidationService
                 'odometer_start' => ! empty($data['odometer_start']) ? (float) $data['odometer_start'] : null,
                 'odometer_end' => ! empty($data['odometer_end']) ? (float) $data['odometer_end'] : null,
                 'expense_date' => $data['expense_date'] ?? now()->toDateString(),
-                'cutoff_period' => $data['cutoff_period'] ?? '2026-07-01_15',
+                'cutoff_period' => $data['cutoff_period'] ?? '2026-08-13_19',
                 'description' => $data['description'] ?? sprintf(
                     'Fuel reimbursement for %.1f km trip (%s). %s',
                     $distanceKm,
@@ -212,6 +219,8 @@ class FuelReimbursementValidationService
                     'auto_validated' => $calc['auto_validated'],
                 ],
             ]);
+
+            $this->duplicateService->flagClaimIfDuplicate($claim);
 
             return $claim;
         });

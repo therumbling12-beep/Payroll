@@ -18,6 +18,13 @@ class TenureProgressionService
         protected CounterOfferService $counterOfferService
     ) {}
 
+    public static function clearGradesCache(): void
+    {
+        if (app()->bound('tenure_grades_cache')) {
+            app()->instance('tenure_grades_cache', null);
+        }
+    }
+
     /**
      * Compute Next Step Progression for an Employee along the 7-Step Ladder (known.md §6.5)
      *
@@ -32,20 +39,22 @@ class TenureProgressionService
         $isDriver = str_contains(strtolower($employee->position ?? ''), 'driver');
         $currentSalary = (float) ($employee->monthly_rate ?: ($employee->daily_rate ? $employee->daily_rate * $workingDays : ($isDriver ? $driverDefault : $staffDefault)));
 
-        $grade = SalaryGrade::where('position_name', $employee->position)->first()
-            ?? SalaryGrade::where('min_salary', '<=', $currentSalary)->where('max_salary', '>=', $currentSalary)->first()
-            ?? SalaryGrade::first();
+        if (app()->bound('tenure_grades_cache') && app('tenure_grades_cache') !== null) {
+            $grades = app('tenure_grades_cache');
+        } else {
+            $grades = SalaryGrade::with('steps')->get();
+            app()->instance('tenure_grades_cache', $grades);
+        }
+
+        $grade = $grades->firstWhere('position_name', $employee->position)
+            ?? $grades->first(fn ($g) => $g->min_salary <= $currentSalary && $g->max_salary >= $currentSalary)
+            ?? $grades->first();
 
         $currentStepNum = max(1, min(7, (int) ($employee->current_step ?? 1)));
         $nextStepNum = min(7, $currentStepNum + 1);
 
-        $currentStepRecord = $grade ? SalaryStep::where('salary_grade_id', $grade->id)
-            ->where('step_number', $currentStepNum)
-            ->first() : null;
-
-        $nextStepRecord = $grade ? SalaryStep::where('salary_grade_id', $grade->id)
-            ->where('step_number', $nextStepNum)
-            ->first() : null;
+        $currentStepRecord = $grade ? $grade->steps->firstWhere('step_number', $currentStepNum) : null;
+        $nextStepRecord = $grade ? $grade->steps->firstWhere('step_number', $nextStepNum) : null;
 
         $stepIncrementPct = (float) CompanySetting::getValue('tenure_step_default_increment_pct', 3.0);
         $defaultAllowance = (float) CompanySetting::getValue('standard_employee_allowance_monthly', 3500.00);
@@ -185,5 +194,60 @@ class TenureProgressionService
 
             return true;
         });
+    }
+
+    /**
+     * Get Tenure Step Overview Grid and Eligible Candidate List.
+     *
+     * @return array<string, mixed>
+     */
+    public function getTenureStepOverview(): array
+    {
+        $salaryGrades = SalaryGrade::with('steps')->get();
+        $employees = Employee::with('department')
+            ->where('employment_status', '!=', 'resigned')
+            ->get();
+
+        $candidates = [];
+
+        foreach ($employees as $emp) {
+            $tenureYears = (float) $emp->years_of_service;
+            $currentStep = (int) ($emp->current_step ?? 1);
+            $grade = $salaryGrades->firstWhere('position_name', $emp->position);
+
+            if (! $grade || $grade->steps->isEmpty()) {
+                continue;
+            }
+
+            $steps = $grade->steps->sortBy('step_number');
+            $nextStep = $steps->firstWhere('step_number', $currentStep + 1);
+
+            $isEligible = $nextStep && ($tenureYears >= (float) $nextStep->years_required) && ($emp->step_status !== 'on_hold');
+
+            $currentSalary = (float) ($emp->monthly_rate ?: ($emp->daily_rate ? $emp->daily_rate * 26 : 0.0));
+            $nextSalary = $nextStep ? (float) $nextStep->step_salary : $currentSalary;
+
+            $candidates[] = [
+                'employee' => $emp,
+                'salary_grade' => $grade,
+                'current_step' => $currentStep,
+                'target_step' => $nextStep ? $nextStep->step_number : ($currentStep + 1),
+                'next_step' => $nextStep?->step_number,
+                'tenure_years' => $tenureYears,
+                'years_of_service' => $tenureYears,
+                'tenure_text' => $emp->tenure_text,
+                'next_step_years_required' => $nextStep?->years_required,
+                'current_salary' => $currentSalary,
+                'projected_salary' => round($nextSalary, 2),
+                'is_eligible' => $isEligible,
+                'step_status' => $emp->step_status ?? 'normal',
+                'hold_reason' => $emp->step_hold_reason,
+            ];
+        }
+
+        return [
+            'salary_grades' => $salaryGrades,
+            'candidates' => $candidates,
+        ];
     }
 }

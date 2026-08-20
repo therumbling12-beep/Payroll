@@ -9,10 +9,6 @@ use App\Http\Requests\ClaimCategoryRequest;
 use App\Http\Requests\ClaimPolicySettingsRequest;
 use App\Http\Requests\ClaimWorkflowActionRequest;
 use App\Http\Requests\DriverMilestoneIncentiveRequest;
-use App\Http\Requests\FuelReimbursementRequest;
-use App\Http\Requests\MaternityBenefitClaimRequest;
-use App\Http\Requests\MedicalAssistanceClaimRequest;
-use App\Http\Requests\OperationalExpenseRequest;
 use App\Models\Claim;
 use App\Models\ClaimCategory;
 use App\Models\CompanySetting;
@@ -131,92 +127,20 @@ class ClaimController extends Controller
     }
 
     /**
-     * Store a Validated Fuel Reimbursement Claim
+    /**
+     * Decommissioned Driver Incentive Action (Redirected to Expenses per client specifications)
      */
-    public function storeFuelClaim(FuelReimbursementRequest $request): RedirectResponse
+    public function incentives(Request $request): RedirectResponse
     {
-        $claim = $this->fuelService->fileFuelClaim($request->validated(), $request->file('receipt_file'));
-        $statusMsg = $claim->auto_validated
-            ? "Fuel claim [{$claim->receipt_number}] for PHP " . number_format((float) $claim->amount, 2) . " auto-verified within 15% tolerance."
-            : "Fuel claim [{$claim->receipt_number}] filed with flagged variance (+{$claim->fuel_variance_pct}%). Sent for HR review.";
-
-        return redirect()->back()->with('status', $statusMsg);
+        return redirect()->route('claims.expenses');
     }
 
     /**
-     * Store an Operational Expense Claim (Toll, Maintenance, Parking, Meal, etc.)
+     * Decommissioned Driver Incentive Batch Action (Redirected to Expenses per client specifications)
      */
-    public function storeOperationalExpense(OperationalExpenseRequest $request): RedirectResponse
+    public function batchQualifyIncentives(Request $request): RedirectResponse
     {
-        $claim = $this->expenseService->fileOperationalClaim($request->validated(), $request->file('receipt_file'));
-
-        return redirect()->back()->with('status', "Operational expense claim [{$claim->receipt_number}] for PHP " . number_format((float) $claim->amount, 2) . " submitted successfully.");
-    }
-
-
-    /**
-     * 3.3 Driver Ride-Based Incentive (TNVS Milestone System - known.md §7.4)
-     */
-    public function incentives(Request $request): View
-    {
-        $search = $request->query('search');
-        $currentCutoff = $request->query('cutoff', '2026-07-01_15');
-        $aging = $request->query('aging');
-
-        $query = Claim::with(['employee.department', 'categoryModel'])
-            ->where('type', 'incentive')
-            ->latest();
-
-        if ($aging === 'overdue') {
-            $query->whereIn('approval_status', ['pending_hr', 'pending_admin', 'pending_finance', 'pending'])
-                ->where('created_at', '<=', now()->subDays(3));
-        }
-
-        if ($search) {
-            $query->where(function ($q) use ($search) {
-                $q->where('receipt_number', 'like', "%{$search}%")
-                    ->orWhere('description', 'like', "%{$search}%")
-                    ->orWhereHas('employee', function ($eq) use ($search) {
-                        $eq->search($search);
-                    });
-            });
-        }
-
-        $claims = $query->paginate(10)->withQueryString();
-        $driverRoster = $this->milestoneService->qualifyDriverRoster($currentCutoff);
-        $tiers = $this->milestoneService->getTiers();
-
-        $stats = $this->getStatsForType('incentive');
-        $stats['qualified_drivers_count'] = $driverRoster->where('is_qualified', true)->count();
-        $stats['total_projected_incentives'] = (float) $driverRoster->sum('total_incentive_amount');
-
-        return view('payroll-benefits.claims.incentives', compact('claims', 'driverRoster', 'tiers', 'stats', 'search', 'currentCutoff', 'aging'));
-    }
-
-    /**
-     * Batch Qualify and Commit Driver Milestone Incentives into Active Claims
-     */
-    public function batchQualifyIncentives(DriverMilestoneIncentiveRequest $request): RedirectResponse
-    {
-        $cutoff = $request->input('cutoff_period', '2026-07-01_15');
-        $plansJson = $request->input('plans_json');
-        $plans = [];
-
-        if (is_string($plansJson)) {
-            $decoded = json_decode($plansJson, true);
-            if (is_array($decoded)) {
-                $plans = $decoded;
-            }
-        }
-
-        if (empty($plans)) {
-            $roster = $this->milestoneService->qualifyDriverRoster($cutoff);
-            $plans = $roster->where('is_qualified', true)->toArray();
-        }
-
-        $committedCount = $this->milestoneService->batchCommitDriverIncentives($plans, $cutoff);
-
-        return redirect()->back()->with('status', "Successfully committed {$committedCount} driver milestone incentives for cutoff period [{$cutoff}].");
+        return redirect()->route('claims.expenses');
     }
 
     /**
@@ -258,16 +182,6 @@ class ClaimController extends Controller
     }
 
     /**
-     * Store a new RA 11210 Maternity Benefit Advance Claim
-     */
-    public function storeMaternityClaim(MaternityBenefitClaimRequest $request): RedirectResponse
-    {
-        $claim = $this->maternityService->fileMaternityClaim($request->validated(), $request->file('receipt_file'));
-
-        return redirect()->back()->with('status', "Maternity benefit claim [{$claim->receipt_number}] for PHP " . number_format((float) $claim->amount, 2) . " filed successfully (SSS Advance: PHP " . number_format((float) $claim->sss_maternity_share, 2) . ", Company Differential: PHP " . number_format((float) $claim->company_maternity_topup, 2) . ").");
-    }
-
-    /**
      * Update Employer SSS Reimbursement Recovery Lifecycle Status
      */
     public function updateSssStatus(Request $request, Claim $claim): RedirectResponse
@@ -287,17 +201,6 @@ class ClaimController extends Controller
 
         return redirect()->back()->with('status', "SSS Reimbursement status for [{$claim->receipt_number}] updated to '{$validated['sss_reimbursement_status']}'.");
     }
-
-    /**
-     * Store an Internal Employee Medical Assistance Claim (PHP 10k de minimis cap)
-     */
-    public function storeMedicalClaim(MedicalAssistanceClaimRequest $request): RedirectResponse
-    {
-        $claim = $this->medicalService->fileMedicalClaim($request->validated(), $request->file('receipt_file'));
-
-        return redirect()->back()->with('status', "Medical assistance claim [{$claim->receipt_number}] for PHP " . number_format((float) $claim->amount, 2) . " submitted (Non-Taxable: PHP " . number_format((float) $claim->non_taxable_amount, 2) . ", Taxable: PHP " . number_format((float) $claim->taxable_amount, 2) . ").");
-    }
-
 
     /**
      * 3.1 Claim Category Setup & Management
@@ -333,8 +236,12 @@ class ClaimController extends Controller
         CompanySetting::setValue('fuel_default_efficiency_kpl', $validated['fuel_default_efficiency_kpl'], 'Default vehicle fuel efficiency in km/L');
         CompanySetting::setValue('fuel_tolerance_percentage', $validated['fuel_tolerance_percentage'], 'Allowable fuel variance tolerance percentage');
         CompanySetting::setValue('performance_bonus_multiplier', $validated['performance_bonus_multiplier'], 'Base monetary bonus per rating score point');
-        CompanySetting::setValue('driver_consistency_bonus', $validated['driver_consistency_bonus'], 'Monthly consistency bonus for drivers');
-        CompanySetting::setValue('driver_attendance_bonus', $validated['driver_attendance_bonus'], 'Perfect attendance bonus for drivers');
+        if (isset($validated['driver_consistency_bonus'])) {
+            CompanySetting::setValue('driver_consistency_bonus', $validated['driver_consistency_bonus'], 'Monthly consistency bonus for drivers');
+        }
+        if (isset($validated['driver_attendance_bonus'])) {
+            CompanySetting::setValue('driver_attendance_bonus', $validated['driver_attendance_bonus'], 'Perfect attendance bonus for drivers');
+        }
         CompanySetting::setValue('sss_max_msc', $validated['sss_max_msc'], 'Statutory SSS Monthly Salary Credit ceiling');
         CompanySetting::setValue('medical_de_minimis_annual_cap', $validated['medical_de_minimis_annual_cap'], 'Annual non-taxable medical assistance de minimis cap');
 
@@ -422,23 +329,23 @@ class ClaimController extends Controller
         $role = $request->input('role', 'HR Reviewer');
 
         $updated = match ($action) {
-            'approve_supervisor' => $this->governanceService->approveSupervisor($claim, $approvedAmount, $remarks),
             'approve_hr' => $this->governanceService->approveHR($claim, $approvedAmount, $remarks),
             'approve_finance' => $this->governanceService->approveFinance($claim, $approvedAmount, $remarks),
             'approve_admin' => $this->governanceService->approveAdmin($claim, $approvedAmount, $remarks),
             'queue_payroll' => $this->governanceService->queueToPayroll($claim),
             'mark_paid' => $this->governanceService->markPaid($claim),
+            'release_cash' => $this->governanceService->releaseCash($claim, $remarks),
             'reject' => $this->governanceService->rejectClaim($claim, $rejectionReason, $role),
             default => $claim,
         };
 
         $msg = match ($action) {
-            'approve_supervisor' => "Claim [{$claim->receipt_number}] approved by Immediate Supervisor.",
             'approve_hr' => "Claim [{$claim->receipt_number}] validated by HR and routed to Finance.",
             'approve_finance' => "Claim [{$claim->receipt_number}] approved by Finance and routed to Admin.",
             'approve_admin' => "Claim [{$claim->receipt_number}] fully authorized by Admin.",
             'queue_payroll' => "Claim [{$claim->receipt_number}] queued into Active Payroll.",
             'mark_paid' => "Claim [{$claim->receipt_number}] marked as Paid / Disbursed.",
+            'release_cash' => "Claim [{$claim->receipt_number}] successfully disbursed via Direct Cash Settlement.",
             'reject' => "Claim [{$claim->receipt_number}] rejected with documented remarks.",
             default => "Claim [{$claim->receipt_number}] updated.",
         };
@@ -466,7 +373,7 @@ class ClaimController extends Controller
      */
     public function syncPayroll(Request $request): RedirectResponse
     {
-        $cutoffPeriod = $request->input('cutoff_period', '2026-07-01_15');
+        $cutoffPeriod = $request->input('cutoff_period', '2026-08-13_19');
         $result = $this->payrollSyncService->syncApprovedClaimsToPayroll($cutoffPeriod);
 
         return redirect()->back()->with('status', "Active Payroll Sync completed for [{$cutoffPeriod}]: {$result['synced_claims_count']} claims synced (PHP " . number_format($result['total_non_taxable_reimbursements'], 2) . " Non-Taxable Reimbursements).");

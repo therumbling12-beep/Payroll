@@ -129,14 +129,18 @@
                         <!-- Fast Favorites -->
                         <div class="grid grid-cols-2 gap-2 mt-3">
                             <div class="p-2.5 bg-gray-50 rounded-lg flex items-center gap-2 cursor-pointer hover:bg-gray-100 transition-colors" onclick="selectQuickDestination('BGC, Taguig')">
-                                <span class="text-sm">💼</span>
+                                <span class="w-6 h-6 rounded-md bg-blue-50 text-blue-600 flex items-center justify-center flex-shrink-0">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                                </span>
                                 <div class="min-w-0">
                                     <p class="text-[10px] font-bold text-gray-800 truncate">Work</p>
                                     <p class="text-[8px] text-gray-400 truncate">BGC, Taguig</p>
                                 </div>
                             </div>
                             <div class="p-2.5 bg-gray-50 rounded-lg flex items-center gap-2 cursor-pointer hover:bg-gray-100 transition-colors" onclick="selectQuickDestination('Alabang, Muntinlupa')">
-                                <span class="text-sm">🏠</span>
+                                <span class="w-6 h-6 rounded-md bg-emerald-50 text-emerald-600 flex items-center justify-center flex-shrink-0">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+                                </span>
                                 <div class="min-w-0">
                                     <p class="text-[10px] font-bold text-gray-800 truncate">Home</p>
                                     <p class="text-[8px] text-gray-400 truncate">Alabang, Metro Manila</p>
@@ -177,49 +181,57 @@
                             <!-- Option 1 -->
                             <div id="option-sedan" class="p-3 bg-red-50/50 border-2 border-[#F44336] rounded-xl flex items-center justify-between cursor-pointer" onclick="selectVehicle('sedan', 180)">
                                 <div class="flex items-center gap-3">
-                                    <span class="text-xl">🚗</span>
+                                    <div class="w-8 h-8 rounded-lg bg-red-100 text-[#F44336] flex items-center justify-center">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h2"/></svg>
+                                    </div>
                                     <div>
                                         <p class="text-xs font-bold text-gray-800">TripWise Sedan</p>
                                         <p class="text-[9px] text-gray-400">4 Seats • 3 mins away</p>
                                     </div>
                                 </div>
-                                <p class="text-xs font-extrabold text-gray-900">₱180.00</p>
+                                <p class="text-xs font-extrabold text-gray-900">PHP 180.00</p>
                             </div>
                             <!-- Option 2 -->
                             <div id="option-premium" class="p-3 bg-gray-50 border border-gray-100 rounded-xl flex items-center justify-between cursor-pointer hover:bg-gray-100" onclick="selectVehicle('premium', 320)">
                                 <div class="flex items-center gap-3">
-                                    <span class="text-xl">⭐</span>
+                                    <div class="w-8 h-8 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg>
+                                    </div>
                                     <div>
                                         <p class="text-xs font-bold text-gray-800">TripWise Premium</p>
                                         <p class="text-[9px] text-gray-400">4 Seats • Executive Car</p>
                                     </div>
                                 </div>
-                                <p class="text-xs font-extrabold text-gray-900">₱320.00</p>
+                                <p class="text-xs font-extrabold text-gray-900">PHP 320.00</p>
                             </div>
                             <!-- Option 3 -->
                             <div id="option-xl" class="p-3 bg-gray-50 border border-gray-100 rounded-xl flex items-center justify-between cursor-pointer hover:bg-gray-100" onclick="selectVehicle('xl', 270)">
                                 <div class="flex items-center gap-3">
-                                    <span class="text-xl">🚐</span>
+                                    <div class="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
+                                    </div>
                                     <div>
                                         <p class="text-xs font-bold text-gray-800">TripWise SUV / XL</p>
                                         <p class="text-[9px] text-gray-400">6 Seats • Spacious</p>
                                     </div>
                                 </div>
-                                <p class="text-xs font-extrabold text-gray-900">₱270.00</p>
+                                <p class="text-xs font-extrabold text-gray-900">PHP 270.00</p>
                             </div>
                         </div>
 
                         <!-- Payment Method -->
                         <div class="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between mb-3">
                             <div class="flex items-center gap-2">
-                                <span class="text-sm">💳</span>
-                                <span class="text-[10px] font-bold text-gray-600">TripWise Pay (₱500.0)</span>
+                                <span class="w-5 h-5 rounded bg-gray-100 text-gray-600 flex items-center justify-center">
+                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
+                                </span>
+                                <span class="text-[10px] font-bold text-gray-600">TripWise Pay (PHP 500.00)</span>
                             </div>
                             <span class="text-[10px] text-gray-400 underline cursor-pointer">Change</span>
                         </div>
 
                         <button onclick="goToScreen('screen-matching')" class="w-full bg-[#F44336] hover:bg-[#D32F2F] text-white font-bold rounded-xl py-3 text-xs transition-all shadow-lg shadow-brand/20 active:scale-[0.98]">
-                            Confirm Booking (<span id="btn-price-display">₱180.00</span>)
+                            Confirm Booking (<span id="btn-price-display">PHP 180.00</span>)
                         </button>
                     </div>
                 </div>
@@ -255,14 +267,14 @@
                         <div class="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-4"></div>
                         
                         <div class="flex items-center gap-3">
-                            <div class="w-11 h-11 rounded-full bg-gray-100 border border-gray-200 overflow-hidden flex items-center justify-center text-lg">
-                                👨‍✈️
+                            <div class="w-11 h-11 rounded-full bg-gray-100 border border-gray-200 overflow-hidden flex items-center justify-center text-gray-600">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
                             </div>
                             <div class="flex-1 min-w-0">
                                 <h4 class="text-xs font-extrabold text-gray-900">Danilo Santos</h4>
                                 <p class="text-[9px] text-gray-400">Toyota Vios • Red (NQR 8847)</p>
                                 <div class="flex items-center gap-1.5 mt-0.5">
-                                    <span class="text-[9px] font-bold text-amber-600 bg-amber-50 px-1 py-0.2 rounded">★ 4.9</span>
+                                    <span class="text-[9px] font-bold text-amber-700 bg-amber-50 px-1 py-0.2 rounded border border-amber-200">Rating 4.9</span>
                                     <span class="text-[9px] text-gray-400">LTFRB Compliant</span>
                                 </div>
                             </div>
@@ -294,7 +306,9 @@
 
                         <div class="flex items-center gap-2 my-6">
                             @for ($i = 1; $i <= 5; $i++)
-                            <span onclick="setRating({{ $i }})" class="star-rating text-2xl cursor-pointer transition-transform hover:scale-125 text-gray-200" id="star-{{ $i }}">★</span>
+                            <span onclick="setRating({{ $i }})" class="star-rating cursor-pointer transition-transform hover:scale-125 text-gray-200 inline-block" id="star-{{ $i }}">
+                                <svg class="w-6 h-6 fill-current" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+                            </span>
                             @endfor
                         </div>
 

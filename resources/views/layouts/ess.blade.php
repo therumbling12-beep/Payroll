@@ -137,7 +137,7 @@
                 <span>• Employee Self-Service (ESS) Subsystem</span>
             </div>
             <div class="text-[11px] text-gray-500 font-mono">
-                Team 4: Payroll, Benefits & HMO Management
+                Team 4: Payroll & Statutory Benefits Management
             </div>
         </div>
     </footer>

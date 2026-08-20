@@ -342,10 +342,15 @@
                                     </div>
                                 </td>
                                 <td class="py-3.5 px-4">
-                                    <div class="font-semibold text-gray-800">
+                                    <div class="font-semibold text-gray-800 flex flex-wrap items-center gap-1.5">
                                         <span class="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-gray-100 text-gray-700">
                                             {{ $claim->expense_subtype ? strtoupper($claim->expense_subtype) : ($claim->categoryModel?->name ?? 'REIMBURSEMENT') }}
                                         </span>
+                                        @if($claim->isCashSettlement())
+                                            <span class="px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                                Cash Settlement
+                                            </span>
+                                        @endif
                                         @if($claim->merchant_name)
                                             <span class="text-xs text-gray-600 font-medium ml-1">{{ $claim->merchant_name }}</span>
                                         @endif
@@ -416,13 +421,33 @@
                                                 Finance Approve
                                             </button>
                                         @elseif($claim->approval_status === 'approved')
-                                            <form action="{{ route('claims.workflow-action', $claim->id) }}" method="POST" class="inline">
-                                                @csrf
-                                                <input type="hidden" name="action" value="queue_payroll">
-                                                <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[11px] px-3 py-1.5 rounded-xl transition-all shadow-xs cursor-pointer">
-                                                    Queue to Payroll
-                                                </button>
-                                            </form>
+                                            @if($claim->isCashSettlement())
+                                                <form action="{{ route('claims.workflow-action', $claim->id) }}" method="POST" class="inline">
+                                                    @csrf
+                                                    <input type="hidden" name="action" value="release_cash">
+                                                    <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[11px] px-3 py-1.5 rounded-xl transition-all shadow-xs cursor-pointer inline-flex items-center gap-1">
+                                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/>
+                                                        </svg>
+                                                        <span>Release Cash</span>
+                                                    </button>
+                                                </form>
+                                            @else
+                                                <form action="{{ route('claims.workflow-action', $claim->id) }}" method="POST" class="inline">
+                                                    @csrf
+                                                    <input type="hidden" name="action" value="queue_payroll">
+                                                    <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[11px] px-3 py-1.5 rounded-xl transition-all shadow-xs cursor-pointer">
+                                                        Queue to Payroll
+                                                    </button>
+                                                </form>
+                                            @endif
+                                        @elseif($claim->approval_status === 'paid')
+                                            <span class="px-2.5 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-lg text-[10px] font-black uppercase tracking-wider inline-flex items-center gap-1">
+                                                <svg class="w-3 h-3 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                                                </svg>
+                                                {{ $claim->cash_released_at ? 'Paid (Cash)' : 'Paid (Payroll)' }}
+                                            </span>
                                         @endif
                                     </div>
                                 </td>
@@ -544,6 +569,35 @@
                                         <p class="italic text-gray-800 bg-gray-50 p-2.5 rounded-xl border border-gray-100" x-text="selectedClaim ? selectedClaim.description : '—'"></p>
                                     </div>
                                 </div>
+
+                                <!-- Anti-Fraud & Duplicate Collision Alert Card -->
+                                <template x-if="selectedClaim && (selectedClaim.is_duplicate_flagged || selectedClaim.duplicate_risk_score > 0)">
+                                    <div :class="selectedClaim.duplicate_risk_score >= 80 ? 'bg-rose-50 border-rose-200 text-rose-900' : 'bg-amber-50 border-amber-200 text-amber-900'" class="border rounded-2xl p-4 text-xs space-y-2.5 shadow-2xs">
+                                        <div class="flex items-center justify-between">
+                                            <span class="font-black flex items-center gap-1.5 font-outfit">
+                                                <svg class="w-4 h-4 flex-shrink-0" :class="selectedClaim.duplicate_risk_score >= 80 ? 'text-rose-600' : 'text-amber-600'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                                                </svg>
+                                                <span x-text="selectedClaim.duplicate_risk_score >= 80 ? 'High-Risk Duplicate Collision Detected' : 'Potential Duplicate Overlap Flagged'"></span>
+                                            </span>
+                                            <span :class="selectedClaim.duplicate_risk_score >= 80 ? 'bg-rose-200/80 text-rose-900' : 'bg-amber-200/80 text-amber-900'" class="px-2.5 py-0.5 rounded-full text-[10px] font-black font-mono" x-text="'Risk Score: ' + selectedClaim.duplicate_risk_score + '/100'"></span>
+                                        </div>
+                                        <template x-if="selectedClaim.duplicate_match_details && selectedClaim.duplicate_match_details.length > 0">
+                                            <div class="space-y-1.5 pt-1 border-t border-rose-200/50">
+                                                <p class="text-[10px] font-bold uppercase tracking-wider text-rose-800">Colliding Claim Records:</p>
+                                                <div class="space-y-1 max-h-28 overflow-y-auto pr-1">
+                                                    <template x-for="match in selectedClaim.duplicate_match_details" :key="match.id">
+                                                        <div class="bg-white/90 border border-rose-200/60 rounded-xl px-3 py-1.5 flex items-center justify-between text-[11px] font-mono shadow-2xs">
+                                                            <span class="font-bold text-gray-900" x-text="match.receipt_number || ('Claim #' + match.id)"></span>
+                                                            <span class="text-gray-600" x-text="'PHP ' + Number(match.amount).toFixed(2) + ' (' + match.expense_date + ')'"></span>
+                                                            <span class="px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-rose-100 text-rose-800" x-text="match.match_type"></span>
+                                                        </div>
+                                                    </template>
+                                                </div>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </template>
 
                                 <!-- Gas Cost Checker Details if Fuel -->
                                 <template x-if="selectedClaim && selectedClaim.expense_subtype === 'fuel'">

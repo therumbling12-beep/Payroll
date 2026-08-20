@@ -35,12 +35,21 @@ beforeEach(function () {
     CompanySetting::setValue('driver_pool_company_match_pct', '50.0');
 });
 
+test('Driver insurance standalone index page renders successfully with statistics', function () {
+    $response = $this->get(route('driver-insurance.index'));
+
+    $response->assertOk()
+        ->assertSee('Driver Accident Insurance Pool')
+        ->assertSee('Danilo Reyes')
+        ->assertSee('Driver 3% Deductions');
+});
+
 test('Step 1: Driver files accident claim with evidence documents', function () {
     $policeReport = UploadedFile::fake()->create('police_blotter.pdf', 150);
     $medicalReceipt = UploadedFile::fake()->image('medical_or.jpg');
     $damagePhoto = UploadedFile::fake()->image('bumper_damage.jpg');
 
-    $response = $this->post(route('hmo.file-claim'), [
+    $response = $this->post(route('driver-insurance.file-claim'), [
         'employee_id' => $this->driver->id,
         'incident_type' => 'Work Injury',
         'incident_date' => now()->subDays(2)->toDateString(),
@@ -54,7 +63,7 @@ test('Step 1: Driver files accident claim with evidence documents', function () 
         'incident_photo' => $damagePhoto,
     ]);
 
-    $response->assertRedirect(route('hmo.driver-insurance'))
+    $response->assertRedirect(route('driver-insurance.index'))
         ->assertSessionHas('status');
 
     $claim = AccidentClaim::where('employee_id', $this->driver->id)->first();
@@ -78,12 +87,12 @@ test('Step 2: HR Team 4 validates claim and sets approved amount ceiling', funct
         'description' => 'Road accident injury',
     ]);
 
-    $response = $this->post(route('hmo.claim.approve-hr', $claim), [
+    $response = $this->post(route('driver-insurance.claim.approve-hr', $claim), [
         'approved_amount' => 14000.00,
         'remarks' => 'Verified active trip status and medical receipts.',
     ]);
 
-    $response->assertRedirect(route('hmo.driver-insurance'))
+    $response->assertRedirect(route('driver-insurance.index'))
         ->assertSessionHas('status');
 
     $claim->refresh();
@@ -103,11 +112,11 @@ test('Step 3: Fleet Admin reviews vehicle assessment and clears claim', function
     ]);
     $service->approveHr($claim, 8000.00, 'HR Verified');
 
-    $response = $this->post(route('hmo.claim.approve-admin', $claim), [
+    $response = $this->post(route('driver-insurance.claim.approve-admin', $claim), [
         'remarks' => 'Vehicle inspection and police blotter verified.',
     ]);
 
-    $response->assertRedirect(route('hmo.driver-insurance'))
+    $response->assertRedirect(route('driver-insurance.index'))
         ->assertSessionHas('status');
 
     $claim->refresh();
@@ -127,11 +136,11 @@ test('Step 4: Finance Team 5 authorizes disbursement and updates Pool Ledger', f
     $service->approveHr($claim, 9500.00, 'HR Verified');
     $service->approveAdmin($claim, 'Admin Cleared');
 
-    $response = $this->post(route('hmo.claim.approve-finance', $claim), [
+    $response = $this->post(route('driver-insurance.claim.approve-finance', $claim), [
         'remarks' => 'Disbursement authorized from Driver Pool.',
     ]);
 
-    $response->assertRedirect(route('hmo.driver-insurance'))
+    $response->assertRedirect(route('driver-insurance.index'))
         ->assertSessionHas('status');
 
     $claim->refresh();
@@ -154,11 +163,11 @@ test('Return claim records return reason and moves status to returned', function
         'description' => 'Missing receipt sample',
     ]);
 
-    $response = $this->post(route('hmo.claim.return', $claim), [
+    $response = $this->post(route('driver-insurance.claim.return', $claim), [
         'remarks' => 'Please attach official BIR receipts with clinic TIN number.',
     ]);
 
-    $response->assertRedirect(route('hmo.driver-insurance'))
+    $response->assertRedirect(route('driver-insurance.index'))
         ->assertSessionHas('status');
 
     $claim->refresh();
@@ -168,12 +177,12 @@ test('Return claim records return reason and moves status to returned', function
 });
 
 test('Driver Pool contribution rate and company match settings can be updated', function () {
-    $response = $this->post(route('hmo.update-contribution-rate'), [
+    $response = $this->post(route('driver-insurance.update-contribution-rate'), [
         'contribution_rate' => 3.5,
         'company_match_pct' => 75.0,
     ]);
 
-    $response->assertRedirect(route('hmo.driver-insurance'))
+    $response->assertRedirect(route('driver-insurance.index'))
         ->assertSessionHas('status');
 
     $rate = (float) CompanySetting::getValue('driver_benefit_contribution_rate');
@@ -193,7 +202,7 @@ test('Export Pool Ledger CSV returns streamed CSV with accurate headers', functi
         'description' => 'Payroll deduction for Danilo Reyes',
     ]);
 
-    $response = $this->get(route('hmo.driver-insurance.export-ledger'));
+    $response = $this->get(route('driver-insurance.export-ledger'));
 
     $response->assertOk()
         ->assertHeader('Content-Type', 'text/csv; charset=UTF-8');

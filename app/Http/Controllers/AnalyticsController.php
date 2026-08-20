@@ -8,7 +8,6 @@ use App\Models\AccidentClaim;
 use App\Models\BudgetRequisition;
 use App\Models\Claim;
 use App\Models\Employee;
-use App\Models\HmoEnrollment;
 use App\Models\SalaryComputation;
 use Illuminate\View\View;
 
@@ -27,7 +26,7 @@ class AnalyticsController extends Controller
         $totalNetPayroll = (float) SalaryComputation::sum('net_pay');
         $totalDeductions = (float) SalaryComputation::sum('total_deductions');
 
-        $activeHmoEnrolled = HmoEnrollment::where('status', 'active')->count();
+        $driverPoolEnrolled = $totalDrivers;
         $totalClaimsDisbursed = (float) Claim::whereIn('approval_status', ['approved', 'payroll_queued', 'paid'])->sum('amount');
         $pendingClaimsCount = Claim::whereIn('approval_status', ['pending_hr', 'pending_admin', 'pending_finance', 'pending'])->count();
 
@@ -38,7 +37,7 @@ class AnalyticsController extends Controller
             'totalGrossPayroll',
             'totalNetPayroll',
             'totalDeductions',
-            'activeHmoEnrolled',
+            'driverPoolEnrolled',
             'totalClaimsDisbursed',
             'pendingClaimsCount'
         ));
@@ -115,15 +114,15 @@ class AnalyticsController extends Controller
         $totalApprovedBudget = (float) BudgetRequisition::where('status', 'approved')->sum('amount');
         $totalPendingBudget = (float) BudgetRequisition::where('status', 'awaiting_approval')->sum('amount');
 
-        $totalHmoEnrolled = HmoEnrollment::count();
-        $totalDriverAccidentFund = (float) SalaryComputation::sum('hmo_insurance_deduction');
+        $totalDriverInsuranceMembers = Employee::where('position', 'like', '%Driver%')->where('employment_status', '!=', 'terminated')->count();
+        $totalDriverAccidentFund = (float) \App\Models\DriverPoolLedger::where('entry_type', 'driver_contribution')->sum('amount');
         $totalAccidentPayouts = (float) AccidentClaim::sum('bill_amount');
 
         return view('payroll-benefits.analytics.budget', compact(
             'totalRequisitions',
             'totalApprovedBudget',
             'totalPendingBudget',
-            'totalHmoEnrolled',
+            'totalDriverInsuranceMembers',
             'totalDriverAccidentFund',
             'totalAccidentPayouts'
         ));

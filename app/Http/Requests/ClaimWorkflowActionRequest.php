@@ -24,7 +24,7 @@ class ClaimWorkflowActionRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'action' => ['required', 'string', 'in:approve_supervisor,approve_hr,approve_finance,approve_admin,reject,queue_payroll,mark_paid'],
+            'action' => ['required', 'string', 'in:approve_supervisor,approve_hr,approve_finance,approve_admin,reject,queue_payroll,mark_paid,release_cash'],
             'approved_amount' => ['nullable', 'numeric', 'min:0.01'],
             'remarks' => ['nullable', 'string', 'max:1000'],
             'rejection_reason' => ['required_if:action,reject', 'nullable', 'string', 'max:1000'],
